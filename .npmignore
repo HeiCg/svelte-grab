@@ -1,0 +1,8 @@
+src/
+node_modules/
+.svelte-kit/
+*.log
+.DS_Store
+tsconfig.json
+svelte.config.js
+.gitignore
