@@ -31,6 +31,21 @@ in component at src/routes/+layout.svelte:15
 
 ## Installation
 
+### From GitHub (recommended for now)
+
+```bash
+# yarn
+yarn add github:HeiCg/svelte-grab
+
+# npm
+npm install github:HeiCg/svelte-grab
+
+# pnpm
+pnpm add github:HeiCg/svelte-grab
+```
+
+### From npm (coming soon)
+
 ```bash
 npm install svelte-grab
 ```
@@ -51,9 +66,21 @@ Add to your root layout (works only in development mode):
 
 Then:
 
-1. **Alt+Click** (Option+Click on Mac) any element
-2. Component stack is automatically copied to clipboard
-3. Paste into your coding agent prompt
+1. **Hold Alt** (Option on Mac) to enter selection mode
+2. **Hover** over elements to see them highlighted with file:line tooltip
+3. **Alt+Click** to capture the component stack
+4. Component stack is automatically copied to clipboard
+5. Paste into your coding agent prompt
+
+## Selection Mode
+
+When you hold the modifier key (Alt by default), SvelteGrab enters **selection mode**:
+
+- Elements with Svelte metadata are **highlighted** with a colored border
+- A **tooltip** follows your cursor showing the file path and line number
+- This helps you identify exactly which component you're about to capture
+
+This is especially useful when working with forms or nested components where multiple elements overlap.
 
 ## Props
 
