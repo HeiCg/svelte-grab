@@ -120,6 +120,8 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 | `enableAgentRelay` | `boolean` | `false` | Enable WebSocket relay |
 | `agentRelayUrl` | `string` | `'ws://localhost:4722'` | Relay server URL |
 | `agentId` | `string` | `'claude-code'` | Agent identifier |
+| `enableMcp` | `boolean` | `false` | Auto-send grabs to MCP server |
+| `mcpPort` | `number` | `4723` | MCP server port |
 
 ### Output Formats
 
@@ -286,6 +288,105 @@ const server = await createRelayServer({
 
 The relay bridges browser selections to agent providers. Press Tab in selection mode to open the inline prompt, or use the context menu "Send to Agent" action.
 
+## MCP Server
+
+A simpler alternative to the WebSocket relay. The MCP server lets Claude Code (and other MCP-compatible agents) receive grabbed element context directly via HTTP — no separate relay process needed.
+
+**How it works:**
+
+```
+Browser: Alt+Click element -> POST http://localhost:4723/context (automatic)
+Claude Code: calls get_element_context tool -> receives the grabbed context
+```
+
+### 1. Start the MCP server
+
+```bash
+npx svelte-grab mcp
+npx svelte-grab mcp --port=4723
+```
+
+Or use the standalone binary:
+
+```bash
+npx svelte-grab-mcp
+npx svelte-grab-mcp --port=4723
+```
+
+For direct Claude Code integration via stdio:
+
+```bash
+npx svelte-grab mcp --stdio
+```
+
+### 2. Enable in your app
+
+```svelte
+<SvelteGrab enableMcp />
+
+<!-- Custom port -->
+<SvelteGrab enableMcp mcpPort={4723} />
+
+<!-- With SvelteDevKit -->
+<SvelteDevKit enableMcp />
+```
+
+When `enableMcp` is enabled, every grab automatically sends the captured context to the MCP server via a fire-and-forget HTTP POST. The UI is never blocked — if the server isn't running, the request silently fails.
+
+### 3. Claude Code configuration
+
+Add to your Claude Code MCP config (`.claude/settings.json` or equivalent):
+
+```json
+{
+  "mcpServers": {
+    "svelte-grab": {
+      "command": "npx",
+      "args": ["svelte-grab-mcp", "--stdio"]
+    }
+  }
+}
+```
+
+Or connect to the HTTP server:
+
+```json
+{
+  "mcpServers": {
+    "svelte-grab": {
+      "type": "url",
+      "url": "http://localhost:4723/mcp"
+    }
+  }
+}
+```
+
+### 4. Programmatic usage
+
+```typescript
+import { startMcpServer } from 'svelte-grab/mcp';
+
+// HTTP mode
+const server = await startMcpServer({ port: 4723 });
+
+// Stdio mode (for direct agent integration)
+await startMcpServer({ stdio: true });
+```
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_element_context` | Returns the last grabbed element context (component stack, HTML preview, optional prompt). Context is cleared after reading. |
+
+### HTTP Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Health check. Returns `{ status: "ok", hasContext: boolean }` |
+| `POST` | `/context` | Receive context from browser. Body: `{ content: string[], prompt?: string }` |
+| `POST` | `/mcp` | MCP protocol endpoint (StreamableHTTP transport) |
+
 ## Plugin System
 
 Extend SvelteGrab with custom hooks, context menu actions, and content transforms.
@@ -426,6 +527,7 @@ SvelteGrab walks up this metadata tree to build the full component hierarchy. Al
 | `html-to-image` | Screenshot capture |
 | `ws` | Agent relay server |
 | `@anthropic-ai/claude-agent-sdk` | Claude Code relay provider |
+| `@modelcontextprotocol/sdk` | MCP protocol transport (stdio/StreamableHTTP) |
 
 ## License
 
