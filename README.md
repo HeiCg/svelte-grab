@@ -48,6 +48,10 @@ svelte-grab ships 7 specialized tools + a unified wrapper:
 
 ```bash
 npm install svelte-grab
+# or
+yarn add svelte-grab
+# or
+pnpm add svelte-grab
 ```
 
 ### Setup
