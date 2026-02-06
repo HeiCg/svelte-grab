@@ -16,7 +16,7 @@
   "author": "Quality AI Solutions",
   "repository": {
     "type": "git",
-    "url": "https://github.com/qualityaisolutions/svelte-grab"
+    "url": "https://github.com/HeiCg/svelte-grab"
   },
   "type": "module",
   "svelte": "./dist/index.js",
