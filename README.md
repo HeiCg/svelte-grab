@@ -93,6 +93,7 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 - **History** — Tracks last 20 grabs with timestamps
 - **Arrow navigation** — Use arrow keys in selection mode to walk the component tree
 - **Agent relay** — Send selections to Claude Code or other agents via WebSocket
+- **Session management** — Undo, redo, resume, and retry agent actions from the UI
 - **Plugin system** — Extend with custom hooks, actions, and content transforms
 - **Keyboard copy** — Cmd+C / Ctrl+C to copy in selection mode
 
@@ -288,6 +289,40 @@ const server = await createRelayServer({
 
 The relay bridges browser selections to agent providers. Press Tab in selection mode to open the inline prompt, or use the context menu "Send to Agent" action.
 
+### Session Management
+
+The relay supports full session lifecycle — undo, redo, resume, and retry — so you can iterate on agent changes without starting over.
+
+**After a successful agent action:**
+- **Undo** — Click "Undo" in the status toast to revert the last change
+- **Resume** — Click "Resume" to open the prompt modal for a follow-up instruction in the same session context
+
+**After a failed agent action:**
+- **Retry** — Click "Retry" in the status toast to re-send the same request
+
+**Session history:**
+- The prompt modal shows a "History" toggle to browse all past interactions
+- Each entry shows the prompt, result/error, and timestamp
+- Click "Resume" on any entry to continue from that point
+- The toolbar shows a "Sessions" button when history is available
+
+The relay server persists session context per connection, so undo/redo/resume send follow-up prompts with the previous interaction context. Retry re-sends the exact original request.
+
+```typescript
+// Programmatic session management via AgentClient
+import { AgentClient } from 'svelte-grab/core';
+
+const client = new AgentClient();
+client.connect('ws://localhost:4722');
+
+// After a request completes:
+client.undo();                          // Undo last change
+client.redo();                          // Redo undone change
+client.resume('Now make it responsive'); // Follow-up prompt
+client.retry();                         // Re-send last request
+client.getHistory();                    // Get all interactions
+```
+
 ## MCP Server
 
 A simpler alternative to the WebSocket relay. The MCP server lets Claude Code (and other MCP-compatible agents) receive grabbed element context directly via HTTP — no separate relay process needed.
@@ -378,6 +413,10 @@ await startMcpServer({ stdio: true });
 | Tool | Description |
 |------|-------------|
 | `get_element_context` | Returns the last grabbed element context (component stack, HTML preview, optional prompt). Context is cleared after reading. |
+| `undo_last_action` | Returns an undo instruction with the original context from the last interaction. Use this to tell the agent to revert its last change. |
+| `get_session_history` | Returns the list of recent interactions (up to 20) with timestamps, prompts, and content previews. |
+
+The MCP server maintains a session history (up to 50 entries) of all contexts received via `POST /context`. This enables undo and history browsing without a WebSocket connection.
 
 ### HTTP Endpoints
 
