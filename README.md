@@ -46,19 +46,15 @@ svelte-grab ships 7 specialized tools + a unified wrapper:
 
 ## Installation
 
-```bash
-npm install svelte-grab
-```
-
-### Quick Setup (CLI)
+This package is not yet published to npm. Install directly from GitHub:
 
 ```bash
-npx svelte-grab init
+npm install github:HeiCg/svelte-grab
+# or
+yarn add github:HeiCg/svelte-grab
 ```
 
-This auto-detects SvelteKit and injects `<SvelteGrab />` into your root layout.
-
-### Manual Setup
+### Setup
 
 ```svelte
 <!-- src/routes/+layout.svelte -->
