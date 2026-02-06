@@ -17,6 +17,11 @@ export interface RelayServerOptions {
  * Create and start a WebSocket relay server.
  * Bridges browser clients to agent providers.
  */
+interface SessionEntry {
+	agentId: string;
+	lastContext: { content: string[]; prompt: string; selectedCount: number };
+}
+
 export async function createRelayServer(options: RelayServerOptions = {}): Promise<{ close: () => void }> {
 	const { port = 4722, providers = [] } = options;
 
@@ -33,6 +38,9 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 	for (const p of providers) {
 		providerMap.set(p.name, p);
 	}
+
+	// Session store for retry support
+	const sessionStore = new Map<string, SessionEntry>();
 
 	const wss = new WebSocketServer({ port });
 
@@ -55,6 +63,36 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 				msg = JSON.parse(data.toString());
 			} catch {
 				return;
+			}
+
+			// Helper to create callbacks for a session
+			function createCallbacks(sessionId: string) {
+				return {
+					onStatus: (message: string) => {
+						const statusMsg: AgentStatusMessage = {
+							type: 'agent-status',
+							sessionId,
+							message
+						};
+						if (ws.readyState === 1) ws.send(JSON.stringify(statusMsg));
+					},
+					onDone: (result: string) => {
+						const doneMsg: AgentDoneMessage = {
+							type: 'agent-done',
+							sessionId,
+							result
+						};
+						if (ws.readyState === 1) ws.send(JSON.stringify(doneMsg));
+					},
+					onError: (error: string) => {
+						const errMsg: AgentErrorMessage = {
+							type: 'agent-error',
+							sessionId,
+							error
+						};
+						if (ws.readyState === 1) ws.send(JSON.stringify(errMsg));
+					}
+				};
 			}
 
 			switch (msg.type) {
@@ -80,38 +118,65 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 						return;
 					}
 
-					await provider.handleRequest(msg.sessionId, msg.context, {
-						onStatus: (message) => {
-							const statusMsg: AgentStatusMessage = {
-								type: 'agent-status',
-								sessionId: msg.sessionId,
-								message
-							};
-							if (ws.readyState === 1) ws.send(JSON.stringify(statusMsg));
-						},
-						onDone: (result) => {
-							const doneMsg: AgentDoneMessage = {
-								type: 'agent-done',
-								sessionId: msg.sessionId,
-								result
-							};
-							if (ws.readyState === 1) ws.send(JSON.stringify(doneMsg));
-						},
-						onError: (error) => {
-							const errMsg: AgentErrorMessage = {
-								type: 'agent-error',
-								sessionId: msg.sessionId,
-								error
-							};
-							if (ws.readyState === 1) ws.send(JSON.stringify(errMsg));
-						}
+					// Save session for retry
+					sessionStore.set(msg.sessionId, {
+						agentId: msg.agentId,
+						lastContext: msg.context
 					});
+
+					await provider.handleRequest(msg.sessionId, msg.context, createCallbacks(msg.sessionId));
 					break;
 				}
 
 				case 'agent-abort': {
 					for (const provider of providerMap.values()) {
 						provider.abort(msg.sessionId);
+					}
+					break;
+				}
+
+				case 'agent-undo': {
+					const session = sessionStore.get(msg.sessionId);
+					const provider = session ? providerMap.get(session.agentId) : providerMap.values().next().value;
+					if (provider) {
+						await provider.undo(msg.sessionId, createCallbacks(msg.sessionId));
+					}
+					break;
+				}
+
+				case 'agent-redo': {
+					const session = sessionStore.get(msg.sessionId);
+					const provider = session ? providerMap.get(session.agentId) : providerMap.values().next().value;
+					if (provider) {
+						await provider.redo(msg.sessionId, createCallbacks(msg.sessionId));
+					}
+					break;
+				}
+
+				case 'agent-resume': {
+					const session = sessionStore.get(msg.sessionId);
+					const provider = session ? providerMap.get(session.agentId) : providerMap.values().next().value;
+					if (provider) {
+						await provider.resume(msg.sessionId, msg.prompt, createCallbacks(msg.sessionId));
+					}
+					break;
+				}
+
+				case 'agent-retry': {
+					const session = sessionStore.get(msg.sessionId);
+					if (!session) {
+						const errMsg: AgentErrorMessage = {
+							type: 'agent-error',
+							sessionId: msg.sessionId,
+							error: 'No previous request to retry for this session'
+						};
+						ws.send(JSON.stringify(errMsg));
+						break;
+					}
+
+					const provider = providerMap.get(session.agentId);
+					if (provider) {
+						await provider.handleRequest(msg.sessionId, session.lastContext, createCallbacks(msg.sessionId));
 					}
 					break;
 				}

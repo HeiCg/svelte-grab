@@ -446,6 +446,34 @@ export interface AgentContext {
 	selectedCount: number;
 }
 
+export interface AgentHistoryEntry {
+	/** User prompt text */
+	prompt: string;
+	/** Content sent with the request */
+	content: string[];
+	/** Agent result (if completed) */
+	result?: string;
+	/** Agent error (if failed) */
+	error?: string;
+	/** Timestamp of the interaction */
+	timestamp: number;
+}
+
+export interface AgentSession {
+	/** Session ID */
+	id: string;
+	/** Prompts sent in this session */
+	prompts: string[];
+	/** Results received in this session */
+	results: string[];
+	/** Errors received in this session */
+	errors: string[];
+	/** Timestamps for each interaction */
+	timestamps: number[];
+	/** Current session status */
+	status: 'idle' | 'pending' | 'done' | 'error';
+}
+
 export interface CopyContext {
 	/** Copy format */
 	format: 'agent' | 'paths' | 'html';

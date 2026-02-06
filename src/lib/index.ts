@@ -29,6 +29,8 @@ export type {
 	ActionContext,
 	SvelteGrabAPI,
 	AgentContext,
+	AgentHistoryEntry,
+	AgentSession,
 	CopyContext,
 
 	// StateGrab types

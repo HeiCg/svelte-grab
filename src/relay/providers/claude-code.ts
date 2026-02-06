@@ -4,9 +4,15 @@ import type { AgentProvider, AgentProviderCallbacks } from './base.js';
  * Claude Code agent provider using @anthropic-ai/claude-agent-sdk.
  * This provider streams responses from Claude Code via the SDK's query() API.
  */
+interface SessionHistory {
+	prompts: string[];
+	results: string[];
+}
+
 export class ClaudeCodeProvider implements AgentProvider {
 	readonly name = 'claude-code';
 	private activeSessions = new Map<string, AbortController>();
+	private sessionHistory = new Map<string, SessionHistory>();
 	private sdk: any = null;
 
 	/**
@@ -44,6 +50,12 @@ export class ClaudeCodeProvider implements AgentProvider {
 
 			const fullPrompt = `${contextBlock}${context.prompt}`;
 
+			// Save prompt to session history
+			if (!this.sessionHistory.has(sessionId)) {
+				this.sessionHistory.set(sessionId, { prompts: [], results: [] });
+			}
+			this.sessionHistory.get(sessionId)!.prompts.push(fullPrompt);
+
 			callbacks.onStatus('Processing...');
 
 			// Use the SDK's query function
@@ -54,8 +66,13 @@ export class ClaudeCodeProvider implements AgentProvider {
 
 			if (controller.signal.aborted) return;
 
+			const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+
+			// Save result to session history
+			this.sessionHistory.get(sessionId)!.results.push(resultStr);
+
 			this.activeSessions.delete(sessionId);
-			callbacks.onDone(typeof result === 'string' ? result : JSON.stringify(result));
+			callbacks.onDone(resultStr);
 		} catch (err: any) {
 			this.activeSessions.delete(sessionId);
 
@@ -71,5 +88,39 @@ export class ClaudeCodeProvider implements AgentProvider {
 			controller.abort();
 			this.activeSessions.delete(sessionId);
 		}
+	}
+
+	async undo(sessionId: string, callbacks: AgentProviderCallbacks): Promise<void> {
+		const history = this.sessionHistory.get(sessionId);
+		const contextHint = history && history.prompts.length > 0
+			? `\n\nPrevious prompt was: ${history.prompts[history.prompts.length - 1]}`
+			: '';
+
+		await this.handleRequest(sessionId, {
+			content: [],
+			prompt: `Undo the last change you made.${contextHint}`,
+			selectedCount: 0
+		}, callbacks);
+	}
+
+	async redo(sessionId: string, callbacks: AgentProviderCallbacks): Promise<void> {
+		await this.handleRequest(sessionId, {
+			content: [],
+			prompt: 'Redo the change you just undid.',
+			selectedCount: 0
+		}, callbacks);
+	}
+
+	async resume(sessionId: string, prompt: string, callbacks: AgentProviderCallbacks): Promise<void> {
+		const history = this.sessionHistory.get(sessionId);
+		const contextBlock = history && history.results.length > 0
+			? `\n\nPrevious interaction result: ${history.results[history.results.length - 1]}`
+			: '';
+
+		await this.handleRequest(sessionId, {
+			content: [],
+			prompt: `${prompt}${contextBlock}`,
+			selectedCount: 0
+		}, callbacks);
 	}
 }

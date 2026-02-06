@@ -14,6 +14,18 @@ interface ContextPayload {
 // Stored context — last context sent by the browser
 let storedContext: ContextPayload | null = null;
 
+// Session history — list of contexts received
+interface SessionHistoryEntry {
+	id: string;
+	content: string[];
+	prompt?: string;
+	result?: string;
+	timestamp: number;
+}
+
+let sessionHistory: SessionHistoryEntry[] = [];
+let sessionCounter = 0;
+
 /**
  * Validate that the payload has the expected shape.
  */
@@ -109,6 +121,57 @@ function registerMcpTools(server: any): void {
 			};
 		}
 	);
+
+	server.tool(
+		'undo_last_action',
+		'Returns an undo instruction with the original context from the last interaction. Use this to instruct the agent to undo its last change.',
+		{},
+		async () => {
+			if (sessionHistory.length === 0) {
+				return {
+					content: [{ type: 'text', text: 'No previous actions to undo. No session history available.' }]
+				};
+			}
+
+			const lastEntry = sessionHistory[sessionHistory.length - 1];
+			const contextInfo = lastEntry.content.length > 0
+				? `\n\nOriginal context was:\n${lastEntry.content.join('\n')}`
+				: '';
+			const promptInfo = lastEntry.prompt
+				? `\nOriginal instruction was: ${lastEntry.prompt}`
+				: '';
+
+			return {
+				content: [{ type: 'text', text: `Undo the last change.${promptInfo}${contextInfo}` }]
+			};
+		}
+	);
+
+	server.tool(
+		'get_session_history',
+		'Returns the list of recent interactions (contexts sent by the browser). Each entry includes the content, prompt, and timestamp.',
+		{},
+		async () => {
+			if (sessionHistory.length === 0) {
+				return {
+					content: [{ type: 'text', text: 'No session history. No contexts have been sent yet.' }]
+				};
+			}
+
+			const entries = sessionHistory.slice(-20).map((entry) => {
+				const time = new Date(entry.timestamp).toLocaleTimeString();
+				const prompt = entry.prompt ? `Prompt: ${entry.prompt}` : 'No prompt';
+				const contentPreview = entry.content.length > 0
+					? `Content: ${entry.content[0].slice(0, 100)}${entry.content[0].length > 100 ? '...' : ''}`
+					: 'No content';
+				return `[${time}] ${entry.id}\n  ${prompt}\n  ${contentPreview}`;
+			});
+
+			return {
+				content: [{ type: 'text', text: `Session history (${sessionHistory.length} entries):\n\n${entries.join('\n\n')}` }]
+			};
+		}
+	);
 }
 
 /**
@@ -146,6 +209,21 @@ function startHttpServer(port: number): Promise<{ close: () => void }> {
 					}
 
 					storedContext = data;
+
+					// Save to session history
+					sessionCounter++;
+					sessionHistory.push({
+						id: `session-${sessionCounter}`,
+						content: data.content,
+						prompt: data.prompt,
+						timestamp: Date.now()
+					});
+
+					// Keep last 50 entries
+					if (sessionHistory.length > 50) {
+						sessionHistory = sessionHistory.slice(-50);
+					}
+
 					sendJson(res, 200, { ok: true });
 				} catch {
 					sendJson(res, 400, { error: 'Invalid JSON' });

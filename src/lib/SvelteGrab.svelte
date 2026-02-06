@@ -21,6 +21,7 @@
 		ContextMenuAction,
 		ActionContext,
 		AgentContext,
+		AgentHistoryEntry,
 		CopyContext
 	} from './types.js';
 	import { PluginRegistry } from './core/plugin-registry.js';
@@ -154,6 +155,9 @@
 	let agentStatus = $state('');
 	let agentStatusVisible = $state(false);
 	let agentConnected = $state(false);
+	let agentHistory = $state<AgentHistoryEntry[]>([]);
+	let lastAgentStatus = $state<'idle' | 'pending' | 'done' | 'error'>('idle');
+	let showAgentHistory = $state(false);
 
 	// ============================================================
 	// Arrow navigation state
@@ -1108,6 +1112,7 @@
 
 		agentStatus = 'Sending to agent...';
 		agentStatusVisible = true;
+		lastAgentStatus = 'pending';
 		showAgentPrompt = false;
 		agentPromptText = '';
 	}
@@ -1225,16 +1230,21 @@
 				agentClient.onStatus = (msg) => {
 					agentStatus = msg;
 					agentStatusVisible = true;
+					lastAgentStatus = 'pending';
 				};
 				agentClient.onDone = (result) => {
 					agentStatus = 'Agent done!';
-					setTimeout(() => (agentStatusVisible = false), 3000);
+					lastAgentStatus = 'done';
+					agentStatusVisible = true;
+					agentHistory = agentClient!.getHistory();
 					pluginRegistry.executeHook('afterAgentResponse', result);
 					console.log('[SvelteGrab] Agent response:', result);
 				};
 				agentClient.onError = (err) => {
 					agentStatus = `Agent error: ${err}`;
-					setTimeout(() => (agentStatusVisible = false), 5000);
+					lastAgentStatus = 'error';
+					agentStatusVisible = true;
+					agentHistory = agentClient!.getHistory();
 				};
 				agentClient.onConnectionChange = (connected) => {
 					agentConnected = connected;
@@ -1495,6 +1505,14 @@
 			</button>
 		{/if}
 		{#if enableAgentRelay}
+			{#if agentHistory.length > 0}
+				<button class="sg-toolbar-btn" onclick={() => {
+					showAgentPrompt = true;
+					showAgentHistory = true;
+				}} title="Agent history ({agentHistory.length})">
+					Sessions ({agentHistory.length})
+				</button>
+			{/if}
 			<span class="sg-toolbar-relay" class:sg-toolbar-relay-on={agentConnected}>
 				{agentConnected ? 'Relay ON' : 'Relay OFF'}
 			</span>
@@ -1517,17 +1535,83 @@
 			tabindex="-1"
 		>
 			<div class="sg-agent-header">
-				Send to Agent ({selectedElements.length || (hoveredElement ? 1 : 0)} elements)
+				<span>Send to Agent ({selectedElements.length || (hoveredElement ? 1 : 0)} elements)</span>
+				{#if agentHistory.length > 0}
+					<button
+						class="sg-agent-history-toggle"
+						onclick={() => (showAgentHistory = !showAgentHistory)}
+						title="Session history ({agentHistory.length})"
+					>
+						History ({agentHistory.length})
+					</button>
+				{/if}
 			</div>
-			<textarea
-				class="sg-agent-textarea"
-				bind:value={agentPromptText}
-				placeholder="Describe what you want the agent to do..."
-				onkeydown={handleAgentKeydown}
-			></textarea>
+			{#if agentHistory.length > 0 && !showAgentHistory}
+				<button class="sg-agent-resume-link" onclick={() => {
+					const lastEntry = agentHistory[agentHistory.length - 1];
+					if (lastEntry) {
+						agentPromptText = '';
+						// Use resume instead of new request
+					}
+				}}>
+					Resume last session
+				</button>
+			{/if}
+			{#if showAgentHistory}
+				<div class="sg-agent-history-panel">
+					{#each agentHistory as entry (entry.timestamp)}
+						<div class="sg-agent-history-entry">
+							<div class="sg-agent-history-entry-header">
+								<span class="sg-agent-history-entry-time">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+								{#if entry.result}
+									<span class="sg-agent-history-entry-status sg-agent-history-done">done</span>
+								{:else if entry.error}
+									<span class="sg-agent-history-entry-status sg-agent-history-error">error</span>
+								{/if}
+							</div>
+							<div class="sg-agent-history-entry-prompt">{entry.prompt}</div>
+							{#if entry.result}
+								<div class="sg-agent-history-entry-result">{entry.result.slice(0, 200)}{entry.result.length > 200 ? '...' : ''}</div>
+							{/if}
+							{#if entry.error}
+								<div class="sg-agent-history-entry-error">{entry.error}</div>
+							{/if}
+							<button class="sg-agent-history-resume-btn" onclick={() => {
+								showAgentHistory = false;
+								agentClient?.resume(agentPromptText || 'Continue from where you left off');
+								agentStatus = 'Resuming session...';
+								agentStatusVisible = true;
+								lastAgentStatus = 'pending';
+								showAgentPrompt = false;
+							}}>Resume</button>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<textarea
+					class="sg-agent-textarea"
+					bind:value={agentPromptText}
+					placeholder="Describe what you want the agent to do..."
+					onkeydown={handleAgentKeydown}
+				></textarea>
+			{/if}
 			<div class="sg-agent-footer">
-				<span class="sg-agent-hint">Cmd+Enter to send</span>
-				<button class="sg-agent-send" onclick={submitAgentRequest}>Send</button>
+				<span class="sg-agent-hint">{showAgentHistory ? 'Click Resume on an entry' : 'Cmd+Enter to send'}</span>
+				{#if !showAgentHistory}
+					{#if agentHistory.length > 0}
+						<button class="sg-agent-resume-btn" onclick={() => {
+							if (agentPromptText.trim()) {
+								agentClient?.resume(agentPromptText);
+								agentStatus = 'Resuming...';
+								agentStatusVisible = true;
+								lastAgentStatus = 'pending';
+								showAgentPrompt = false;
+								agentPromptText = '';
+							}
+						}}>Resume</button>
+					{/if}
+					<button class="sg-agent-send" onclick={submitAgentRequest}>Send</button>
+				{/if}
 			</div>
 		</div>
 	</div>
@@ -1544,7 +1628,31 @@
 			--sg-accent: {colors.accent};
 		"
 	>
-		{agentStatus}
+		<span class="sg-agent-status-text">{agentStatus}</span>
+		<div class="sg-agent-status-actions">
+			{#if lastAgentStatus === 'done'}
+				<button class="sg-agent-status-btn" onclick={() => {
+					agentClient?.undo();
+					agentStatus = 'Undoing...';
+					lastAgentStatus = 'pending';
+				}}>Undo</button>
+				<button class="sg-agent-status-btn" onclick={() => {
+					showAgentPrompt = true;
+					agentStatusVisible = false;
+				}}>Resume</button>
+			{/if}
+			{#if lastAgentStatus === 'error'}
+				<button class="sg-agent-status-btn" onclick={() => {
+					agentClient?.retry();
+					agentStatus = 'Retrying...';
+					lastAgentStatus = 'pending';
+				}}>Retry</button>
+			{/if}
+			<button class="sg-agent-status-btn sg-agent-status-btn-dim" onclick={() => {
+				agentStatusVisible = false;
+				lastAgentStatus = 'idle';
+			}}>Dismiss</button>
+		</div>
 	</div>
 {/if}
 
@@ -2554,5 +2662,190 @@
 		font-size: 12px;
 		color: var(--sg-text);
 		animation: slide-up 0.2s ease-out;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.sg-agent-status-text {
+		flex: 1;
+	}
+
+	.sg-agent-status-actions {
+		display: flex;
+		gap: 6px;
+	}
+
+	.sg-agent-status-btn {
+		padding: 4px 10px;
+		background: rgba(255, 255, 255, 0.1);
+		border: 1px solid var(--sg-border);
+		border-radius: 4px;
+		color: var(--sg-text);
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 11px;
+		transition: background 0.1s ease;
+	}
+
+	.sg-agent-status-btn:hover {
+		background: rgba(255, 255, 255, 0.2);
+	}
+
+	.sg-agent-status-btn-dim {
+		opacity: 0.6;
+		border-color: transparent;
+	}
+
+	.sg-agent-status-btn-dim:hover {
+		opacity: 1;
+	}
+
+	/* Agent prompt enhancements */
+	.sg-agent-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.sg-agent-history-toggle {
+		padding: 3px 8px;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid var(--sg-border);
+		border-radius: 4px;
+		color: #888;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 10px;
+		transition: all 0.1s ease;
+	}
+
+	.sg-agent-history-toggle:hover {
+		color: var(--sg-text);
+		background: rgba(255, 255, 255, 0.12);
+	}
+
+	.sg-agent-resume-link {
+		display: block;
+		width: 100%;
+		padding: 8px 16px;
+		background: rgba(96, 165, 250, 0.08);
+		border: none;
+		border-bottom: 1px solid var(--sg-border);
+		color: #60a5fa;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 11px;
+		text-align: left;
+		transition: background 0.1s ease;
+	}
+
+	.sg-agent-resume-link:hover {
+		background: rgba(96, 165, 250, 0.15);
+	}
+
+	.sg-agent-resume-btn {
+		padding: 6px 14px;
+		background: rgba(96, 165, 250, 0.15);
+		border: 1px solid #60a5fa;
+		border-radius: 4px;
+		color: #60a5fa;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 12px;
+		font-weight: 500;
+		transition: all 0.1s ease;
+	}
+
+	.sg-agent-resume-btn:hover {
+		background: rgba(96, 165, 250, 0.25);
+	}
+
+	/* Session history panel */
+	.sg-agent-history-panel {
+		max-height: 300px;
+		overflow-y: auto;
+		border-bottom: 1px solid var(--sg-border);
+	}
+
+	.sg-agent-history-entry {
+		padding: 10px 16px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	}
+
+	.sg-agent-history-entry:last-child {
+		border-bottom: none;
+	}
+
+	.sg-agent-history-entry-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 4px;
+	}
+
+	.sg-agent-history-entry-time {
+		font-size: 10px;
+		color: #888;
+	}
+
+	.sg-agent-history-entry-status {
+		font-size: 9px;
+		padding: 1px 6px;
+		border-radius: 8px;
+		font-weight: 600;
+		text-transform: uppercase;
+	}
+
+	.sg-agent-history-done {
+		background: rgba(74, 222, 128, 0.15);
+		color: #4ade80;
+	}
+
+	.sg-agent-history-error {
+		background: rgba(248, 113, 113, 0.15);
+		color: #f87171;
+	}
+
+	.sg-agent-history-entry-prompt {
+		font-size: 12px;
+		color: var(--sg-text);
+		margin-bottom: 4px;
+	}
+
+	.sg-agent-history-entry-result {
+		font-size: 11px;
+		color: #888;
+		padding: 6px 8px;
+		background: rgba(255, 255, 255, 0.03);
+		border-radius: 4px;
+		margin-bottom: 6px;
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+
+	.sg-agent-history-entry-error {
+		font-size: 11px;
+		color: #f87171;
+		padding: 6px 8px;
+		background: rgba(248, 113, 113, 0.08);
+		border-radius: 4px;
+		margin-bottom: 6px;
+	}
+
+	.sg-agent-history-resume-btn {
+		padding: 3px 10px;
+		background: rgba(96, 165, 250, 0.1);
+		border: 1px solid rgba(96, 165, 250, 0.3);
+		border-radius: 4px;
+		color: #60a5fa;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 10px;
+		transition: all 0.1s ease;
+	}
+
+	.sg-agent-history-resume-btn:hover {
+		background: rgba(96, 165, 250, 0.2);
 	}
 </style>

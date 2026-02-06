@@ -25,11 +25,27 @@ export interface AgentUndoMessage {
 	sessionId: string;
 }
 
+export interface AgentRedoMessage {
+	type: 'agent-redo';
+	sessionId: string;
+}
+
+export interface AgentResumeMessage {
+	type: 'agent-resume';
+	sessionId: string;
+	prompt: string;
+}
+
+export interface AgentRetryMessage {
+	type: 'agent-retry';
+	sessionId: string;
+}
+
 export interface HealthMessage {
 	type: 'health';
 }
 
-export type ClientMessage = AgentRequestMessage | AgentAbortMessage | AgentUndoMessage | HealthMessage;
+export type ClientMessage = AgentRequestMessage | AgentAbortMessage | AgentUndoMessage | AgentRedoMessage | AgentResumeMessage | AgentRetryMessage | HealthMessage;
 
 // Server -> Client messages
 export interface AgentStatusMessage {
