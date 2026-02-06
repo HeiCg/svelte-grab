@@ -152,11 +152,11 @@
 	 */
 	function formatForAgent(info: ComponentStateInfo): string {
 		const parts: string[] = [
-			`=== Estado do Componente: ${info.componentName || info.elementTag} ===\n`
+			`=== Component State: ${info.componentName || info.elementTag} ===\n`
 		];
 
 		if (Object.keys(info.props).length > 0) {
-			parts.push('\u{1F4E5} PROPS/ATRIBUTOS OBSERV\u00C1VEIS:');
+			parts.push('\u{1F4E5} OBSERVABLE PROPS/ATTRIBUTES:');
 			for (const [key, value] of Object.entries(info.props)) {
 				parts.push(`  ${key}: ${inlinePreview(value)}`);
 			}
@@ -164,7 +164,7 @@
 		}
 
 		if (Object.keys(info.attributes).length > 0) {
-			parts.push('\u{1F3F7}\uFE0F ATRIBUTOS HTML:');
+			parts.push('\u{1F3F7}\uFE0F HTML ATTRIBUTES:');
 			for (const [key, value] of Object.entries(info.attributes)) {
 				parts.push(`  ${key}: "${value}"`);
 			}
@@ -180,7 +180,7 @@
 		}
 
 		if (Object.keys(info.boundValues).length > 0) {
-			parts.push('\u{1F517} VALORES BOUND/OBSERV\u00C1VEIS:');
+			parts.push('\u{1F517} BOUND/OBSERVABLE VALUES:');
 			for (const [key, value] of Object.entries(info.boundValues)) {
 				parts.push(`  ${key}: ${inlinePreview(value)}`);
 			}
@@ -188,11 +188,11 @@
 		}
 
 		if (info.childComponentCount > 0) {
-			parts.push(`\u{1F333} COMPONENTES FILHOS: ${info.childComponentCount}`);
+			parts.push(`\u{1F333} CHILD COMPONENTS: ${info.childComponentCount}`);
 			parts.push('');
 		}
 
-		parts.push(`\u{1F4CD} Localiza\u00E7\u00E3o: ${info.file}:${info.line}`);
+		parts.push(`\u{1F4CD} Location: ${info.file}:${info.line}`);
 
 		return parts.join('\n');
 	}

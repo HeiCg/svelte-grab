@@ -324,7 +324,7 @@ export function formatStylesForAgent(
 ): string {
 	const tag = element.tagName.toLowerCase();
 	const cls = element.className ? ` class="${String(element.className).slice(0, 60)}"` : '';
-	const parts: string[] = [`=== Estilos de: <${tag}${cls}> ===\n`];
+	const parts: string[] = [`=== Styles for: <${tag}${cls}> ===\n`];
 
 	for (const cat of categories) {
 		parts.push(`${cat.icon} ${cat.name.toUpperCase()}:`);
@@ -336,12 +336,12 @@ export function formatStylesForAgent(
 	}
 
 	if (conflicts.length > 0) {
-		parts.push('\u{1F500} CONFLITOS DETECTADOS:');
+		parts.push('\u{1F500} DETECTED CONFLICTS:');
 		for (const conflict of conflicts) {
-			parts.push(`  \u26A0\uFE0F ${conflict.property}: definido em ${conflict.rules.length} lugares`);
+			parts.push(`  \u26A0\uFE0F ${conflict.property}: defined in ${conflict.rules.length} places`);
 			for (const rule of conflict.rules) {
-				const status = rule.won ? '[GANHOU]' : '[PERDEU]';
-				const spec = `specificidade ${rule.specificity.join(',')}`;
+				const status = rule.won ? '[WON]' : '[LOST]';
+				const spec = `specificity ${rule.specificity.join(',')}`;
 				parts.push(`     - ${rule.selector} \u2192 ${rule.value} ${status} - ${spec}`);
 			}
 		}
@@ -349,7 +349,7 @@ export function formatStylesForAgent(
 	}
 
 	if (file) {
-		parts.push(`\u{1F4CD} Elemento: ${file}${line ? ':' + line : ''}`);
+		parts.push(`\u{1F4CD} Element: ${file}${line ? ':' + line : ''}`);
 	}
 
 	return parts.join('\n');

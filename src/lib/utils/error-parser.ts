@@ -127,8 +127,8 @@ export function detectErrorPattern(error: CapturedError): { cause: string; sugge
 		const obj = undefinedProp[1];
 		const prop = undefinedProp[2];
 		return {
-			cause: `Tentando acessar '${prop}' de um valor ${obj}`,
-			suggestion: `Usar optional chaining: objeto?.${prop}\nOu verificar antes: if (objeto) { ... }`
+			cause: `Trying to access '${prop}' on ${obj}`,
+			suggestion: `Use optional chaining: object?.${prop}\nOr check before accessing: if (object) { ... }`
 		};
 	}
 
@@ -136,8 +136,8 @@ export function detectErrorPattern(error: CapturedError): { cause: string; sugge
 	const notFunc = msg.match(/(.+?) is not a function/);
 	if (notFunc) {
 		return {
-			cause: `'${notFunc[1]}' n\u00E3o \u00E9 uma fun\u00E7\u00E3o`,
-			suggestion: `Verificar se o valor est\u00E1 definido e \u00E9 do tipo correto.\nPode ser um problema de import ou prop n\u00E3o passada.`
+			cause: `'${notFunc[1]}' is not a function`,
+			suggestion: `Check if the value is defined and has the correct type.\nMay be an import issue or a missing prop.`
 		};
 	}
 
@@ -145,32 +145,32 @@ export function detectErrorPattern(error: CapturedError): { cause: string; sugge
 	const notDefined = msg.match(/(.+?) is not defined/);
 	if (notDefined) {
 		return {
-			cause: `Vari\u00E1vel '${notDefined[1]}' n\u00E3o est\u00E1 definida no escopo`,
-			suggestion: `Verificar import ou declara\u00E7\u00E3o da vari\u00E1vel.`
+			cause: `Variable '${notDefined[1]}' is not defined in scope`,
+			suggestion: `Check the import or variable declaration.`
 		};
 	}
 
 	// Assignment to constant
 	if (msg.includes('Assignment to constant variable')) {
 		return {
-			cause: `Tentativa de reatribuir uma vari\u00E1vel const`,
-			suggestion: `Usar 'let' ao inv\u00E9s de 'const' se o valor precisa mudar.\nEm Svelte 5, usar $state() para estado reativo.`
+			cause: `Attempted reassignment to a const variable`,
+			suggestion: `Use 'let' instead of 'const' if the value needs to change.\nIn Svelte 5, use $state() for reactive state.`
 		};
 	}
 
 	// Maximum call stack
 	if (msg.includes('Maximum call stack size exceeded')) {
 		return {
-			cause: `Recurs\u00E3o infinita detectada`,
-			suggestion: `Verificar se h\u00E1 $effect ou $derived criando loop infinito.\nGarantir que updates de estado n\u00E3o triggeram re-execu\u00E7\u00E3o c\u00EDclica.`
+			cause: `Infinite recursion detected`,
+			suggestion: `Check if $effect or $derived is creating an infinite loop.\nEnsure state updates don't trigger cyclic re-execution.`
 		};
 	}
 
 	// Failed to fetch
 	if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
 		return {
-			cause: `Falha de rede ao fazer requisi\u00E7\u00E3o`,
-			suggestion: `Verificar se a API est\u00E1 rodando.\nAdicionar tratamento de erro com try/catch.\nVerificar CORS se a API est\u00E1 em outro dom\u00EDnio.`
+			cause: `Network request failed`,
+			suggestion: `Check if the API server is running.\nAdd error handling with try/catch.\nCheck CORS if the API is on a different domain.`
 		};
 	}
 
@@ -181,9 +181,9 @@ export function detectErrorPattern(error: CapturedError): { cause: string; sugge
  * Format captured errors as text for LLM
  */
 export function formatErrorsForAgent(errors: CapturedError[], minutesWindow: number): string {
-	if (errors.length === 0) return `=== Nenhum erro capturado (últimos ${minutesWindow}min) ===`;
+	if (errors.length === 0) return `=== No errors captured (last ${minutesWindow}min) ===`;
 
-	const parts: string[] = [`=== Erros Capturados (\u00FAltimos ${minutesWindow}min) ===\n`];
+	const parts: string[] = [`=== Captured Errors (last ${minutesWindow}min) ===\n`];
 
 	for (const error of errors) {
 		const icon = error.type === 'error' || error.type === 'unhandled-rejection' ? '\u{1F534}' : '\u{1F7E1}';
@@ -194,9 +194,9 @@ export function formatErrorsForAgent(errors: CapturedError[], minutesWindow: num
 		parts.push(`  ${error.message}\n`);
 
 		if (error.svelteFile) {
-			parts.push(`  \u{1F4CD} LOCALIZA\u00C7\u00C3O:`);
+			parts.push(`  \u{1F4CD} LOCATION:`);
 			parts.push(`     ${error.svelteFile}${error.svelteLine ? ':' + error.svelteLine : ''}`);
-			if (error.componentName) parts.push(`     Componente: <${error.componentName}>`);
+			if (error.componentName) parts.push(`     Component: <${error.componentName}>`);
 			parts.push('');
 		}
 
@@ -210,9 +210,9 @@ export function formatErrorsForAgent(errors: CapturedError[], minutesWindow: num
 
 		const pattern = detectErrorPattern(error);
 		if (pattern) {
-			parts.push(`  \u{1F4A1} CAUSA PROV\u00C1VEL:`);
+			parts.push(`  \u{1F4A1} PROBABLE CAUSE:`);
 			parts.push(`     ${pattern.cause}\n`);
-			parts.push(`  \u2705 SUGEST\u00C3O:`);
+			parts.push(`  \u2705 SUGGESTION:`);
 			pattern.suggestion.split('\n').forEach(s => parts.push(`     ${s}`));
 			parts.push('');
 		}

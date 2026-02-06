@@ -153,28 +153,28 @@
 					class:sg-a11y-tab-active={activeTab === 'critical'}
 					onclick={() => (activeTab = 'critical')}
 				>
-					🔴 Crítico ({report.critical.length})
+					🔴 Critical ({report.critical.length})
 				</button>
 				<button
 					class="sg-a11y-tab"
 					class:sg-a11y-tab-active={activeTab === 'warnings'}
 					onclick={() => (activeTab = 'warnings')}
 				>
-					🟡 Avisos ({report.warnings.length})
+					🟡 Warnings ({report.warnings.length})
 				</button>
 				<button
 					class="sg-a11y-tab"
 					class:sg-a11y-tab-active={activeTab === 'passes'}
 					onclick={() => (activeTab = 'passes')}
 				>
-					🟢 Bom ({report.passes.length})
+					🟢 Good ({report.passes.length})
 				</button>
 			</div>
 
 			<div class="sg-a11y-content">
 				{#if activeTab === 'critical'}
 					{#if report.critical.length === 0}
-						<div class="sg-a11y-empty">Nenhum problema crítico encontrado ✅</div>
+						<div class="sg-a11y-empty">No critical issues found ✅</div>
 					{:else}
 						{#each report.critical as issue, i}
 							<div class="sg-a11y-issue sg-a11y-issue-critical">
@@ -187,7 +187,7 @@
 									<div class="sg-a11y-issue-file">{issue.file}{issue.line ? ':' + issue.line : ''}</div>
 								{/if}
 								<div class="sg-a11y-issue-fix">
-									<span class="sg-a11y-fix-label">✅ Correção:</span>
+									<span class="sg-a11y-fix-label">✅ Fix:</span>
 									{issue.fix}
 								</div>
 								{#if issue.fixCode}
@@ -198,7 +198,7 @@
 					{/if}
 				{:else if activeTab === 'warnings'}
 					{#if report.warnings.length === 0}
-						<div class="sg-a11y-empty">Nenhum aviso encontrado ✅</div>
+						<div class="sg-a11y-empty">No warnings found ✅</div>
 					{:else}
 						{#each report.warnings as issue, i}
 							<div class="sg-a11y-issue sg-a11y-issue-warning">
@@ -221,7 +221,7 @@
 					{/if}
 				{:else}
 					{#if report.passes.length === 0}
-						<div class="sg-a11y-empty">Nenhuma verificação positiva</div>
+						<div class="sg-a11y-empty">No positive checks</div>
 					{:else}
 						{#each report.passes as pass}
 							<div class="sg-a11y-pass">✓ {pass}</div>

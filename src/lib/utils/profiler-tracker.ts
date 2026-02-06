@@ -218,15 +218,15 @@ export class ProfilerTracker {
 		// Hot components
 		const hot = profiles.filter(p => p.renderCount > 10 || p.burstCount > 0);
 		if (hot.length > 0) {
-			parts.push(`\u{1F534} HOT COMPONENTS (re-renders excessivos):\n`);
+			parts.push(`\u{1F534} HOT COMPONENTS (excessive re-renders):\n`);
 			for (const profile of hot.slice(0, 10)) {
 				parts.push(`  ${profile.name} - ${profile.renderCount} renders`);
 				parts.push(`     \u2502 \u{1F4CD} ${shortenPath(profile.file)}`);
 				if (profile.burstCount > 0) {
-					parts.push(`     \u2502 \u26A0\uFE0F ${profile.burstCount} burst(s) detectado(s)`);
+					parts.push(`     \u2502 \u26A0\uFE0F ${profile.burstCount} burst(s) detected`);
 				}
 				if (profile.averageInterval > 0 && profile.averageInterval < 100) {
-					parts.push(`     \u2502 \u23F1\uFE0F Intervalo m\u00E9dio: ${profile.averageInterval.toFixed(0)}ms (muito frequente)`);
+					parts.push(`     \u2502 \u23F1\uFE0F Average interval: ${profile.averageInterval.toFixed(0)}ms (too frequent)`);
 				}
 				parts.push('');
 			}
@@ -235,7 +235,7 @@ export class ProfilerTracker {
 		// Healthy components
 		const healthy = profiles.filter(p => p.renderCount <= 10 && p.burstCount === 0);
 		if (healthy.length > 0) {
-			parts.push(`\u{1F7E2} COMPONENTES SAUD\u00C1VEIS:\n`);
+			parts.push(`\u{1F7E2} HEALTHY COMPONENTS:\n`);
 			for (const profile of healthy.slice(0, 10)) {
 				parts.push(`  <${profile.name}> - ${profile.renderCount} render${profile.renderCount !== 1 ? 's' : ''} \u2713`);
 			}
@@ -244,16 +244,16 @@ export class ProfilerTracker {
 
 		// Bursts timeline
 		if (bursts.length > 0) {
-			parts.push(`\u{1F4CA} BURSTS DETECTADOS:\n`);
+			parts.push(`\u{1F4CA} DETECTED BURSTS:\n`);
 			for (const burst of bursts) {
-				parts.push(`  \u256D\u2500 ${burst.componentName} (burst: ${burst.count} renders em ${burst.duration.toFixed(0)}ms)`);
+				parts.push(`  \u256D\u2500 ${burst.componentName} (burst: ${burst.count} renders in ${burst.duration.toFixed(0)}ms)`);
 				parts.push(`  \u2570\u2500 ${shortenPath(burst.file)}`);
 				parts.push('');
 			}
 		}
 
 		if (profiles.length === 0) {
-			parts.push('Nenhuma muta\u00E7\u00E3o DOM detectada durante o per\u00EDodo de profiling.');
+			parts.push('No DOM mutations detected during the profiling period.');
 		}
 
 		return parts.join('\n');

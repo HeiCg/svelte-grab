@@ -147,14 +147,14 @@ function checkInputLabels(root: HTMLElement): A11yIssue[] {
 			issues.push({
 				severity: 'critical',
 				rule: 'input-label',
-				message: `Input sem label associado`,
+				message: `Input without associated label`,
 				elementHtml: elementHtml(el),
 				file,
 				line,
-				fix: `Adicionar label ao campo`,
+				fix: `Add a label to the field`,
 				fixCode: el.id
-					? `<label for="${el.id}">Descri\u00E7\u00E3o</label>\n<${tag}${typeAttr} id="${el.id}">`
-					: `<${tag}${typeAttr} aria-label="Descri\u00E7\u00E3o do campo">`
+					? `<label for="${el.id}">Description</label>\n<${tag}${typeAttr} id="${el.id}">`
+					: `<${tag}${typeAttr} aria-label="Field description">`
 			});
 		}
 	});
@@ -178,12 +178,12 @@ function checkButtonLabels(root: HTMLElement): A11yIssue[] {
 			issues.push({
 				severity: 'critical',
 				rule: 'button-label',
-				message: `Bot\u00E3o sem texto acess\u00EDvel`,
+				message: `Button without accessible text`,
 				elementHtml: elementHtml(el),
 				file,
 				line,
-				fix: `Adicionar aria-label ao bot\u00E3o`,
-				fixCode: `<button aria-label="Descri\u00E7\u00E3o da a\u00E7\u00E3o">...</button>`
+				fix: `Add aria-label to the button`,
+				fixCode: `<button aria-label="Action description">...</button>`
 			});
 		}
 	});
@@ -208,23 +208,23 @@ function checkImageAlts(root: HTMLElement): A11yIssue[] {
 			issues.push({
 				severity: 'critical',
 				rule: 'img-alt',
-				message: `Imagem sem atributo alt`,
+				message: `Image missing alt attribute`,
 				elementHtml: elementHtml(el),
 				file,
 				line,
-				fix: `Adicionar alt descritivo`,
-				fixCode: `<img src="..." alt="Descri\u00E7\u00E3o da imagem">`
+				fix: `Add descriptive alt text`,
+				fixCode: `<img src="..." alt="Image description">`
 			});
 		} else if (altEmpty && !el.getAttribute('role')) {
 			const { file, line } = getElementSource(el);
 			issues.push({
 				severity: 'info',
 				rule: 'img-alt-empty',
-				message: `Imagem com alt vazio (decorativa). Considere adicionar role="presentation"`,
+				message: `Image with empty alt (decorative). Consider adding role="presentation"`,
 				elementHtml: elementHtml(el),
 				file,
 				line,
-				fix: `Adicionar role="presentation" para imagens decorativas`,
+				fix: `Add role="presentation" for decorative images`,
 				fixCode: `<img src="..." alt="" role="presentation">`
 			});
 		}
@@ -267,11 +267,11 @@ function checkContrast(root: HTMLElement): A11yIssue[] {
 			issues.push({
 				severity: ratio < 3 ? 'critical' : 'warning',
 				rule: 'contrast',
-				message: `Contraste insuficiente: ${ratio.toFixed(1)}:1 (m\u00EDnimo WCAG AA: ${minRatio}:1)`,
+				message: `Insufficient contrast: ${ratio.toFixed(1)}:1 (WCAG AA minimum: ${minRatio}:1)`,
 				elementHtml: elementHtml(element),
 				file,
 				line,
-				fix: `Foreground: ${fg}\nBackground: ${bg}${suggestion ? `\nSugest\u00E3o: usar ${suggestion} (ratio ${minRatio}:1+)` : ''}`,
+				fix: `Foreground: ${fg}\nBackground: ${bg}${suggestion ? `\nSuggestion: use ${suggestion} (ratio ${minRatio}:1+)` : ''}`,
 			});
 		}
 	});
@@ -310,11 +310,11 @@ function checkTabOrder(root: HTMLElement): A11yIssue[] {
 			issues.push({
 				severity: 'warning',
 				rule: 'tabindex-positive',
-				message: `tabindex="${tabindex}" quebra ordem natural de foco`,
+				message: `tabindex="${tabindex}" breaks natural focus order`,
 				elementHtml: elementHtml(element),
 				file,
 				line,
-				fix: `Usar tabindex="0" para ordem natural ou tabindex="-1" para remover do fluxo de tab`
+				fix: `Use tabindex="0" for natural order or tabindex="-1" to remove from tab flow`
 			});
 		}
 	});
@@ -339,11 +339,11 @@ function checkHeadingHierarchy(root: HTMLElement): A11yIssue[] {
 			issues.push({
 				severity: 'warning',
 				rule: 'heading-order',
-				message: `Heading pula de h${lastLevel} para h${level}`,
+				message: `Heading skips from h${lastLevel} to h${level}`,
 				elementHtml: elementHtml(el),
 				file,
 				line,
-				fix: `Usar h${lastLevel + 1} ao inv\u00E9s de h${level} para manter hierarquia`
+				fix: `Use h${lastLevel + 1} instead of h${level} to maintain hierarchy`
 			});
 		}
 		lastLevel = level;
@@ -366,12 +366,12 @@ function checkFormLandmarks(root: HTMLElement): A11yIssue[] {
 			issues.push({
 				severity: 'warning',
 				rule: 'form-landmark',
-				message: `Formul\u00E1rio sem landmark (aria-label)`,
+				message: `Form without landmark (aria-label)`,
 				elementHtml: elementHtml(el),
 				file,
 				line,
-				fix: `Adicionar aria-label ao formul\u00E1rio`,
-				fixCode: `<form aria-label="Descri\u00E7\u00E3o do formul\u00E1rio">`
+				fix: `Add aria-label to the form`,
+				fixCode: `<form aria-label="Form description">`
 			});
 		}
 	});
@@ -394,11 +394,11 @@ function checkInteractiveRoles(root: HTMLElement): A11yIssue[] {
 			issues.push({
 				severity: 'warning',
 				rule: 'interactive-role',
-				message: `Elemento interativo sem role`,
+				message: `Interactive element without role`,
 				elementHtml: elementHtml(element),
 				file,
 				line,
-				fix: `Usar <button> ou adicionar role="button" e tabindex="0"`,
+				fix: `Use <button> or add role="button" and tabindex="0"`,
 				fixCode: `<div role="button" tabindex="0" onclick="...">`
 			});
 		}
@@ -415,23 +415,23 @@ function collectPasses(root: HTMLElement): string[] {
 
 	const inputs = root.querySelectorAll('input, select, textarea');
 	const allHaveType = Array.from(inputs).every(i => (i as HTMLInputElement).type);
-	if (inputs.length > 0 && allHaveType) passes.push('Todos os inputs t\u00EAm type definido');
+	if (inputs.length > 0 && allHaveType) passes.push('All inputs have type defined');
 
 	const forms = root.querySelectorAll('form');
 	const formsHaveSubmit = Array.from(forms).every(f =>
 		f.querySelector('[type="submit"], button:not([type="button"])')
 	);
-	if (forms.length > 0 && formsHaveSubmit) passes.push('Formul\u00E1rios t\u00EAm bot\u00E3o submit');
+	if (forms.length > 0 && formsHaveSubmit) passes.push('Forms have submit button');
 
 	const autofocus = root.querySelectorAll('[autofocus]');
-	if (autofocus.length <= 1) passes.push('Nenhum autofocus inesperado');
+	if (autofocus.length <= 1) passes.push('No unexpected autofocus');
 
 	const html = document.documentElement;
-	if (html.getAttribute('lang')) passes.push('Linguagem da p\u00E1gina definida');
+	if (html.getAttribute('lang')) passes.push('Page language defined');
 
 	const links = root.querySelectorAll('a[href]');
 	const allLinksHaveText = Array.from(links).every(a => getAccessibleName(a as HTMLElement));
-	if (links.length > 0 && allLinksHaveText) passes.push('Todos os links t\u00EAm texto acess\u00EDvel');
+	if (links.length > 0 && allLinksHaveText) passes.push('All links have accessible text');
 
 	return passes;
 }
@@ -492,17 +492,17 @@ export function analyzeA11y(element: HTMLElement, includeSubtree: boolean): A11y
  * Format A11y report as text for LLM
  */
 export function formatA11yForAgent(report: A11yReport): string {
-	const parts: string[] = [`=== Relat\u00F3rio de Acessibilidade: ${report.elementTag} ===\n`];
+	const parts: string[] = [`=== Accessibility Report: ${report.elementTag} ===\n`];
 
 	if (report.critical.length > 0) {
-		parts.push(`\u{1F534} CR\u00CDTICO (${report.critical.length}):\n`);
+		parts.push(`\u{1F534} CRITICAL (${report.critical.length}):\n`);
 		report.critical.forEach((issue, i) => {
 			parts.push(`  ${i + 1}. ${issue.message}`);
 			parts.push(`     \u2502 ${issue.elementHtml}`);
-			if (issue.file) parts.push(`     \u2502 Linha: ${issue.file}${issue.line ? ':' + issue.line : ''}`);
+			if (issue.file) parts.push(`     \u2502 Line: ${issue.file}${issue.line ? ':' + issue.line : ''}`);
 			parts.push(`     \u2502`);
-			parts.push(`     \u2502 \u274C Problema: ${issue.message}`);
-			parts.push(`     \u2502 \u2705 Corre\u00E7\u00E3o: ${issue.fix}`);
+			parts.push(`     \u2502 \u274C Issue: ${issue.message}`);
+			parts.push(`     \u2502 \u2705 Fix: ${issue.fix}`);
 			if (issue.fixCode) {
 				parts.push(`     \u2502    ${issue.fixCode}`);
 			}
@@ -511,7 +511,7 @@ export function formatA11yForAgent(report: A11yReport): string {
 	}
 
 	if (report.warnings.length > 0) {
-		parts.push(`\u{1F7E1} AVISOS (${report.warnings.length}):\n`);
+		parts.push(`\u{1F7E1} WARNINGS (${report.warnings.length}):\n`);
 		report.warnings.forEach((issue, i) => {
 			parts.push(`  ${i + 1}. ${issue.message}`);
 			parts.push(`     \u2502 ${issue.elementHtml}`);
@@ -523,12 +523,12 @@ export function formatA11yForAgent(report: A11yReport): string {
 	}
 
 	if (report.passes.length > 0) {
-		parts.push(`\u{1F7E2} BOM (${report.passes.length}):`);
+		parts.push(`\u{1F7E2} GOOD (${report.passes.length}):`);
 		report.passes.forEach(p => parts.push(`  \u2713 ${p}`));
 		parts.push('');
 	}
 
-	parts.push(`\u{1F4CA} SCORE: ${report.score}/100${report.score >= 80 ? ' (Bom)' : report.score >= 60 ? ' (Precisa melhorar)' : ' (Cr\u00EDtico)'}`);
+	parts.push(`\u{1F4CA} SCORE: ${report.score}/100${report.score >= 80 ? ' (Good)' : report.score >= 60 ? ' (Needs improvement)' : ' (Critical)'}`);
 
 	return parts.join('\n');
 }

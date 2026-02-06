@@ -237,7 +237,7 @@
 			<div class="sg-error-content">
 				{#if filteredErrors.length === 0}
 					<div class="sg-error-empty">
-						{errors.length === 0 ? `Nenhum erro capturado (\u00FAltimos ${bufferMinutes}min)` : 'Nenhum erro neste filtro'}
+						{errors.length === 0 ? `No errors captured (last ${bufferMinutes}min)` : 'No errors in this filter'}
 					</div>
 				{:else}
 					{#each filteredErrors as error (error.id)}

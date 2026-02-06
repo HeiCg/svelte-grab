@@ -143,16 +143,16 @@
 				{#if isProfiling}
 					<div class="sg-prof-recording-ui">
 						<div class="sg-prof-pulse"></div>
-						<p>Profiling em andamento...</p>
-						<p class="sg-prof-hint">Interaja com a página normalmente. O profiler está monitorando mutações DOM.</p>
+						<p>Profiling in progress...</p>
+						<p class="sg-prof-hint">Interact with the page normally. The profiler is monitoring DOM mutations.</p>
 						<button class="sg-prof-btn sg-prof-btn-stop" onclick={stopProfiling}>
-							Parar ({countdown}s restantes)
+							Stop ({countdown}s remaining)
 						</button>
 					</div>
 				{:else if profiles.length === 0}
 					<div class="sg-prof-empty">
-						<p>Pressione "Start" para começar a gravar mutações.</p>
-						<p class="sg-prof-hint">O profiler monitora mudanças DOM e as correlaciona com componentes Svelte.</p>
+						<p>Press "Start" to begin recording mutations.</p>
+						<p class="sg-prof-hint">The profiler monitors DOM changes and correlates them with Svelte components.</p>
 					</div>
 				{:else}
 					<!-- Hot components -->
@@ -177,7 +177,7 @@
 					<!-- Healthy components -->
 					{@const healthy = profiles.filter(p => p.renderCount <= 10 && p.burstCount === 0)}
 					{#if healthy.length > 0}
-						<div class="sg-prof-section-title">🟢 COMPONENTES SAUDÁVEIS</div>
+						<div class="sg-prof-section-title">🟢 HEALTHY COMPONENTS</div>
 						{#each healthy as profile}
 							<div class="sg-prof-row sg-prof-row-healthy">
 								<div class="sg-prof-row-info">
@@ -191,11 +191,11 @@
 
 					<!-- Bursts -->
 					{#if bursts.length > 0}
-						<div class="sg-prof-section-title">📊 BURSTS DETECTADOS</div>
+						<div class="sg-prof-section-title">📊 DETECTED BURSTS</div>
 						{#each bursts as burst}
 							<div class="sg-prof-burst">
 								<span class="sg-prof-burst-name">{burst.componentName}</span>
-								<span class="sg-prof-burst-info">{burst.count} renders em {burst.duration.toFixed(0)}ms</span>
+								<span class="sg-prof-burst-info">{burst.count} renders in {burst.duration.toFixed(0)}ms</span>
 							</div>
 						{/each}
 					{/if}
