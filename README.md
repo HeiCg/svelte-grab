@@ -46,12 +46,8 @@ svelte-grab ships 7 specialized tools + a unified wrapper:
 
 ## Installation
 
-This package is not yet published to npm. Install directly from GitHub:
-
 ```bash
-npm install github:HeiCg/svelte-grab
-# or
-yarn add github:HeiCg/svelte-grab
+npm install svelte-grab
 ```
 
 ### Setup
