@@ -26,29 +26,45 @@
       "types": "./dist/index.d.ts",
       "svelte": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./relay": {
+      "types": "./dist/relay/index.d.ts",
+      "default": "./dist/relay/index.js"
     }
+  },
+  "bin": {
+    "svelte-grab": "./dist/cli/index.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "svelte-package -i src/lib -o dist",
+    "build": "svelte-package -i src/lib -o dist && npm run build:server",
+    "build:server": "tsc -p tsconfig.server.json",
     "prepare": "npm run build",
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "peerDependencies": {
-    "html2canvas": "^1.4.1",
     "svelte": "^5.0.0"
   },
   "peerDependenciesMeta": {
-    "html2canvas": {
+    "html-to-image": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    },
+    "@anthropic-ai/claude-agent-sdk": {
       "optional": true
     }
+  },
+  "optionalDependencies": {
+    "html-to-image": "^1.11.0"
   },
   "devDependencies": {
     "@sveltejs/package": "^2.3.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
-    "html2canvas": "^1.4.1",
+    "@types/node": "^25.2.1",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
     "typescript": "^5.0.0",
