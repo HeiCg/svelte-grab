@@ -101,6 +101,10 @@ export interface SvelteGrabProps {
 	enableArrowNav?: boolean;
 	/** Enable click+drag box selection. Default: true */
 	enableDragSelect?: boolean;
+	/** Enable auto-send to MCP server on grab. Default: false */
+	enableMcp?: boolean;
+	/** Port for MCP HTTP server. Default: 4723 */
+	mcpPort?: number;
 }
 
 // ============================================================
@@ -349,6 +353,10 @@ export interface SvelteDevKitProps {
 	enableArrowNav?: boolean;
 	/** Enable click+drag box selection. Default: true */
 	enableDragSelect?: boolean;
+	/** Enable auto-send to MCP server on grab. Default: false */
+	enableMcp?: boolean;
+	/** Port for MCP HTTP server. Default: 4723 */
+	mcpPort?: number;
 }
 
 // ============================================================

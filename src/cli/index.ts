@@ -22,6 +22,15 @@ async function main() {
 			break;
 		}
 
+		case 'mcp': {
+			const { startMcpServer } = await import('../mcp/server.js');
+			const mcpPortArg = args.find((a: string) => a.startsWith('--port='));
+			const mcpPort = mcpPortArg ? parseInt(mcpPortArg.split('=')[1], 10) : undefined;
+			const stdio = args.includes('--stdio');
+			await startMcpServer({ port: mcpPort, stdio });
+			break;
+		}
+
 		case 'help':
 		case '--help':
 		case '-h':
@@ -32,11 +41,14 @@ svelte-grab - Dev tools for Svelte + LLM coding agents
 Usage:
   svelte-grab init          Add SvelteGrab to your SvelteKit layout
   svelte-grab relay         Start the agent relay server
+  svelte-grab mcp           Start the MCP server
   svelte-grab help          Show this help message
 
 Options:
   relay --port=4722         Set relay server port (default: 4722)
   relay --provider=claude-code  Set agent provider (default: claude-code)
+  mcp --port=4723           Set MCP server port (default: 4723)
+  mcp --stdio               Use stdio transport (for direct Claude Code integration)
 `);
 			break;
 	}

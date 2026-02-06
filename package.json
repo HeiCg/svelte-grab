@@ -30,10 +30,15 @@
     "./relay": {
       "types": "./dist/relay/index.d.ts",
       "default": "./dist/relay/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "default": "./dist/mcp/index.js"
     }
   },
   "bin": {
-    "svelte-grab": "./dist/cli/index.js"
+    "svelte-grab": "./dist/cli/index.js",
+    "svelte-grab-mcp": "./dist/mcp/cli.js"
   },
   "files": [
     "dist"
@@ -55,6 +60,9 @@
       "optional": true
     },
     "@anthropic-ai/claude-agent-sdk": {
+      "optional": true
+    },
+    "@modelcontextprotocol/sdk": {
       "optional": true
     }
   },

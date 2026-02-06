@@ -53,7 +53,9 @@
 		agentRelayUrl = 'ws://localhost:4722',
 		agentId = 'claude-code',
 		enableArrowNav = true,
-		enableDragSelect = true
+		enableDragSelect = true,
+		enableMcp = false,
+		mcpPort = 4723
 	}: SvelteGrabProps = $props();
 
 	const darkTheme: ThemeConfig = {
@@ -531,6 +533,21 @@
 	}
 
 	/**
+	 * Send context to the MCP server (fire-and-forget).
+	 */
+	function sendToMcp(content: string[], prompt?: string): void {
+		if (!enableMcp) return;
+
+		fetch(`http://localhost:${mcpPort}/context`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ content, prompt })
+		}).catch(() => {
+			// Fire-and-forget: don't block the UI if MCP server is not running
+		});
+	}
+
+	/**
 	 * Lazy load html-to-image module
 	 */
 	async function loadHtmlToImage(): Promise<typeof import('html-to-image') | null> {
@@ -663,8 +680,12 @@
 			const transformed = pluginRegistry.transformContent('beforeCopy', content, copyCtx);
 			copyToClipboard(typeof transformed === 'string' ? transformed : content);
 			pluginRegistry.executeHook('afterCopy', copyCtx);
+
+			// Send to MCP server
+			sendToMcp([typeof transformed === 'string' ? transformed : content]);
 		} else if (autoCopyFormat === 'paths') {
 			copyToClipboard(formatPaths(stack));
+			sendToMcp([formatPaths(stack)]);
 		}
 
 		// Clear selection mode when opening popup

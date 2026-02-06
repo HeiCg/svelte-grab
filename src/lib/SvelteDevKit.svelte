@@ -40,7 +40,9 @@
 		agentRelayUrl = 'ws://localhost:4722',
 		agentId = 'claude-code',
 		enableArrowNav = true,
-		enableDragSelect = true
+		enableDragSelect = true,
+		enableMcp = false,
+		mcpPort = 4723
 	}: SvelteDevKitProps = $props();
 
 	function isEnabled(tool: DevKitTool): boolean {
@@ -65,6 +67,8 @@
 		{agentId}
 		{enableArrowNav}
 		{enableDragSelect}
+		{enableMcp}
+		{mcpPort}
 	/>
 {/if}
 

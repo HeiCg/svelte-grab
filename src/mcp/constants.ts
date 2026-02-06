@@ -1,0 +1,2 @@
+export const DEFAULT_MCP_PORT = 4723;
+export const HEALTH_CHECK_TIMEOUT_MS = 1000;
