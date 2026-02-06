@@ -8,7 +8,9 @@
     "devtools",
     "developer-experience",
     "coding-agent",
-    "cursor"
+    "claude",
+    "cursor",
+    "ai-coding"
   ],
   "license": "MIT",
   "author": "HeiCg",
