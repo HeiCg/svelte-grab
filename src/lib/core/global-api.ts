@@ -53,7 +53,9 @@ export function createGlobalAPI(): { api: SvelteGrabAPI; callbacks: APICallbacks
 		clearSelection: () => callbacks.clearSelection()
 	};
 
-	window.__SVELTE_GRAB__ = api;
+	if (typeof window !== 'undefined') {
+		window.__SVELTE_GRAB__ = api;
+	}
 
 	return { api, callbacks };
 }
@@ -62,5 +64,7 @@ export function createGlobalAPI(): { api: SvelteGrabAPI; callbacks: APICallbacks
  * Remove global API from window.
  */
 export function destroyGlobalAPI(): void {
-	delete window.__SVELTE_GRAB__;
+	if (typeof window !== 'undefined') {
+		delete window.__SVELTE_GRAB__;
+	}
 }
