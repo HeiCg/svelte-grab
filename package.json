@@ -1,6 +1,6 @@
 {
   "name": "svelte-grab",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Click any element to get component stack with source locations. Makes coding agents 3x faster for UI changes.",
   "keywords": [
     "svelte",
@@ -25,6 +25,7 @@
     ".": {
       "types": "./dist/index.d.ts",
       "svelte": "./dist/index.js",
+      "node": "./dist/index.server.js",
       "default": "./dist/index.js"
     },
     "./relay": {
