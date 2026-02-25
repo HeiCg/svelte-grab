@@ -29,6 +29,16 @@
 	import { findSvelteParent, findSvelteChild, findSvelteSibling } from './core/dom-navigation.js';
 	import { createGlobalAPI, destroyGlobalAPI } from './core/global-api.js';
 	import { AgentClient } from './core/agent-client.js';
+	import {
+		detectDevMode,
+		shortenPath as sharedShortenPath,
+		isExcludedPath as sharedIsExcludedPath,
+		extractComponentName as sharedExtractComponentName,
+		checkModifier as sharedCheckModifier,
+		copyToClipboard as sharedCopyToClipboard,
+		DARK_THEME,
+		LIGHT_THEME
+	} from './utils/shared.js';
 
 	let {
 		modifier = 'alt',
@@ -59,22 +69,8 @@
 		mcpPort = 4723
 	}: SvelteGrabProps = $props();
 
-	const darkTheme: ThemeConfig = {
-		background: '#1a1a2e',
-		border: '#4a4a6a',
-		text: '#e0e0e0',
-		accent: '#ff6b35'
-	};
-
-	const lightThemePreset: ThemeConfig = {
-		background: '#ffffff',
-		border: '#e0e0e0',
-		text: '#1a1a2e',
-		accent: '#e85d04'
-	};
-
 	// Use $derived for reactive theme selection based on lightTheme prop
-	let baseTheme = $derived(lightTheme ? lightThemePreset : darkTheme);
+	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
 
 	// Use $derived for reactive theme merging
 	let colors = $derived({ ...baseTheme, ...theme });
@@ -321,29 +317,9 @@
 		return childPreviews.join('\n  ');
 	}
 
-	/**
-	 * Check if a file path should be excluded
-	 */
-	function isExcludedPath(filePath: string): boolean {
-		return (
-			filePath.includes('.svelte-kit/') ||
-			filePath.includes('node_modules/') ||
-			filePath.includes('generated/') ||
-			filePath.startsWith('/@') ||
-			filePath.includes('__vite')
-		);
-	}
-
-	/**
-	 * Extract component name from file path
-	 */
-	function extractComponentName(filePath: string): string | null {
-		const match = filePath.match(/\/([^/]+)\.svelte$/);
-		if (match) {
-			return match[1];
-		}
-		return null;
-	}
+	// Use shared utilities (imported above)
+	const isExcludedPath = sharedIsExcludedPath;
+	const extractComponentName = sharedExtractComponentName;
 
 	/**
 	 * Add entry to history
@@ -432,36 +408,48 @@
 		return entries;
 	}
 
-	function shortenPath(fullPath: string): string {
-		const srcMatch = fullPath.match(/\/src\/(.*)/);
-		if (srcMatch) return `src/${srcMatch[1]}`;
-
-		const libMatch = fullPath.match(/\/lib\/(.*)/);
-		if (libMatch) return `lib/${libMatch[1]}`;
-
-		if (fullPath.startsWith('/src/') || fullPath.startsWith('/lib/')) {
-			return fullPath.slice(1);
-		}
-
-		return fullPath;
-	}
+	const shortenPath = sharedShortenPath;
 
 	function formatForAgent(entries: StackEntry[], element?: HTMLElement | null): string {
 		if (entries.length === 0) return '';
 
 		const parts: string[] = [];
 
-		if (includeHtml && element) {
-			parts.push(getHTMLPreview(element));
+		// Element info with tag and text
+		if (element) {
+			const tagName = element.tagName.toLowerCase();
+			const role = element.getAttribute('role');
+			const elementText = element.textContent?.trim();
+			const truncatedText = elementText && elementText.length > 60
+				? elementText.slice(0, 57) + '...'
+				: elementText;
+
+			if (includeHtml) {
+				parts.push(getHTMLPreview(element));
+			} else {
+				const roleStr = role ? ` role="${role}"` : '';
+				const textStr = truncatedText ? ` "${truncatedText}"` : '';
+				parts.push(`Element: <${tagName}${roleStr}>${textStr}`);
+			}
 		}
 
-		const definedIn = entries[0];
-		const usedIn = entries.find(e => e.file !== definedIn.file);
-
-		if (usedIn) {
-			parts.push(`Used in: ${shortenPath(usedIn.file)}:${usedIn.line}`);
+		// Component name from first entry
+		const componentName = extractComponentName(entries[0].file);
+		if (componentName) {
+			parts.push(`Component: <${componentName}>`);
 		}
-		parts.push(`Defined in: ${shortenPath(definedIn.file)}:${definedIn.line}`);
+
+		// Full component stack
+		if (entries.length > 1) {
+			parts.push('Component Stack:');
+			for (let i = 0; i < entries.length; i++) {
+				const entry = entries[i];
+				const name = extractComponentName(entry.file) || entry.file.split('/').pop() || 'unknown';
+				parts.push(`  ${i + 1}. ${name} (${shortenPath(entry.file)}:${entry.line})`);
+			}
+		} else {
+			parts.push(`Defined in: ${shortenPath(entries[0].file)}:${entries[0].line}`);
+		}
 
 		return parts.join('\n');
 	}
@@ -524,16 +512,19 @@
 		pluginRegistry.executeHook('onSelectionChange', []);
 	}
 
+	let copyFailed = $state(false);
+
 	async function copyToClipboard(text: string): Promise<boolean> {
-		try {
-			await navigator.clipboard.writeText(text);
+		const success = await sharedCopyToClipboard(text);
+		if (success) {
 			copied = true;
+			copyFailed = false;
 			setTimeout(() => (copied = false), 1500);
-			return true;
-		} catch {
-			console.error('[SvelteGrab] Failed to copy to clipboard');
-			return false;
+		} else {
+			copyFailed = true;
+			setTimeout(() => (copyFailed = false), 3000);
 		}
+		return success;
 	}
 
 	/**
@@ -612,14 +603,8 @@
 		}
 	}
 
-	function checkModifier(event: MouseEvent): boolean {
-		switch (modifier) {
-			case 'alt': return event.altKey;
-			case 'ctrl': return event.ctrlKey;
-			case 'meta': return event.metaKey;
-			case 'shift': return event.shiftKey;
-			default: return event.altKey;
-		}
+	function checkModifier(event: MouseEvent | KeyboardEvent): boolean {
+		return sharedCheckModifier(event, modifier);
 	}
 
 	function handleClick(event: MouseEvent) {
@@ -1129,47 +1114,13 @@
 	}
 
 	let cleanup: (() => void) | null = null;
-
-	/**
-	 * Detect if Svelte is running in dev mode
-	 */
-	function detectDevMode(): boolean {
-		if (forceEnable) return true;
-
-		if ((document.body as HTMLElement & { __svelte_meta?: unknown }).__svelte_meta) {
-			return true;
-		}
-
-		const prioritySelectors = ['#app', '#root', 'main', '[data-sveltekit-hydrate]', '[data-svelte]'];
-		for (const selector of prioritySelectors) {
-			const el = document.querySelector(selector);
-			if (el && (el as HTMLElement & { __svelte_meta?: unknown }).__svelte_meta) {
-				return true;
-			}
-		}
-
-		const bodyChildren = document.body.children;
-		const maxCheck = Math.min(bodyChildren.length, 10);
-		for (let i = 0; i < maxCheck; i++) {
-			if ((bodyChildren[i] as HTMLElement & { __svelte_meta?: unknown }).__svelte_meta) {
-				return true;
-			}
-		}
-
-		const testElements = document.querySelectorAll('*');
-		const maxBroadCheck = Math.min(testElements.length, 50);
-		for (let i = 0; i < maxBroadCheck; i++) {
-			if ((testElements[i] as HTMLElement & { __svelte_meta?: unknown }).__svelte_meta) {
-				return true;
-			}
-		}
-
-		return false;
-	}
+	let destroyed = false;
+	let mountTimeoutId: ReturnType<typeof setTimeout>;
 
 	onMount(() => {
-		setTimeout(() => {
-			isDev = detectDevMode();
+		mountTimeoutId = setTimeout(() => {
+			if (destroyed) return;
+			isDev = detectDevMode(forceEnable);
 
 			if (!isDev) {
 				console.log('[SvelteGrab] Disabled - no Svelte dev metadata found. Use forceEnable={true} to override.');
@@ -1276,6 +1227,8 @@
 	});
 
 	onDestroy(() => {
+		destroyed = true;
+		clearTimeout(mountTimeoutId);
 		cleanup?.();
 		agentClient?.disconnect();
 		pluginRegistry.clear();
@@ -1688,6 +1641,9 @@
 				{#if copied}
 					<span class="svelte-grab-copied" aria-live="polite">Copied!</span>
 				{/if}
+				{#if copyFailed}
+					<span class="svelte-grab-copy-failed" aria-live="polite">Copy failed</span>
+				{/if}
 				{#if history.length > 0}
 					<button
 						class="svelte-grab-history-btn"
@@ -1983,6 +1939,12 @@
 
 	.svelte-grab-copied {
 		color: #4ade80;
+		font-size: 11px;
+		animation: fade-in 0.2s ease;
+	}
+
+	.svelte-grab-copy-failed {
+		color: #ef4444;
 		font-size: 11px;
 		animation: fade-in 0.2s ease;
 	}

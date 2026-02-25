@@ -5,9 +5,12 @@
 		detectDevMode,
 		findSvelteElement,
 		copyToClipboard,
-		checkModifier
+		checkModifier,
+		DARK_THEME,
+		LIGHT_THEME
 	} from './utils/shared.js';
 	import { analyzeA11y, formatA11yForAgent } from './utils/a11y-checker.js';
+	import { registerToolOutput } from './utils/unified-export.js';
 
 	let {
 		modifier = 'alt',
@@ -19,12 +22,13 @@
 		includeSubtree = true
 	}: SvelteA11yReporterProps = $props();
 
-	let baseTheme = $derived(lightTheme ? { background: '#ffffff', border: '#e0e0e0', text: '#1a1a2e', accent: '#e85d04' } : { background: '#1a1a2e', border: '#4a4a6a', text: '#e0e0e0', accent: '#ff6b35' });
+	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
 	let colors = $derived({ ...baseTheme, ...theme } as Required<ThemeConfig>);
 
 	let isDev = $state(false);
 	let visible = $state(false);
 	let copied = $state(false);
+	let copyFailed = $state(false);
 	let report = $state<A11yReport | null>(null);
 	let activeTab = $state<'critical' | 'warnings' | 'passes'>('critical');
 
@@ -51,12 +55,17 @@
 		}
 
 		const formatted = formatA11yForAgent(report);
+		registerToolOutput('A11yReporter', formatted);
 		copyToClipboard(formatted).then(ok => {
 			if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
+			else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
 		});
 
 		console.log('[SvelteA11yReporter] A11y report:\n' + formatted);
-		if (showPopup) visible = true;
+		if (showPopup) {
+			visible = true;
+			applyHighlights(report);
+		}
 	}
 
 	function handleContextMenu(event: MouseEvent) {
@@ -65,7 +74,7 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && visible) visible = false;
+		if (event.key === 'Escape' && visible) { visible = false; clearHighlights(); }
 
 		// Alt+A to analyze full page
 		if (checkModifier(event, modifier) && (event.key === 'a' || event.key === 'A')) {
@@ -76,9 +85,16 @@
 			else activeTab = 'passes';
 
 			const formatted = formatA11yForAgent(report);
-			copyToClipboard(formatted);
+			registerToolOutput("A11yReporter", formatted);
+			copyToClipboard(formatted).then(ok => {
+				if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
+				else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
+			});
 			console.log('[SvelteA11yReporter] Full page a11y report:\n' + formatted);
-			if (showPopup) visible = true;
+			if (showPopup) {
+				visible = true;
+				applyHighlights(report);
+			}
 		}
 	}
 
@@ -86,6 +102,36 @@
 		if (score >= 80) return '#4ade80';
 		if (score >= 60) return '#fbbf24';
 		return '#ef4444';
+	}
+
+	let highlightStyleEl: HTMLStyleElement | null = null;
+
+	function applyHighlights(r: A11yReport) {
+		clearHighlights();
+		const allIssues = [...r.critical, ...r.warnings];
+		for (const issue of allIssues) {
+			if (issue.element && issue.element.isConnected) {
+				issue.element.setAttribute('data-sg-a11y-highlight', issue.severity);
+			}
+		}
+		// Inject highlight CSS
+		highlightStyleEl = document.createElement('style');
+		highlightStyleEl.textContent = `
+			[data-sg-a11y-highlight="critical"] { outline: 2px solid #ef4444 !important; outline-offset: 2px; }
+			[data-sg-a11y-highlight="warning"] { outline: 2px solid #fbbf24 !important; outline-offset: 2px; }
+			[data-sg-a11y-highlight="info"] { outline: 2px dashed #60a5fa !important; outline-offset: 2px; }
+		`;
+		document.head.appendChild(highlightStyleEl);
+	}
+
+	function clearHighlights() {
+		document.querySelectorAll('[data-sg-a11y-highlight]').forEach(el => {
+			el.removeAttribute('data-sg-a11y-highlight');
+		});
+		if (highlightStyleEl) {
+			highlightStyleEl.remove();
+			highlightStyleEl = null;
+		}
 	}
 
 	let cleanup: (() => void) | null = null;
@@ -109,14 +155,14 @@
 		}, 100);
 	});
 
-	onDestroy(() => cleanup?.());
+	onDestroy(() => { cleanup?.(); clearHighlights(); });
 </script>
 
 {#if isDev && showPopup && visible && report}
 	<div
 		class="sg-a11y-overlay"
-		onclick={() => (visible = false)}
-		onkeydown={(e) => e.key === 'Escape' && (visible = false)}
+		onclick={() => { visible = false; clearHighlights(); }}
+		onkeydown={(e) => { if (e.key === 'Escape') { visible = false; clearHighlights(); } }}
 		role="presentation"
 	>
 		<div
@@ -140,7 +186,8 @@
 					{report.score}/100
 				</span>
 				{#if copied}<span class="sg-a11y-copied">Copied!</span>{/if}
-				<button class="sg-a11y-close" onclick={() => (visible = false)} aria-label="Close">&times;</button>
+				{#if copyFailed}<span class="sg-a11y-copied-failed" style="color: #ef4444; font-size: 11px;">Copy failed</span>{/if}
+				<button class="sg-a11y-close" onclick={() => { visible = false; clearHighlights(); }} aria-label="Close">&times;</button>
 			</div>
 
 			{#if report.file}
@@ -186,6 +233,9 @@
 								{#if issue.file}
 									<div class="sg-a11y-issue-file">{issue.file}{issue.line ? ':' + issue.line : ''}</div>
 								{/if}
+								{#if issue.why}
+									<div class="sg-a11y-issue-why">{issue.why}</div>
+								{/if}
 								<div class="sg-a11y-issue-fix">
 									<span class="sg-a11y-fix-label">✅ Fix:</span>
 									{issue.fix}
@@ -209,6 +259,9 @@
 								<div class="sg-a11y-issue-element">{issue.elementHtml}</div>
 								{#if issue.file}
 									<div class="sg-a11y-issue-file">{issue.file}{issue.line ? ':' + issue.line : ''}</div>
+								{/if}
+								{#if issue.why}
+									<div class="sg-a11y-issue-why">{issue.why}</div>
 								{/if}
 								<div class="sg-a11y-issue-fix">
 									<span class="sg-a11y-fix-label">⚠️</span> {issue.fix}
@@ -236,6 +289,7 @@
 					onclick={() => {
 						if (report) copyToClipboard(formatA11yForAgent(report)).then(ok => {
 							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
+							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
 						});
 					}}
 				>Copy for Agent</button>
@@ -244,7 +298,11 @@
 					onclick={() => {
 						report = analyzeA11y(document.body, true);
 						const formatted = formatA11yForAgent(report);
-						copyToClipboard(formatted);
+						registerToolOutput("A11yReporter", formatted);
+						copyToClipboard(formatted).then(ok => {
+							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
+							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
+						});
 					}}
 				>Audit Full Page</button>
 			</div>
@@ -330,6 +388,11 @@
 	}
 
 	.sg-a11y-issue-file { font-size: 10px; color: #60a5fa; padding: 2px 0; }
+	.sg-a11y-issue-why {
+		font-size: 10px; color: #a78bfa; padding: 4px 8px; margin: 4px 0;
+		background: rgba(167, 139, 250, 0.05); border-radius: 3px;
+		line-height: 1.4; font-style: italic;
+	}
 
 	.sg-a11y-issue-fix {
 		margin-top: 6px; font-size: 11px; color: #4ade80; line-height: 1.4;

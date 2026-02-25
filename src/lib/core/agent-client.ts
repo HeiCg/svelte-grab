@@ -72,6 +72,7 @@ export class AgentClient {
 	private sessionId: string = '';
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	private shouldReconnect = false;
+	private reconnectAttempts = 0;
 	private _requestHistory: AgentHistoryEntry[] = [];
 	private _pendingEntry: AgentHistoryEntry | null = null;
 
@@ -106,6 +107,7 @@ export class AgentClient {
 			this.ws = new WebSocket(this.url);
 
 			this.ws.onopen = () => {
+				this.reconnectAttempts = 0;
 				this.onConnectionChange?.(true);
 				// Send health check
 				this.ws?.send(JSON.stringify({ type: 'health' }));
@@ -159,12 +161,14 @@ export class AgentClient {
 	private scheduleReconnect(): void {
 		if (!this.shouldReconnect) return;
 		if (this.reconnectTimer) return;
+		const delay = Math.min(3000 * Math.pow(2, this.reconnectAttempts), 60000);
+		this.reconnectAttempts++;
 		this.reconnectTimer = setTimeout(() => {
 			this.reconnectTimer = null;
 			if (this.shouldReconnect) {
 				this.doConnect();
 			}
-		}, 3000);
+		}, delay);
 	}
 
 	/**
@@ -174,6 +178,14 @@ export class AgentClient {
 		if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
 			this.onError?.('Not connected to relay server');
 			return;
+		}
+
+		// Save any existing pending entry before overwriting
+		if (this._pendingEntry) {
+			this._requestHistory.push({
+				...this._pendingEntry,
+				error: '[interrupted by new request]'
+			});
 		}
 
 		this._pendingEntry = {
@@ -323,6 +335,15 @@ export class AgentClient {
 		if (this.reconnectTimer) {
 			clearTimeout(this.reconnectTimer);
 			this.reconnectTimer = null;
+		}
+		// Resolve any pending entry
+		if (this._pendingEntry) {
+			this.onError?.('Connection closed');
+			this._requestHistory.push({
+				...this._pendingEntry,
+				error: '[disconnected]'
+			});
+			this._pendingEntry = null;
 		}
 		if (this.ws) {
 			this.ws.close();

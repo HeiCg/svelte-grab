@@ -5,7 +5,9 @@
 		detectDevMode,
 		copyToClipboard,
 		checkModifier,
-		modifierKeyName
+		modifierKeyName,
+		DARK_THEME,
+		LIGHT_THEME
 	} from './utils/shared.js';
 	import {
 		parseStackTrace,
@@ -15,8 +17,11 @@
 		shortenFramePath,
 		errorId,
 		detectErrorPattern,
-		formatErrorsForAgent
+		formatErrorsForAgent,
+		fetchSourceContext,
+		formatSourceContext
 	} from './utils/error-parser.js';
+	import { registerToolOutput } from './utils/unified-export.js';
 
 	let {
 		modifier = 'alt',
@@ -30,12 +35,13 @@
 		filterNodeModules = true
 	}: SvelteErrorContextProps = $props();
 
-	let baseTheme = $derived(lightTheme ? { background: '#ffffff', border: '#e0e0e0', text: '#1a1a2e', accent: '#e85d04' } : { background: '#1a1a2e', border: '#4a4a6a', text: '#e0e0e0', accent: '#ff6b35' });
+	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
 	let colors = $derived({ ...baseTheme, ...theme } as Required<ThemeConfig>);
 
 	let isDev = $state(false);
 	let visible = $state(false);
 	let copied = $state(false);
+	let copyFailed = $state(false);
 	let errors = $state<CapturedError[]>([]);
 	let filterType = $state<'all' | 'error' | 'warning'>('all');
 
@@ -84,6 +90,24 @@
 		};
 
 		errors = [newError, ...errors].slice(0, maxErrors);
+
+		// Register for unified export
+		setTimeout(() => {
+			registerToolOutput('ErrorContext', formatErrorsForAgent(errors, bufferMinutes));
+		}, 0);
+
+		// Try to fetch source context asynchronously
+		if (svelteFrame) {
+			fetchSourceContext(svelteFrame.file, svelteFrame.line).then(ctx => {
+				if (ctx) {
+					const idx = errors.findIndex(e => e.id === id);
+					if (idx !== -1) {
+						errors[idx].sourceContext = ctx;
+						errors = [...errors];
+					}
+				}
+			}).catch(() => { /* source fetch failed, ignore */ });
+		}
 	}
 
 	function pruneOldErrors() {
@@ -231,6 +255,7 @@
 					>🟡 ({warningCount})</button>
 				</div>
 				{#if copied}<span class="sg-error-copied">Copied!</span>{/if}
+				{#if copyFailed}<span class="sg-error-copied-failed" style="color: #ef4444; font-size: 11px;">Copy failed</span>{/if}
 				<button class="sg-error-close" onclick={() => (visible = false)} aria-label="Close">&times;</button>
 			</div>
 
@@ -273,6 +298,11 @@
 								</div>
 							{/if}
 
+							{#if error.sourceContext}
+								<pre class="sg-error-source">{#each error.sourceContext.lines as line}<span class={line.isCurrent ? 'sg-error-source-current' : ''}>{line.isCurrent ? '>' : ' '} {String(line.num).padStart(4)} | {line.text}
+</span>{/each}</pre>
+							{/if}
+
 							{#if pattern}
 								<div class="sg-error-pattern">
 									<div class="sg-error-cause">💡 {pattern.cause}</div>
@@ -288,8 +318,11 @@
 				<button
 					class="sg-error-btn"
 					onclick={() => {
-						copyToClipboard(formatErrorsForAgent(filteredErrors, bufferMinutes)).then(ok => {
+						const formatted = formatErrorsForAgent(filteredErrors, bufferMinutes);
+						registerToolOutput('ErrorContext', formatted);
+						copyToClipboard(formatted).then(ok => {
 							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
+							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
 						});
 					}}
 				>Copy for Agent</button>
@@ -472,4 +505,21 @@
 	}
 	.sg-error-btn:hover { background: rgba(255, 255, 255, 0.15); }
 	.sg-error-btn-secondary { flex: 0; }
+
+	.sg-error-source {
+		margin: 6px 0 0 20px;
+		padding: 6px 8px;
+		background: rgba(0, 0, 0, 0.3);
+		border-radius: 4px;
+		font-size: 10px;
+		color: #888;
+		overflow-x: auto;
+		white-space: pre;
+		line-height: 1.5;
+	}
+
+	.sg-error-source-current {
+		color: #fbbf24;
+		background: rgba(251, 191, 36, 0.1);
+	}
 </style>

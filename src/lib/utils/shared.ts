@@ -26,19 +26,6 @@ export const LIGHT_THEME: ThemeConfig = {
 };
 
 /**
- * Resolve theme from props
- */
-export function resolveTheme(lightTheme: boolean, overrides: ThemeConfig): Required<ThemeConfig> {
-	const base = lightTheme ? LIGHT_THEME : DARK_THEME;
-	return {
-		background: overrides.background ?? base.background!,
-		border: overrides.border ?? base.border!,
-		text: overrides.text ?? base.text!,
-		accent: overrides.accent ?? base.accent!
-	};
-}
-
-/**
  * Check if a file path should be excluded (generated/internal files)
  */
 export function isExcludedPath(filePath: string): boolean {
@@ -90,31 +77,47 @@ export function findSvelteElement(target: HTMLElement): SvelteElement | null {
 }
 
 /**
- * Detect Svelte dev mode
+ * Detect Svelte dev mode (result is cached after first call)
  */
+let _devModeCache: boolean | null = null;
+
 export function detectDevMode(forceEnable: boolean): boolean {
 	if (forceEnable) return true;
+	if (_devModeCache !== null) return _devModeCache;
 
-	if ((document.body as SvelteElement).__svelte_meta) return true;
+	if ((document.body as SvelteElement).__svelte_meta) {
+		_devModeCache = true;
+		return true;
+	}
 
 	const selectors = ['#app', '#root', 'main', '[data-sveltekit-hydrate]', '[data-svelte]'];
 	for (const selector of selectors) {
 		const el = document.querySelector(selector);
-		if (el && (el as SvelteElement).__svelte_meta) return true;
+		if (el && (el as SvelteElement).__svelte_meta) {
+			_devModeCache = true;
+			return true;
+		}
 	}
 
 	const bodyChildren = document.body.children;
 	const maxCheck = Math.min(bodyChildren.length, 10);
 	for (let i = 0; i < maxCheck; i++) {
-		if ((bodyChildren[i] as SvelteElement).__svelte_meta) return true;
+		if ((bodyChildren[i] as SvelteElement).__svelte_meta) {
+			_devModeCache = true;
+			return true;
+		}
 	}
 
 	const allEls = document.querySelectorAll('*');
 	const maxBroad = Math.min(allEls.length, 50);
 	for (let i = 0; i < maxBroad; i++) {
-		if ((allEls[i] as SvelteElement).__svelte_meta) return true;
+		if ((allEls[i] as SvelteElement).__svelte_meta) {
+			_devModeCache = true;
+			return true;
+		}
 	}
 
+	_devModeCache = false;
 	return false;
 }
 

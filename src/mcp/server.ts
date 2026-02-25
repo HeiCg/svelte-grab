@@ -9,10 +9,14 @@ export interface McpServerOptions {
 interface ContextPayload {
 	content: string[];
 	prompt?: string;
+	toolName?: string;
 }
 
 // Stored context — last context sent by the browser
 let storedContext: ContextPayload | null = null;
+
+// Per-tool context storage
+const toolContexts = new Map<string, { content: string; timestamp: number }>();
 
 // Session history — list of contexts received
 interface SessionHistoryEntry {
@@ -37,6 +41,7 @@ function isValidContextPayload(data: unknown): data is ContextPayload {
 		if (typeof item !== 'string') return false;
 	}
 	if (obj.prompt !== undefined && typeof obj.prompt !== 'string') return false;
+	if (obj.toolName !== undefined && typeof obj.toolName !== 'string') return false;
 	return true;
 }
 
@@ -91,6 +96,21 @@ async function handleMcpProtocol(req: IncomingMessage, res: ServerResponse): Pro
 	} catch {
 		sendJson(res, 501, { error: '@modelcontextprotocol/sdk not installed' });
 	}
+}
+
+/**
+ * Extract a tool-specific section from stored context.
+ * Checks per-tool storage first, then falls back to parsing the unified export.
+ */
+function extractToolSection(toolName: string): string | null {
+	const toolCtx = toolContexts.get(toolName);
+	if (toolCtx) return toolCtx.content;
+
+	if (!storedContext) return null;
+	const fullText = storedContext.content.join('\n');
+	const regex = new RegExp(`\\[${toolName}\\][\\s\\S]*?(?=\\n={30,}\\n\\[|$)`);
+	const match = fullText.match(regex);
+	return match ? match[0] : null;
 }
 
 /**
@@ -172,6 +192,95 @@ function registerMcpTools(server: any): void {
 			};
 		}
 	);
+
+	server.tool(
+		'get_a11y_report',
+		'Returns the last accessibility audit report captured by SvelteA11yReporter. Includes WCAG violations, scores, and fix suggestions.',
+		{},
+		async () => {
+			const section = extractToolSection('A11yReporter');
+			if (!section) {
+				return {
+					content: [{ type: 'text', text: 'No a11y report available. Use Alt+RightClick or Alt+A in the browser to run an accessibility audit.' }]
+				};
+			}
+			return { content: [{ type: 'text', text: section }] };
+		}
+	);
+
+	server.tool(
+		'get_style_context',
+		'Returns the last CSS style analysis captured by SvelteStyleGrab. Includes computed styles, conflicts, and source attribution.',
+		{},
+		async () => {
+			const section = extractToolSection('StyleGrab');
+			if (!section) {
+				return {
+					content: [{ type: 'text', text: 'No style context available. Use Alt+Ctrl+Click on an element in the browser to capture styles.' }]
+				};
+			}
+			return { content: [{ type: 'text', text: section }] };
+		}
+	);
+
+	server.tool(
+		'get_error_context',
+		'Returns captured console errors and warnings from SvelteErrorContext. Includes stack traces, component attribution, and error patterns.',
+		{},
+		async () => {
+			const section = extractToolSection('ErrorContext');
+			if (!section) {
+				return {
+					content: [{ type: 'text', text: 'No error context available. Errors are captured automatically when SvelteErrorContext is active.' }]
+				};
+			}
+			return { content: [{ type: 'text', text: section }] };
+		}
+	);
+
+	server.tool(
+		'get_profiler_report',
+		'Returns the last render profiler report from SvelteRenderProfiler. Includes hot components, render counts, and burst detection.',
+		{},
+		async () => {
+			const section = extractToolSection('RenderProfiler');
+			if (!section) {
+				return {
+					content: [{ type: 'text', text: 'No profiler data available. Use Alt+P in the browser to start profiling.' }]
+				};
+			}
+			return { content: [{ type: 'text', text: section }] };
+		}
+	);
+
+	server.tool(
+		'list_available_tools',
+		'Lists which svelte-grab tools have data available and when it was last captured.',
+		{},
+		async () => {
+			const tools: string[] = [];
+
+			if (storedContext) {
+				tools.push('element_context: available (last grab)');
+			}
+
+			for (const [name, ctx] of toolContexts) {
+				const age = Math.floor((Date.now() - ctx.timestamp) / 1000);
+				const ageStr = age < 60 ? `${age}s ago` : `${Math.floor(age / 60)}m ago`;
+				tools.push(`${name}: available (captured ${ageStr})`);
+			}
+
+			if (tools.length === 0) {
+				return {
+					content: [{ type: 'text', text: 'No tool data available. Use svelte-grab tools in the browser to capture context.' }]
+				};
+			}
+
+			return {
+				content: [{ type: 'text', text: `Available tool data:\n\n${tools.join('\n')}` }]
+			};
+		}
+	);
 }
 
 /**
@@ -209,6 +318,14 @@ function startHttpServer(port: number): Promise<{ close: () => void }> {
 					}
 
 					storedContext = data;
+
+					// Store per-tool context if toolName provided
+					if (data.toolName) {
+						toolContexts.set(data.toolName, {
+							content: data.content.join('\n'),
+							timestamp: Date.now()
+						});
+					}
 
 					// Save to session history
 					sessionCounter++;

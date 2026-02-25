@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { SvelteStateGrabProps, ComponentStateInfo, ThemeConfig } from './types.js';
+	import type { SvelteStateGrabProps, ComponentStateInfo, ThemeConfig, StateSnapshot, StateDiff } from './types.js';
 	import type { SvelteElement } from './utils/shared.js';
 	import {
 		detectDevMode,
@@ -15,6 +15,8 @@
 		LIGHT_THEME
 	} from './utils/shared.js';
 	import { safeSerialize, inlinePreview, getTypeDescription } from './utils/serializer.js';
+	import { getInspectableState, getInspectableIds } from './utils/inspectable.js';
+	import { registerToolOutput } from './utils/unified-export.js';
 
 	let {
 		modifier = 'alt',
@@ -24,7 +26,8 @@
 		theme = {},
 		lightTheme = false,
 		maxDepth = 3,
-		maxStringLength = 200
+		maxStringLength = 200,
+		maxSnapshots = 5
 	}: SvelteStateGrabProps = $props();
 
 	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
@@ -34,7 +37,10 @@
 	let visible = $state(false);
 	let stateInfo = $state<ComponentStateInfo | null>(null);
 	let copied = $state(false);
+	let copyFailed = $state(false);
 	let expandedSections = $state<Set<string>>(new Set(['props', 'attributes']));
+	let snapshots = $state<StateSnapshot[]>([]);
+	let diffs = $state<StateDiff[]>([]);
 
 	function toggleSection(section: string) {
 		const next = new Set(expandedSections);
@@ -125,14 +131,43 @@
 			boundValues['textContent'] = element.textContent.trim().slice(0, 200);
 		}
 
-		// Count child components
-		let childComponentCount = 0;
+		// Collect child components with details
+		const childMap = new Map<string, { name: string; file: string; count: number }>();
 		element.querySelectorAll('*').forEach(child => {
-			if ((child as SvelteElement).__svelte_meta?.loc) {
-				const childFile = (child as SvelteElement).__svelte_meta!.loc!.file;
-				if (childFile !== file) childComponentCount++;
+			const childMeta = (child as SvelteElement).__svelte_meta;
+			if (childMeta?.loc) {
+				const childFile = childMeta.loc.file;
+				if (childFile !== file) {
+					const existing = childMap.get(childFile);
+					if (existing) {
+						existing.count++;
+					} else {
+						childMap.set(childFile, {
+							name: extractComponentName(childFile) || 'unknown',
+							file: shortenPath(childFile),
+							count: 1
+						});
+					}
+				}
 			}
 		});
+		const childComponents = Array.from(childMap.values());
+		const childComponentCount = childComponents.reduce((sum, c) => sum + c.count, 0);
+
+		// Look up inspectable() state by component name
+		let inspectableState: Record<string, unknown> | undefined;
+		if (componentName) {
+			inspectableState = getInspectableState(componentName);
+			// Also try partial matches (e.g., "Counter" matches "MyCounter")
+			if (!inspectableState) {
+				const ids = getInspectableIds();
+				const match = ids.find(id =>
+					id === componentName ||
+					id.toLowerCase() === componentName!.toLowerCase()
+				);
+				if (match) inspectableState = getInspectableState(match);
+			}
+		}
 
 		return {
 			componentName,
@@ -142,7 +177,9 @@
 			attributes,
 			dataAttributes,
 			boundValues,
+			inspectableState,
 			childComponentCount,
+			childComponents,
 			elementTag: tag
 		};
 	}
@@ -187,14 +224,99 @@
 			parts.push('');
 		}
 
-		if (info.childComponentCount > 0) {
-			parts.push(`\u{1F333} CHILD COMPONENTS: ${info.childComponentCount}`);
+		if (info.inspectableState && Object.keys(info.inspectableState).length > 0) {
+			parts.push('\u{1F50D} INSPECTABLE STATE ($state):');
+			for (const [key, value] of Object.entries(info.inspectableState)) {
+				parts.push(`  ${key}: ${inlinePreview(value)}`);
+			}
 			parts.push('');
+		}
+
+		if (info.childComponents.length > 0) {
+			parts.push(`\u{1F333} CHILD COMPONENTS (${info.childComponentCount} total, ${info.childComponents.length} unique):`);
+			for (const child of info.childComponents) {
+				parts.push(`  <${child.name}> ${child.file}${child.count > 1 ? ` (x${child.count})` : ''}`);
+			}
+			parts.push('');
+		}
+
+		if (diffs.length > 0) {
+			parts.push('\u{1F504} STATE CHANGES (since last capture):');
+			for (const diff of diffs) {
+				const oldStr = diff.oldValue === undefined ? '(new)' : inlinePreview(diff.oldValue);
+				const newStr = diff.newValue === undefined ? '(removed)' : inlinePreview(diff.newValue);
+				parts.push(`  ${diff.key}: ${oldStr} \u2192 ${newStr}`);
+			}
+			parts.push('');
+		}
+
+		if (snapshots.length > 1) {
+			const componentSnapshots = snapshots.filter(s => s.file === info.file);
+			if (componentSnapshots.length > 1) {
+				parts.push(`\u{1F4F8} SNAPSHOT HISTORY (${componentSnapshots.length} captures for this component):`);
+				for (const snap of componentSnapshots.slice(0, 5)) {
+					parts.push(`  [${new Date(snap.timestamp).toLocaleTimeString()}] ${Object.keys(snap.state).length} values`);
+				}
+				parts.push('');
+			}
 		}
 
 		parts.push(`\u{1F4CD} Location: ${info.file}:${info.line}`);
 
 		return parts.join('\n');
+	}
+
+	/**
+	 * Collect all state values into a flat record for snapshot comparison
+	 */
+	function collectStateValues(info: ComponentStateInfo): Record<string, unknown> {
+		const values: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(info.props)) values[`props.${k}`] = v;
+		for (const [k, v] of Object.entries(info.boundValues)) values[`bound.${k}`] = v;
+		if (info.inspectableState) {
+			for (const [k, v] of Object.entries(info.inspectableState)) values[`state.${k}`] = v;
+		}
+		return values;
+	}
+
+	/**
+	 * Compare two snapshots and return the diffs
+	 */
+	function computeDiffs(prev: Record<string, unknown>, curr: Record<string, unknown>): StateDiff[] {
+		const result: StateDiff[] = [];
+		const allKeys = new Set([...Object.keys(prev), ...Object.keys(curr)]);
+		for (const key of allKeys) {
+			const oldVal = prev[key];
+			const newVal = curr[key];
+			if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+				result.push({ key, oldValue: oldVal, newValue: newVal });
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Take a snapshot and compute diffs from previous
+	 */
+	function takeSnapshot(info: ComponentStateInfo) {
+		const state = collectStateValues(info);
+		const snapshot: StateSnapshot = {
+			timestamp: Date.now(),
+			componentName: info.componentName,
+			file: info.file,
+			state
+		};
+
+		// Compute diff against the most recent snapshot for the same component
+		const prevSnapshot = snapshots.find(s => s.file === info.file);
+		if (prevSnapshot) {
+			diffs = computeDiffs(prevSnapshot.state, state);
+		} else {
+			diffs = [];
+		}
+
+		// Add to front, limit size
+		snapshots = [snapshot, ...snapshots.filter(s => s.file !== info.file || s.timestamp !== snapshot.timestamp)].slice(0, maxSnapshots);
 	}
 
 	function handleClick(event: MouseEvent) {
@@ -214,11 +336,16 @@
 		}
 
 		stateInfo = extractState(svelteEl);
+		takeSnapshot(stateInfo);
 		const formatted = formatForAgent(stateInfo);
+		registerToolOutput('StateGrab', formatted);
 		copyToClipboard(formatted).then(ok => {
 			if (ok) {
 				copied = true;
 				setTimeout(() => (copied = false), 1500);
+			} else {
+				copyFailed = true;
+				setTimeout(() => (copyFailed = false), 3000);
 			}
 		});
 
@@ -287,6 +414,9 @@
 				{/if}
 				{#if copied}
 					<span class="sg-state-copied">Copied!</span>
+				{/if}
+				{#if copyFailed}
+					<span class="sg-state-copied-failed" style="color: #ef4444; font-size: 11px;">Copy failed</span>
 				{/if}
 				<button class="sg-state-close" onclick={() => (visible = false)} aria-label="Close">&times;</button>
 			</div>
@@ -366,10 +496,59 @@
 					{/if}
 				{/if}
 
-				{#if stateInfo.childComponentCount > 0}
-					<div class="sg-state-info">
-						🌳 {stateInfo.childComponentCount} child component{stateInfo.childComponentCount !== 1 ? 's' : ''}
-					</div>
+				{#if stateInfo.inspectableState && Object.keys(stateInfo.inspectableState).length > 0}
+					<button class="sg-state-section" onclick={() => toggleSection('inspectable')}>
+						<span class="sg-state-section-icon">{expandedSections.has('inspectable') ? '▼' : '▶'}</span>
+						<span>🔍 Inspectable State ({Object.keys(stateInfo.inspectableState).length})</span>
+					</button>
+					{#if expandedSections.has('inspectable')}
+						<div class="sg-state-entries">
+							{#each Object.entries(stateInfo.inspectableState) as [key, value]}
+								<div class="sg-state-entry">
+									<span class="sg-state-key">{key}</span>
+									<span class="sg-state-type">{getTypeDescription(value)}</span>
+									<span class="sg-state-value">{inlinePreview(value)}</span>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{/if}
+
+				{#if diffs.length > 0}
+					<button class="sg-state-section" onclick={() => toggleSection('diffs')}>
+						<span class="sg-state-section-icon">{expandedSections.has('diffs') ? '▼' : '▶'}</span>
+						<span>🔄 State Changes ({diffs.length})</span>
+					</button>
+					{#if expandedSections.has('diffs')}
+						<div class="sg-state-entries">
+							{#each diffs as diff}
+								<div class="sg-state-entry">
+									<span class="sg-state-key">{diff.key}</span>
+									<span class="sg-state-diff-old">{diff.oldValue === undefined ? '(new)' : inlinePreview(diff.oldValue)}</span>
+									<span class="sg-state-diff-arrow">&rarr;</span>
+									<span class="sg-state-diff-new">{diff.newValue === undefined ? '(removed)' : inlinePreview(diff.newValue)}</span>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{/if}
+
+				{#if stateInfo.childComponents.length > 0}
+					<button class="sg-state-section" onclick={() => toggleSection('children')}>
+						<span class="sg-state-section-icon">{expandedSections.has('children') ? '▼' : '▶'}</span>
+						<span>🌳 Children ({stateInfo.childComponents.length} unique, {stateInfo.childComponentCount} total)</span>
+					</button>
+					{#if expandedSections.has('children')}
+						<div class="sg-state-entries">
+							{#each stateInfo.childComponents as child}
+								<div class="sg-state-entry">
+									<span class="sg-state-key">&lt;{child.name}&gt;</span>
+									<span class="sg-state-type">{child.count > 1 ? `x${child.count}` : ''}</span>
+									<span class="sg-state-value">{child.file}</span>
+								</div>
+							{/each}
+						</div>
+					{/if}
 				{/if}
 			</div>
 
@@ -379,13 +558,14 @@
 					onclick={() => {
 						if (stateInfo) copyToClipboard(formatForAgent(stateInfo)).then(ok => {
 							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
+							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
 						});
 					}}
 				>Copy for Agent</button>
 				<button
 					class="sg-state-btn"
 					onclick={() => {
-						if (stateInfo) copyToClipboard(JSON.stringify({
+						if (stateInfo) copyToClipboard(safeSerialize({
 							component: stateInfo.componentName,
 							file: stateInfo.file,
 							line: stateInfo.line,
@@ -393,8 +573,9 @@
 							attributes: stateInfo.attributes,
 							dataAttributes: stateInfo.dataAttributes,
 							boundValues: stateInfo.boundValues
-						}, null, 2)).then(ok => {
+						})).then(ok => {
 							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
+							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
 						});
 					}}
 				>Copy JSON</button>
@@ -545,13 +726,6 @@
 		flex: 1;
 	}
 
-	.sg-state-info {
-		padding: 8px 12px;
-		font-size: 11px;
-		color: #888;
-		border-top: 1px solid rgba(255, 255, 255, 0.05);
-	}
-
 	.sg-state-footer {
 		display: flex;
 		gap: 8px;
@@ -574,5 +748,22 @@
 
 	.sg-state-btn:hover {
 		background: rgba(255, 255, 255, 0.15);
+	}
+
+	.sg-state-diff-old {
+		color: #ef4444;
+		text-decoration: line-through;
+		font-size: 10px;
+	}
+
+	.sg-state-diff-arrow {
+		color: #888;
+		font-size: 10px;
+		flex-shrink: 0;
+	}
+
+	.sg-state-diff-new {
+		color: #4ade80;
+		font-size: 10px;
 	}
 </style>

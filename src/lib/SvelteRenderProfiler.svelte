@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { SvelteRenderProfilerProps, ComponentProfile, RenderBurst, ThemeConfig } from './types.js';
-	import { detectDevMode, copyToClipboard, checkModifier, shortenPath } from './utils/shared.js';
+	import { detectDevMode, copyToClipboard, checkModifier, shortenPath, DARK_THEME, LIGHT_THEME } from './utils/shared.js';
 	import { ProfilerTracker } from './utils/profiler-tracker.js';
+	import { registerToolOutput } from './utils/unified-export.js';
 
 	let {
 		modifier = 'alt',
@@ -16,7 +17,7 @@
 		burstWindow = 1000
 	}: SvelteRenderProfilerProps = $props();
 
-	let baseTheme = $derived(lightTheme ? { background: '#ffffff', border: '#e0e0e0', text: '#1a1a2e', accent: '#e85d04' } : { background: '#1a1a2e', border: '#4a4a6a', text: '#e0e0e0', accent: '#ff6b35' });
+	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
 	let colors = $derived({ ...baseTheme, ...theme } as Required<ThemeConfig>);
 
 	let isDev = $state(false);
@@ -56,6 +57,7 @@
 		bursts = tracker.detectBursts();
 		duration = tracker.getDuration();
 		isProfiling = false;
+		registerToolOutput('RenderProfiler', tracker.formatForAgent());
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -104,7 +106,10 @@
 		}, 100);
 	});
 
-	onDestroy(() => cleanup?.());
+	onDestroy(() => {
+		clearInterval(countdownInterval);
+		cleanup?.();
+	});
 </script>
 
 {#if isDev && showPopup && visible}

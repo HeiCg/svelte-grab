@@ -6,10 +6,13 @@
 		findSvelteElement,
 		shortenPath,
 		copyToClipboard,
-		checkModifier
+		checkModifier,
+		DARK_THEME,
+		LIGHT_THEME
 	} from './utils/shared.js';
 	import type { SvelteElement } from './utils/shared.js';
 	import { analyzeStyles, formatStylesForAgent } from './utils/css-analyzer.js';
+	import { registerToolOutput } from './utils/unified-export.js';
 
 	let {
 		modifier = 'alt',
@@ -21,12 +24,13 @@
 		showCategories = ['all']
 	}: SvelteStyleGrabProps = $props();
 
-	let baseTheme = $derived(lightTheme ? { background: '#ffffff', border: '#e0e0e0', text: '#1a1a2e', accent: '#e85d04' } : { background: '#1a1a2e', border: '#4a4a6a', text: '#e0e0e0', accent: '#ff6b35' });
+	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
 	let colors = $derived({ ...baseTheme, ...theme } as Required<ThemeConfig>);
 
 	let isDev = $state(false);
 	let visible = $state(false);
 	let copied = $state(false);
+	let copyFailed = $state(false);
 	let categories = $state<StyleCategory[]>([]);
 	let conflicts = $state<StyleConflict[]>([]);
 	let elementTag = $state('');
@@ -34,6 +38,7 @@
 	let elementLine = $state<number | undefined>();
 	let activeCategory = $state<string | null>(null);
 	let showConflicts = $state(false);
+	let capturedElement = $state<HTMLElement | null>(null);
 
 	function handleClick(event: MouseEvent) {
 		if (!checkModifier(event, modifier)) return;
@@ -56,14 +61,26 @@
 		elementFile = meta?.loc ? shortenPath(meta.loc.file) : undefined;
 		elementLine = meta?.loc?.line;
 
+		capturedElement = svelteEl;
 		const result = analyzeStyles(svelteEl);
-		categories = result.categories;
+		const showAll = showCategories.includes('all');
+		const categoryKeyMap: Record<string, string> = {
+			'Box Model': 'box-model',
+			'Visual': 'visual',
+			'Typography': 'typography',
+			'Layout': 'layout'
+		};
+		categories = showAll
+			? result.categories
+			: result.categories.filter(c => showCategories.includes(categoryKeyMap[c.name] as any));
 		conflicts = result.conflicts;
 		activeCategory = categories.length > 0 ? categories[0].name : null;
 
 		const formatted = formatStylesForAgent(svelteEl, categories, conflicts, elementFile, elementLine);
+		registerToolOutput('StyleGrab', formatted);
 		copyToClipboard(formatted).then(ok => {
 			if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
+			else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
 		});
 
 		console.log('[SvelteStyleGrab] Styles captured:\n' + formatted);
@@ -123,6 +140,9 @@
 				{#if copied}
 					<span class="sg-style-copied">Copied!</span>
 				{/if}
+				{#if copyFailed}
+					<span class="sg-style-copied-failed" style="color: #ef4444; font-size: 11px;">Copy failed</span>
+				{/if}
 				<button class="sg-style-close" onclick={() => (visible = false)} aria-label="Close">&times;</button>
 			</div>
 
@@ -161,10 +181,13 @@
 								<div class="sg-style-conflict-rule" class:sg-style-conflict-won={rule.won}>
 									<span class="sg-style-conflict-status">{rule.won ? '✅' : '❌'}</span>
 									<span class="sg-style-conflict-selector">{rule.selector}</span>
-									<span class="sg-style-conflict-value">{rule.value}</span>
+									<span class="sg-style-conflict-value">{rule.value}{rule.important ? ' !important' : ''}</span>
 									<span class="sg-style-conflict-spec">[{rule.specificity.join(',')}]</span>
 								</div>
 							{/each}
+							{#if conflict.suggestion}
+								<div class="sg-style-conflict-suggestion">{conflict.suggestion}</div>
+							{/if}
 						</div>
 					{/each}
 				{:else}
@@ -191,9 +214,9 @@
 				<button
 					class="sg-style-btn"
 					onclick={() => {
-						const el = document.querySelector('[class*="sg-style-"]')?.closest('[role="dialog"]')?.parentElement;
+						if (!capturedElement) return;
 						const text = formatStylesForAgent(
-							document.createElement('div'),
+							capturedElement,
 							categories,
 							conflicts,
 							elementFile,
@@ -201,6 +224,7 @@
 						);
 						copyToClipboard(text).then(ok => {
 							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
+							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
 						});
 					}}
 				>Copy for Agent</button>
@@ -351,6 +375,15 @@
 	.sg-style-conflict-selector { color: #60a5fa; flex: 1; }
 	.sg-style-conflict-value { color: #fbbf24; }
 	.sg-style-conflict-spec { color: #888; font-size: 9px; }
+	.sg-style-conflict-suggestion {
+		margin-top: 4px;
+		padding: 4px 8px;
+		font-size: 10px;
+		color: #4ade80;
+		background: rgba(74, 222, 128, 0.05);
+		border-radius: 3px;
+		line-height: 1.4;
+	}
 
 	.sg-style-footer {
 		display: flex;

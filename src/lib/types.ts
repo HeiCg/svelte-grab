@@ -111,6 +111,12 @@ export interface SvelteGrabProps {
 // Svelte-State-Grab Types
 // ============================================================
 
+export interface ChildComponentInfo {
+	name: string;
+	file: string;
+	count: number;
+}
+
 export interface ComponentStateInfo {
 	componentName: string | null;
 	file: string;
@@ -119,8 +125,23 @@ export interface ComponentStateInfo {
 	attributes: Record<string, string>;
 	dataAttributes: Record<string, string>;
 	boundValues: Record<string, unknown>;
+	inspectableState?: Record<string, unknown>;
 	childComponentCount: number;
+	childComponents: ChildComponentInfo[];
 	elementTag: string;
+}
+
+export interface StateSnapshot {
+	timestamp: number;
+	componentName: string | null;
+	file: string;
+	state: Record<string, unknown>;
+}
+
+export interface StateDiff {
+	key: string;
+	oldValue: unknown;
+	newValue: unknown;
 }
 
 export interface SvelteStateGrabProps {
@@ -132,6 +153,8 @@ export interface SvelteStateGrabProps {
 	lightTheme?: boolean;
 	maxDepth?: number;
 	maxStringLength?: number;
+	/** Maximum number of state snapshots to keep. Default: 5 */
+	maxSnapshots?: number;
 }
 
 // ============================================================
@@ -161,12 +184,14 @@ export interface StyleCategory {
 export interface StyleConflict {
 	property: string;
 	rules: StyleConflictRule[];
+	suggestion?: string;
 }
 
 export interface StyleConflictRule {
 	selector: string;
 	value: string;
 	specificity: [number, number, number];
+	important: boolean;
 	won: boolean;
 	source?: string;
 }
@@ -191,6 +216,7 @@ export interface PropTraceNode {
 	column: number;
 	componentName: string | null;
 	depth: number;
+	propsProxy?: Record<string, string>;
 }
 
 export interface PropTrace {
@@ -221,6 +247,8 @@ export interface A11yIssue {
 	line?: number;
 	fix: string;
 	fixCode?: string;
+	why?: string;
+	element?: HTMLElement;
 }
 
 export interface A11yReport {
@@ -264,6 +292,7 @@ export interface CapturedError {
 	svelteFile?: string;
 	svelteLine?: number;
 	componentName?: string;
+	sourceContext?: { lines: { num: number; text: string; isCurrent: boolean }[] };
 }
 
 export interface SvelteErrorContextProps {
@@ -286,7 +315,7 @@ export interface RenderEvent {
 	componentFile: string;
 	componentName: string;
 	timestamp: number;
-	type: 'mutation' | 'attribute' | 'childList';
+	type: 'mutation' | 'attribute' | 'childList' | 'characterData';
 	mutationCount: number;
 }
 
@@ -357,6 +386,48 @@ export interface SvelteDevKitProps {
 	enableMcp?: boolean;
 	/** Port for MCP HTTP server. Default: 4723 */
 	mcpPort?: number;
+
+	// SvelteGrab props forwarding
+	/** Auto-copy format when element is grabbed. Default: 'agent' */
+	autoCopyFormat?: 'agent' | 'paths' | 'none';
+	/** Show visual popup. Default: true */
+	showPopup?: boolean;
+	/** Include HTML preview in output. Default: true */
+	includeHtml?: boolean;
+	/** Enable Cmd+C / Ctrl+C to copy in selection mode. Default: true */
+	copyOnKeyboard?: boolean;
+	/** Enable screenshot capture (requires html-to-image). Default: true */
+	enableScreenshot?: boolean;
+	/** Enable multi-selection mode. Default: true */
+	enableMultiSelect?: boolean;
+	/** Show active indicator badge. Default: true */
+	showActiveIndicator?: boolean;
+	/** Maximum history entries to keep. Default: 20 */
+	maxHistorySize?: number;
+
+	// Sub-tool config props
+	/** Secondary modifier for StateGrab. Default: 'shift' */
+	stateSecondaryModifier?: 'shift' | 'ctrl' | 'meta';
+	/** Secondary modifier for StyleGrab. Default: 'ctrl' */
+	styleSecondaryModifier?: 'shift' | 'ctrl' | 'meta';
+	/** Maximum number of state snapshots. Default: 5 */
+	maxSnapshots?: number;
+	/** Profile duration in seconds. Default: 10 */
+	profileDuration?: number;
+	/** Minimum mutations to trigger burst detection. Default: 20 */
+	burstThreshold?: number;
+	/** Time window for burst detection in ms. Default: 1000 */
+	burstWindow?: number;
+	/** Maximum errors to capture. Default: 50 */
+	maxErrors?: number;
+	/** Error buffer time in minutes. Default: 5 */
+	bufferMinutes?: number;
+	/** Filter node_modules from error stacks. Default: true */
+	filterNodeModules?: boolean;
+	/** Style categories to show. Default: ['all'] */
+	showCategories?: ('box-model' | 'visual' | 'typography' | 'layout' | 'all')[];
+	/** Include subtree in a11y analysis. Default: true */
+	includeSubtree?: boolean;
 }
 
 // ============================================================

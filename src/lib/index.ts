@@ -11,6 +11,7 @@ export { default as SvelteDevKit } from './SvelteDevKit.svelte';
 // Core utilities (for advanced users)
 export { PluginRegistry } from './core/plugin-registry.js';
 export { createGlobalAPI, destroyGlobalAPI } from './core/global-api.js';
+export { inspectable, uninspectable } from './utils/inspectable.js';
 
 // Types
 export type {
@@ -36,6 +37,9 @@ export type {
 	// StateGrab types
 	SvelteStateGrabProps,
 	ComponentStateInfo,
+	ChildComponentInfo,
+	StateSnapshot,
+	StateDiff,
 
 	// StyleGrab types
 	SvelteStyleGrabProps,

@@ -178,6 +178,80 @@ export function detectErrorPattern(error: CapturedError): { cause: string; sugge
 }
 
 /**
+ * Try to fetch source code lines from the Vite dev server.
+ * Returns the lines around the target line, or null if unavailable.
+ */
+export async function fetchSourceContext(
+	file: string,
+	targetLine: number,
+	contextLines = 2
+): Promise<{ lines: { num: number; text: string; isCurrent: boolean }[] } | null> {
+	// Build possible URLs for the Vite dev server
+	const urls: string[] = [];
+
+	// If file is already a URL, use it directly
+	if (file.startsWith('http://') || file.startsWith('https://')) {
+		urls.push(file);
+	} else {
+		// Try common Vite dev server patterns
+		const base = window.location.origin;
+		if (file.startsWith('/')) {
+			urls.push(`${base}${file}`);
+		} else if (file.startsWith('src/')) {
+			urls.push(`${base}/${file}`);
+			urls.push(`${base}/@fs/${file}`);
+		} else {
+			urls.push(`${base}/src/${file}`);
+			urls.push(`${base}/@fs/src/${file}`);
+		}
+	}
+
+	for (const url of urls) {
+		try {
+			// Remove query params that Vite may have added and re-request raw
+			const cleanUrl = url.replace(/\?.*$/, '');
+			const response = await fetch(cleanUrl, {
+				headers: { Accept: 'text/plain' }
+			});
+			if (!response.ok) continue;
+
+			const text = await response.text();
+			// Vite may return transformed JS instead of source - check for HTML/script wrapping
+			// If it looks like raw source (contains typical Svelte/JS patterns), use it
+			if (text.includes('<!DOCTYPE') || text.length > 500000) continue;
+
+			const allLines = text.split('\n');
+			const start = Math.max(0, targetLine - 1 - contextLines);
+			const end = Math.min(allLines.length, targetLine + contextLines);
+
+			const lines: { num: number; text: string; isCurrent: boolean }[] = [];
+			for (let i = start; i < end; i++) {
+				lines.push({
+					num: i + 1,
+					text: allLines[i],
+					isCurrent: i + 1 === targetLine
+				});
+			}
+
+			return { lines };
+		} catch {
+			// Fetch failed, try next URL
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Format source context lines for agent output
+ */
+export function formatSourceContext(context: { lines: { num: number; text: string; isCurrent: boolean }[] }): string {
+	return context.lines
+		.map(l => `  ${l.isCurrent ? '>' : ' '} ${String(l.num).padStart(4)} | ${l.text}`)
+		.join('\n');
+}
+
+/**
  * Format captured errors as text for LLM
  */
 export function formatErrorsForAgent(errors: CapturedError[], minutesWindow: number): string {
@@ -205,6 +279,12 @@ export function formatErrorsForAgent(errors: CapturedError[], minutesWindow: num
 			for (const frame of error.stack.slice(0, 5)) {
 				parts.push(`     ${frame.functionName} \u2192 ${shortenFramePath(frame.file)}:${frame.line}`);
 			}
+			parts.push('');
+		}
+
+		if (error.sourceContext) {
+			parts.push(`  \u{1F4C4} SOURCE:`);
+			parts.push(formatSourceContext(error.sourceContext));
 			parts.push('');
 		}
 

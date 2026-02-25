@@ -191,10 +191,44 @@ export function detectRuleSource(rule: CSSStyleRule, sheet: CSSStyleSheet): Styl
 }
 
 /**
+ * Recursively collect CSSStyleRules from a rule list, descending into @media rules
+ * that match the current viewport
+ */
+function collectStyleRules(ruleList: CSSRuleList, sheet: CSSStyleSheet): { rule: CSSStyleRule; sheet: CSSStyleSheet }[] {
+	const results: { rule: CSSStyleRule; sheet: CSSStyleSheet }[] = [];
+
+	for (let i = 0; i < ruleList.length; i++) {
+		const rule = ruleList[i];
+		if (rule instanceof CSSStyleRule) {
+			results.push({ rule, sheet });
+		} else if (rule instanceof CSSMediaRule) {
+			try {
+				if (window.matchMedia(rule.conditionText).matches) {
+					results.push(...collectStyleRules(rule.cssRules, sheet));
+				}
+			} catch {
+				// Invalid media query
+			}
+		} else if (rule instanceof CSSSupportsRule) {
+			try {
+				if (CSS.supports(rule.conditionText)) {
+					results.push(...collectStyleRules(rule.cssRules, sheet));
+				}
+			} catch {
+				// Invalid supports query
+			}
+		}
+	}
+
+	return results;
+}
+
+/**
  * Get all CSS rules that apply to an element
  */
-export function getMatchingRules(element: HTMLElement): { rule: CSSStyleRule; source: StyleSource }[] {
-	const results: { rule: CSSStyleRule; source: StyleSource }[] = [];
+export function getMatchingRules(element: HTMLElement): { rule: CSSStyleRule; source: StyleSource; order: number }[] {
+	const results: { rule: CSSStyleRule; source: StyleSource; order: number }[] = [];
+	let order = 0;
 
 	try {
 		for (let i = 0; i < document.styleSheets.length; i++) {
@@ -207,19 +241,18 @@ export function getMatchingRules(element: HTMLElement): { rule: CSSStyleRule; so
 				continue;
 			}
 
-			for (let j = 0; j < rules.length; j++) {
-				const rule = rules[j];
-				if (rule instanceof CSSStyleRule) {
-					try {
-						if (element.matches(rule.selectorText)) {
-							results.push({
-								rule,
-								source: detectRuleSource(rule, sheet)
-							});
-						}
-					} catch {
-						// Invalid selector
+			const styleRules = collectStyleRules(rules, sheet);
+			for (const { rule, sheet: ruleSheet } of styleRules) {
+				try {
+					if (element.matches(rule.selectorText)) {
+						results.push({
+							rule,
+							source: detectRuleSource(rule, ruleSheet),
+							order: order++
+						});
 					}
+				} catch {
+					// Invalid selector
 				}
 			}
 		}
@@ -233,6 +266,37 @@ export function getMatchingRules(element: HTMLElement): { rule: CSSStyleRule; so
 /**
  * Analyze an element's styles and group by category
  */
+/**
+ * Generate a suggestion for a CSS conflict based on the rule types involved
+ */
+function generateConflictSuggestion(property: string, rules: StyleConflictRule[]): string | undefined {
+	const hasImportant = rules.some(r => r.important);
+	const types = new Set(rules.map(r => {
+		if (r.selector === '(inline)') return 'inline';
+		if (r.selector.match(/\.s-[\w-]+|\.svelte-[\w]+/)) return 'scoped';
+		if (TAILWIND_PATTERNS.some(re => re.test(r.selector.replace(/^\./, '')))) return 'tailwind';
+		return 'stylesheet';
+	}));
+
+	if (hasImportant) {
+		return `!important is used on "${property}". Avoid !important — increase specificity or restructure CSS instead.`;
+	}
+
+	if (types.has('scoped') && types.has('stylesheet')) {
+		return `Svelte scoped style conflicts with global CSS on "${property}". Use :global() to override scoped styles, or increase the global selector's specificity.`;
+	}
+
+	if (types.has('tailwind') && (types.has('scoped') || types.has('stylesheet'))) {
+		return `Tailwind utility conflicts with custom CSS on "${property}". Prefer one approach — use @apply in your stylesheet or remove the conflicting Tailwind class.`;
+	}
+
+	if (types.has('inline')) {
+		return `Inline style overrides other rules for "${property}". Move the style to a class for better maintainability.`;
+	}
+
+	return undefined;
+}
+
 export function analyzeStyles(element: HTMLElement): {
 	categories: StyleCategory[];
 	conflicts: StyleConflict[];
@@ -248,15 +312,27 @@ export function analyzeStyles(element: HTMLElement): {
 		inlineStyles[prop] = element.style.getPropertyValue(prop);
 	}
 
-	// Build property -> rules map for conflict detection
-	const propertyRules: Record<string, { value: string; source: StyleSource }[]> = {};
-	for (const { rule, source } of matchingRules) {
+	// Build property -> rules map for conflict detection, tracking !important and order
+	const propertyRules: Record<string, { value: string; source: StyleSource; important: boolean; order: number }[]> = {};
+	for (const { rule, source, order } of matchingRules) {
 		for (let i = 0; i < rule.style.length; i++) {
 			const prop = rule.style[i];
 			const value = rule.style.getPropertyValue(prop);
+			const important = rule.style.getPropertyPriority(prop) === 'important';
 			if (!propertyRules[prop]) propertyRules[prop] = [];
-			propertyRules[prop].push({ value, source });
+			propertyRules[prop].push({ value, source, important, order });
 		}
+	}
+
+	// Include inline styles in propertyRules for conflict detection
+	for (const [prop, val] of Object.entries(inlineStyles)) {
+		if (!propertyRules[prop]) propertyRules[prop] = [];
+		propertyRules[prop].push({
+			value: val,
+			source: { type: 'inline', selector: '(inline)' },
+			important: element.style.getPropertyPriority(prop) === 'important',
+			order: Infinity // inline styles have highest order
+		});
 	}
 
 	// Detect conflicts (properties defined in multiple rules with different values)
@@ -264,15 +340,27 @@ export function analyzeStyles(element: HTMLElement): {
 	for (const [prop, rules] of Object.entries(propertyRules)) {
 		const uniqueValues = new Set(rules.map(r => r.value));
 		if (uniqueValues.size > 1) {
-			const computedValue = computed.getPropertyValue(prop);
-			const conflictRules: StyleConflictRule[] = rules.map(r => ({
+			// Sort rules: !important first, then by specificity descending, then by order descending
+			const sorted = [...rules].sort((a, b) => {
+				if (a.important !== b.important) return a.important ? -1 : 1;
+				const specA = a.source.specificity || [0, 0, 0];
+				const specB = b.source.specificity || [0, 0, 0];
+				const specCmp = compareSpecificity(specA, specB);
+				if (specCmp !== 0) return -specCmp; // descending
+				return b.order - a.order; // later rules win
+			});
+
+			const conflictRules: StyleConflictRule[] = sorted.map((r, idx) => ({
 				selector: r.source.selector || '(inline)',
 				value: r.value,
 				specificity: r.source.specificity || [0, 0, 0],
-				won: r.value === computedValue,
+				important: r.important,
+				won: idx === 0, // first after sort is the winner
 				source: r.source.file
 			}));
-			conflicts.push({ property: prop, rules: conflictRules });
+
+			const suggestion = generateConflictSuggestion(prop, conflictRules);
+			conflicts.push({ property: prop, rules: conflictRules, suggestion });
 		}
 	}
 
@@ -283,7 +371,7 @@ export function analyzeStyles(element: HTMLElement): {
 
 		for (const propName of catDef.properties) {
 			const value = computed.getPropertyValue(propName);
-			if (!value || value === 'none' && !['display', 'border', 'outline'].includes(propName)) continue;
+			if (!value || (value === 'none' && !['display', 'border', 'outline'].includes(propName))) continue;
 
 			// Determine source
 			let source: StyleSource = { type: 'user-agent' };
@@ -291,10 +379,16 @@ export function analyzeStyles(element: HTMLElement): {
 			if (inlineStyles[propName]) {
 				source = { type: 'inline' };
 			} else if (propertyRules[propName]) {
-				// Use the winning rule's source
-				const rules = propertyRules[propName];
-				const winner = rules.find(r => r.value === value) || rules[rules.length - 1];
-				source = winner.source;
+				// Sort and pick the winner (same logic as conflict detection)
+				const sorted = [...propertyRules[propName]].sort((a, b) => {
+					if (a.important !== b.important) return a.important ? -1 : 1;
+					const specA = a.source.specificity || [0, 0, 0];
+					const specB = b.source.specificity || [0, 0, 0];
+					const specCmp = compareSpecificity(specA, specB);
+					if (specCmp !== 0) return -specCmp;
+					return b.order - a.order;
+				});
+				source = sorted[0].source;
 			}
 
 			const isOverridden = conflicts.some(
@@ -341,8 +435,12 @@ export function formatStylesForAgent(
 			parts.push(`  \u26A0\uFE0F ${conflict.property}: defined in ${conflict.rules.length} places`);
 			for (const rule of conflict.rules) {
 				const status = rule.won ? '[WON]' : '[LOST]';
+				const imp = rule.important ? ' !important' : '';
 				const spec = `specificity ${rule.specificity.join(',')}`;
-				parts.push(`     - ${rule.selector} \u2192 ${rule.value} ${status} - ${spec}`);
+				parts.push(`     - ${rule.selector} \u2192 ${rule.value}${imp} ${status} - ${spec}`);
+			}
+			if (conflict.suggestion) {
+				parts.push(`     \u{1F4A1} ${conflict.suggestion}`);
 			}
 		}
 		parts.push('');
