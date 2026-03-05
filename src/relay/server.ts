@@ -7,6 +7,7 @@ import type {
 	HandlersMessage,
 	HealthResponseMessage
 } from './protocol.js';
+import { findAvailablePort } from '../utils/port.js';
 
 export interface RelayServerOptions {
 	port?: number;
@@ -23,7 +24,7 @@ interface SessionEntry {
 }
 
 export async function createRelayServer(options: RelayServerOptions = {}): Promise<{ close: () => void }> {
-	const { port = 4722, providers = [] } = options;
+	const { port: preferredPort = 4722, providers = [] } = options;
 
 	// Lazy-load ws
 	let WebSocketServer: any;
@@ -42,8 +43,19 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 	// Session store for retry support
 	const sessionStore = new Map<string, SessionEntry>();
 
+	// Find available port (auto-increment if preferred port is in use)
+	let port: number;
+	try {
+		port = await findAvailablePort(preferredPort);
+	} catch {
+		throw new Error(`Could not find available port starting from ${preferredPort}`);
+	}
+
 	const wss = new WebSocketServer({ port });
 
+	if (port !== preferredPort) {
+		console.log(`[svelte-grab relay] Port ${preferredPort} was in use, using ${port} instead`);
+	}
 	console.log(`[svelte-grab relay] Listening on ws://localhost:${port}`);
 	console.log(`[svelte-grab relay] Registered agents: ${providers.map(p => p.name).join(', ') || 'none'}`);
 

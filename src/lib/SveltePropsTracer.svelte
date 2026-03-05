@@ -189,7 +189,8 @@
 		const target = event.target as HTMLElement;
 		const svelteEl = findSvelteElement(target);
 		if (!svelteEl) {
-			console.log('[SveltePropsTracer] No Svelte component found');
+			const tag = target.tagName?.toLowerCase() || 'unknown';
+			console.log(`[SveltePropsTracer] No Svelte component found for <${tag}>. This element may be plain HTML, rendered by a third-party library, or outside Svelte's component tree. Try clicking a parent element.`);
 			return;
 		}
 

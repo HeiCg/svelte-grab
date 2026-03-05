@@ -42,7 +42,12 @@ export interface HistoryEntry {
 }
 
 /**
- * Theme configuration for SvelteGrab UI
+ * Theme configuration for SvelteGrab UI.
+ *
+ * Use `lightTheme` to select the base preset (dark or light), then use `theme`
+ * to override individual colors on top of the chosen preset.
+ *
+ * Example: `<SvelteGrab lightTheme theme={{ accent: '#ff6b35' }} />`
  */
 export interface ThemeConfig {
 	background?: string;
@@ -145,13 +150,21 @@ export interface StateDiff {
 }
 
 export interface SvelteStateGrabProps {
+	/** Primary modifier key to activate state inspection. Default: 'alt' */
 	modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';
+	/** Secondary modifier combined with primary (e.g. Alt+Shift+Click). Default: 'shift'. Different from StyleGrab's 'ctrl' to avoid conflicts. */
 	secondaryModifier?: 'shift' | 'ctrl' | 'meta';
+	/** Force enable even if Svelte dev metadata is not detected. Default: false */
 	forceEnable?: boolean;
+	/** Show visual popup with state details. Default: true */
 	showPopup?: boolean;
+	/** Custom theme color overrides, applied on top of the light/dark preset. */
 	theme?: ThemeConfig;
+	/** Use the light theme preset instead of dark. Default: false */
 	lightTheme?: boolean;
+	/** Maximum object nesting depth for serialization. Default: 3 */
 	maxDepth?: number;
+	/** Maximum string length before truncation. Default: 200 */
 	maxStringLength?: number;
 	/** Maximum number of state snapshots to keep. Default: 5 */
 	maxSnapshots?: number;
@@ -197,12 +210,19 @@ export interface StyleConflictRule {
 }
 
 export interface SvelteStyleGrabProps {
+	/** Primary modifier key to activate style inspection. Default: 'alt' */
 	modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';
+	/** Secondary modifier combined with primary (e.g. Alt+Ctrl+Click). Default: 'ctrl'. Different from StateGrab's 'shift' to avoid conflicts. */
 	secondaryModifier?: 'shift' | 'ctrl' | 'meta';
+	/** Force enable even if Svelte dev metadata is not detected. Default: false */
 	forceEnable?: boolean;
+	/** Show visual popup with style analysis. Default: true */
 	showPopup?: boolean;
+	/** Custom theme color overrides, applied on top of the light/dark preset. */
 	theme?: ThemeConfig;
+	/** Use the light theme preset instead of dark. Default: false */
 	lightTheme?: boolean;
+	/** Which CSS categories to display. Default: ['all'] */
 	showCategories?: ('box-model' | 'visual' | 'typography' | 'layout' | 'all')[];
 }
 
@@ -226,11 +246,17 @@ export interface PropTrace {
 }
 
 export interface SveltePropsTracerProps {
+	/** Primary modifier key to activate hierarchy tracing. Default: 'alt' */
 	modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';
+	/** Secondary modifier (unused for PropsTracer, which triggers on DoubleClick). Default: 'shift' */
 	secondaryModifier?: 'shift' | 'ctrl' | 'meta';
+	/** Force enable even if Svelte dev metadata is not detected. Default: false */
 	forceEnable?: boolean;
+	/** Show visual popup with the component trace. Default: true */
 	showPopup?: boolean;
+	/** Custom theme color overrides, applied on top of the light/dark preset. */
 	theme?: ThemeConfig;
+	/** Use the light theme preset instead of dark. Default: false */
 	lightTheme?: boolean;
 }
 
@@ -262,12 +288,19 @@ export interface A11yReport {
 }
 
 export interface SvelteA11yReporterProps {
+	/** Primary modifier key to activate accessibility audit. Default: 'alt' */
 	modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';
+	/** Secondary modifier for element-level audit (Alt+RightClick). Default: 'shift' */
 	secondaryModifier?: 'shift' | 'ctrl' | 'meta';
+	/** Force enable even if Svelte dev metadata is not detected. Default: false */
 	forceEnable?: boolean;
+	/** Show visual popup with audit results. Default: true */
 	showPopup?: boolean;
+	/** Custom theme color overrides, applied on top of the light/dark preset. */
 	theme?: ThemeConfig;
+	/** Use the light theme preset instead of dark. Default: false */
 	lightTheme?: boolean;
+	/** Also audit child elements within the selected element. Default: true */
 	includeSubtree?: boolean;
 }
 
@@ -296,14 +329,23 @@ export interface CapturedError {
 }
 
 export interface SvelteErrorContextProps {
+	/** Primary modifier key to view captured errors. Default: 'alt' */
 	modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';
+	/** Secondary modifier (errors use Alt+E shortcut). Default: 'shift' */
 	secondaryModifier?: 'shift' | 'ctrl' | 'meta';
+	/** Force enable even if Svelte dev metadata is not detected. Default: false */
 	forceEnable?: boolean;
+	/** Show visual popup with error details. Default: true */
 	showPopup?: boolean;
+	/** Custom theme color overrides, applied on top of the light/dark preset. */
 	theme?: ThemeConfig;
+	/** Use the light theme preset instead of dark. Default: false */
 	lightTheme?: boolean;
+	/** Maximum number of errors to capture and retain. Default: 50 */
 	maxErrors?: number;
+	/** Time window in minutes after which old errors are discarded. Default: 5 */
 	bufferMinutes?: number;
+	/** Hide stack frames from node_modules for cleaner traces. Default: true */
 	filterNodeModules?: boolean;
 }
 
@@ -339,14 +381,23 @@ export interface RenderBurst {
 }
 
 export interface SvelteRenderProfilerProps {
+	/** Primary modifier key to start profiling. Default: 'alt' */
 	modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';
+	/** Secondary modifier (profiler uses Alt+P shortcut). Default: 'shift' */
 	secondaryModifier?: 'shift' | 'ctrl' | 'meta';
+	/** Force enable even if Svelte dev metadata is not detected. Default: false */
 	forceEnable?: boolean;
+	/** Show visual popup with profiling results. Default: true */
 	showPopup?: boolean;
+	/** Custom theme color overrides, applied on top of the light/dark preset. */
 	theme?: ThemeConfig;
+	/** Use the light theme preset instead of dark. Default: false */
 	lightTheme?: boolean;
+	/** Duration of a profiling session in seconds. Default: 10 */
 	profileDuration?: number;
+	/** Minimum number of renders in a burst window to trigger burst detection. Default: 20 */
 	burstThreshold?: number;
+	/** Time window in milliseconds for burst detection. Default: 1000 */
 	burstWindow?: number;
 }
 

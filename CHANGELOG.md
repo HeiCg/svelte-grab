@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.3.0 (2026-03-04)
+
+### Documentation
+
+- **README:** Add 3 missing props to SvelteGrab props table (`copyOnKeyboard`, `projectRoot`, `showActiveIndicator`)
+- **README:** Expand theming section with `lightTheme` + `theme` override semantics and example
+- **types.ts:** Add JSDoc to all properties in `SvelteStateGrabProps`, `SvelteStyleGrabProps`, `SveltePropsTracerProps`, `SvelteA11yReporterProps`, `SvelteErrorContextProps`, `SvelteRenderProfilerProps`
+- **types.ts:** Document `secondaryModifier` rationale (different defaults avoid shortcut conflicts) and `ThemeConfig` override pattern
+- **CLI:** Expand `help` text with detailed command descriptions, usage examples, and `--version` / `-v` flag
+
+### DX Improvements
+
+- **SvelteGrab:** Cursor changes to crosshair when selection mode is active (hold & toggle modes)
+- **SvelteGrab:** First-time hint toast on activation ("Alt+Click to grab | Alt+? for help"), shown once per session
+- **SvelteGrab:** Add `Alt+?` help overlay listing all SvelteGrab-specific keyboard shortcuts
+- **SvelteGrab:** Actionable "no component found" messages now include the element tag and guidance
+- **SvelteGrab:** Expanded "disabled" message listing possible causes (production build, Svelte 4, SSR-only)
+- **SvelteGrab:** Better `html-to-image` missing dependency message with recovery guidance
+- **SvelteStateGrab:** Actionable "no component found" message with element tag and guidance
+- **SveltePropsTracer:** Actionable "no component found" message with element tag and guidance
+- **CLI relay:** Better Claude Code SDK missing message explaining when it's needed
+
+### Features
+
+- **CLI init:** Support Vite+Svelte projects (detects `vite.config` + `src/App.svelte`, injects `SvelteDevKit`)
+- **CLI init:** Add `--dry-run` flag to preview changes without writing files
+- **Relay server:** Auto-port selection — if preferred port is in use, automatically tries next available
+- **MCP server:** Auto-port selection — replaces manual `EADDRINUSE` error with automatic fallback
+
+### Robustness
+
+- **global-api:** Warn on multiple `<SvelteGrab />` / `<SvelteDevKit />` instances with guidance to use a single root instance
+- **SvelteGrab:** Smarter `detectProjectRoot()` with `/src/routes/` SvelteKit pattern and `import.meta.env.BASE_URL` fallback
+- **SvelteDevKit:** Add clarifying comment that `{#if isEnabled}` already prevents mounting disabled tools (no tree-shaking needed)
+
+### Internal
+
+- Add shared `findAvailablePort()` utility (`src/utils/port.ts`) for relay and MCP servers
+- Include `src/utils/` in `tsconfig.server.json` compilation
+
 ## 1.2.0 (2026-03-04)
 
 ### Bug Fixes

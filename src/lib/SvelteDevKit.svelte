@@ -16,6 +16,10 @@
 	 */
 	import { onMount, onDestroy } from 'svelte';
 	import type { SvelteDevKitProps, DevKitTool, ThemeConfig } from './types.js';
+	// All tool components are imported here, but only mounted when enabled via
+	// {#if isEnabled('tool')}. Disabled tools are never mounted, so their event
+	// listeners and observers are never registered. The import/parse cost is
+	// negligible for dev-only components — no further tree-shaking is needed.
 	import SvelteGrab from './SvelteGrab.svelte';
 	import SvelteStateGrab from './SvelteStateGrab.svelte';
 	import SvelteStyleGrab from './SvelteStyleGrab.svelte';

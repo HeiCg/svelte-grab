@@ -1,13 +1,34 @@
 #!/usr/bin/env node
 
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
 const args = process.argv.slice(2);
 const command = args[0];
 
+function getVersion(): string {
+	try {
+		// Navigate from dist/cli/index.js to package.json
+		const __dirname = dirname(fileURLToPath(import.meta.url));
+		const pkg = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf-8'));
+		return pkg.version || 'unknown';
+	} catch {
+		return 'unknown';
+	}
+}
+
 async function main() {
+	if (args.includes('--version') || args.includes('-v')) {
+		console.log(`svelte-grab v${getVersion()}`);
+		return;
+	}
+
 	switch (command) {
 		case 'init': {
 			const { init } = await import('./init.js');
-			init();
+			const dryRun = args.includes('--dry-run');
+			init(undefined, { dryRun });
 			break;
 		}
 
@@ -36,19 +57,43 @@ async function main() {
 		case '-h':
 		default:
 			console.log(`
-svelte-grab - Dev tools for Svelte + LLM coding agents
+svelte-grab v${getVersion()} - Dev tools for Svelte 5 + LLM coding agents
 
 Usage:
-  svelte-grab init          Add SvelteGrab to your SvelteKit layout
-  svelte-grab relay         Start the agent relay server
-  svelte-grab mcp           Start the MCP server
-  svelte-grab help          Show this help message
+  svelte-grab <command> [options]
 
-Options:
-  relay --port=4722         Set relay server port (default: 4722)
-  relay --provider=claude-code  Set agent provider (default: claude-code)
-  mcp --port=4723           Set MCP server port (default: 4723)
-  mcp --stdio               Use stdio transport (for direct Claude Code integration)
+Commands:
+  init      Detect your Svelte project and add SvelteDevKit to the root layout.
+            Works with SvelteKit (auto-injects into +layout.svelte) and plain
+            Vite+Svelte projects (injects into src/App.svelte).
+            Options:
+              --dry-run     Show what would be changed without writing files
+
+  relay     Start the WebSocket relay server that bridges browser selections
+            to coding agents (e.g. Claude Code). Your app connects via
+            <SvelteGrab enableAgentRelay />.
+            Options:
+              --port=4722           Server port (default: 4722)
+              --provider=claude-code  Agent provider (default: claude-code)
+
+  mcp       Start the MCP server for direct agent integration. Browser sends
+            context via HTTP POST, agents read it via MCP protocol.
+            Options:
+              --port=4723   HTTP server port (default: 4723)
+              --stdio       Use stdio transport instead of HTTP (for Claude Code
+                            MCP config: "command": "npx svelte-grab-mcp --stdio")
+
+  help      Show this help message
+
+Global Options:
+  --version, -v   Print version number
+
+Examples:
+  npx svelte-grab init                     # Add to your SvelteKit project
+  npx svelte-grab init --dry-run           # Preview changes without writing
+  npx svelte-grab relay                    # Start relay on default port
+  npx svelte-grab relay --port=5000        # Start relay on custom port
+  npx svelte-grab mcp --stdio              # Start MCP server for Claude Code
 `);
 			break;
 	}

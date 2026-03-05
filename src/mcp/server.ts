@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { DEFAULT_MCP_PORT } from './constants.js';
+import { findAvailablePort } from '../utils/port.js';
 
 export interface McpServerOptions {
 	port?: number;
@@ -286,7 +287,19 @@ function registerMcpTools(server: any): void {
 /**
  * Start the MCP server in HTTP mode.
  */
-function startHttpServer(port: number): Promise<{ close: () => void }> {
+async function startHttpServer(preferredPort: number): Promise<{ close: () => void }> {
+	// Find available port (auto-increment if preferred is in use)
+	let port: number;
+	try {
+		port = await findAvailablePort(preferredPort);
+	} catch {
+		throw new Error(`Could not find available port starting from ${preferredPort}`);
+	}
+
+	if (port !== preferredPort) {
+		console.log(`[svelte-grab mcp] Port ${preferredPort} was in use, using ${port} instead`);
+	}
+
 	return new Promise((resolve, reject) => {
 		const server = createServer(async (req, res) => {
 			setCorsHeaders(res);
@@ -359,13 +372,7 @@ function startHttpServer(port: number): Promise<{ close: () => void }> {
 		});
 
 		server.on('error', (err: NodeJS.ErrnoException) => {
-			if (err.code === 'EADDRINUSE') {
-				console.error(`[svelte-grab mcp] Port ${port} is already in use.`);
-				console.error(`[svelte-grab mcp] Try: svelte-grab mcp --port=${port + 1}`);
-				reject(err);
-			} else {
-				reject(err);
-			}
+			reject(err);
 		});
 
 		server.listen(port, () => {

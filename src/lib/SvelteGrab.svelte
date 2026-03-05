@@ -143,6 +143,13 @@
 	let toggleKeyHandled = $state(false);
 
 	// ============================================================
+	// Hint toast & help overlay state
+	// ============================================================
+	let showHintToast = $state(false);
+	let showHelpOverlay = $state(false);
+	let hintShownThisSession = false;
+
+	// ============================================================
 	// Agent relay state
 	// ============================================================
 	let agentClient: AgentClient | null = null;
@@ -220,7 +227,18 @@
 
 		// Paths like "/src/routes/..." are Vite dev-relative — can't detect root from them
 		if (filePath.startsWith('/src/') || filePath.startsWith('/lib/')) {
+			// Try Vite's BASE_URL as a fallback
+			try {
+				const baseUrl = (import.meta as any).env?.BASE_URL;
+				if (baseUrl && baseUrl !== '/') return baseUrl.replace(/\/$/, '');
+			} catch {}
 			return null;
+		}
+
+		// SvelteKit convention: /src/routes/ pattern
+		const routesIndex = filePath.indexOf('/src/routes/');
+		if (routesIndex > 0) {
+			return filePath.slice(0, routesIndex);
 		}
 
 		const srcIndex = filePath.indexOf('/src/');
@@ -564,7 +582,11 @@
 			htmlToImageModule = await import('html-to-image');
 			return htmlToImageModule;
 		} catch {
-			console.error('[SvelteGrab] html-to-image not installed. Run: npm install html-to-image');
+			console.error(
+				'[SvelteGrab] html-to-image not installed. Screenshots are disabled.\n' +
+				'  Install it: npm install html-to-image\n' +
+				'  Or disable screenshots: <SvelteGrab enableScreenshot={false} />'
+			);
 			return null;
 		}
 	}
@@ -642,7 +664,8 @@
 		}
 
 		if (!elementWithMeta) {
-			console.log('[SvelteGrab] No Svelte component found for this element');
+			const tag = target.tagName?.toLowerCase() || 'unknown';
+			console.log(`[SvelteGrab] No Svelte component found for <${tag}>. This element may be plain HTML, rendered by a third-party library, or outside Svelte's component tree. Try clicking a parent element.`);
 			return;
 		}
 
@@ -664,7 +687,8 @@
 		grabbedElement = elementWithMeta;
 
 		if (stack.length === 0) {
-			console.log('[SvelteGrab] No Svelte component found for this element');
+			const tag = elementWithMeta.tagName?.toLowerCase() || 'unknown';
+			console.log(`[SvelteGrab] No component stack found for <${tag}>. The element has Svelte metadata but no file location. Try clicking a parent element.`);
 			return;
 		}
 
@@ -691,6 +715,7 @@
 
 		// Clear selection mode when opening popup
 		selectionMode = false;
+		document.body.style.cursor = '';
 		hoveredElement = null;
 		hoveredInfo = null;
 
@@ -704,6 +729,10 @@
 
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape') {
+			if (showHelpOverlay) {
+				showHelpOverlay = false;
+				return;
+			}
 			if (visible) {
 				visible = false;
 				return;
@@ -720,6 +749,7 @@
 			if (activationMode === 'toggle' && toggleActive) {
 				toggleActive = false;
 				selectionMode = false;
+				document.body.style.cursor = '';
 				hoveredElement = null;
 				hoveredInfo = null;
 				return;
@@ -744,6 +774,12 @@
 			showAgentPrompt = true;
 		}
 
+		// Alt+? to toggle help overlay
+		if ((event.key === '?' || event.key === '/') && checkModifier(event) && showPopup) {
+			event.preventDefault();
+			showHelpOverlay = !showHelpOverlay;
+		}
+
 		// Activation mode handling
 		if (isModifierKey(event.key) && !visible) {
 			if (activationMode === 'toggle') {
@@ -752,8 +788,10 @@
 					toggleActive = !toggleActive;
 					selectionMode = toggleActive;
 					if (toggleActive) {
+						document.body.style.cursor = 'crosshair';
 						pluginRegistry.executeHook('onActivate');
 					} else {
+						document.body.style.cursor = '';
 						pluginRegistry.executeHook('onDeactivate');
 						hoveredElement = null;
 						hoveredInfo = null;
@@ -762,7 +800,16 @@
 			} else {
 				// Hold mode
 				selectionMode = true;
+				document.body.style.cursor = 'crosshair';
 				pluginRegistry.executeHook('onActivate');
+
+				// Show first-time hint toast
+				if (!hintShownThisSession && showActiveIndicator) {
+					hintShownThisSession = true;
+					try { sessionStorage.setItem('svelte-grab-hint-shown', '1'); } catch {}
+					showHintToast = true;
+					setTimeout(() => (showHintToast = false), 3000);
+				}
 			}
 		}
 
@@ -825,6 +872,7 @@
 			} else {
 				// Hold mode: deactivate on key release
 				selectionMode = false;
+				document.body.style.cursor = '';
 				hoveredElement = null;
 				hoveredInfo = null;
 				pluginRegistry.executeHook('onDeactivate');
@@ -1130,12 +1178,22 @@
 	let mountTimeoutId: ReturnType<typeof setTimeout>;
 
 	onMount(() => {
+		// Check if hint was already shown this session
+		try { hintShownThisSession = sessionStorage.getItem('svelte-grab-hint-shown') === '1'; } catch {}
+
 		mountTimeoutId = setTimeout(() => {
 			if (destroyed) return;
 			isDev = detectDevMode(forceEnable);
 
 			if (!isDev) {
-				console.log('[SvelteGrab] Disabled - no Svelte dev metadata found. Use forceEnable={true} to override.');
+				console.log(
+					'[SvelteGrab] Disabled - no Svelte dev metadata found.\n' +
+					'  Possible causes:\n' +
+					'  - Production build (Svelte strips __svelte_meta in prod)\n' +
+					'  - Svelte 4 or earlier (requires Svelte 5+)\n' +
+					'  - SSR-only render (dev metadata is client-side only)\n' +
+					'  Use forceEnable={true} to override detection.'
+				);
 				return;
 			}
 
@@ -1154,6 +1212,7 @@
 					toggleActive = true;
 				}
 				selectionMode = true;
+				document.body.style.cursor = 'crosshair';
 				pluginRegistry.executeHook('onActivate');
 			};
 			callbacks.deactivate = () => {
@@ -1161,6 +1220,7 @@
 					toggleActive = false;
 				}
 				selectionMode = false;
+				document.body.style.cursor = '';
 				hoveredElement = null;
 				hoveredInfo = null;
 				pluginRegistry.executeHook('onDeactivate');
@@ -1437,11 +1497,13 @@
 			onclick={() => {
 				if (selectionMode) {
 					selectionMode = false;
+					document.body.style.cursor = '';
 					if (activationMode === 'toggle') toggleActive = false;
 					hoveredElement = null;
 					hoveredInfo = null;
 				} else {
 					selectionMode = true;
+					document.body.style.cursor = 'crosshair';
 					if (activationMode === 'toggle') toggleActive = true;
 				}
 			}}
@@ -1820,6 +1882,63 @@
 					</div>
 				</div>
 			{/if}
+		</div>
+	</div>
+{/if}
+
+<!-- First-time hint toast -->
+{#if isDev && showHintToast}
+	<div
+		class="sg-hint-toast"
+		style="--sg-bg: {colors.background}; --sg-text: {colors.text}; --sg-accent: {colors.accent};"
+		role="status"
+		aria-live="polite"
+	>
+		{modifier.charAt(0).toUpperCase() + modifier.slice(1)}+Click to grab component info | {modifier.charAt(0).toUpperCase() + modifier.slice(1)}+? for help
+	</div>
+{/if}
+
+<!-- Help overlay for standalone SvelteGrab -->
+{#if isDev && showHelpOverlay}
+	<div
+		class="sg-help-overlay"
+		onclick={() => (showHelpOverlay = false)}
+		onkeydown={(e) => e.key === 'Escape' && (showHelpOverlay = false)}
+		role="presentation"
+	>
+		<div
+			class="sg-help-popup"
+			style="
+				--sg-bg: {colors.background};
+				--sg-border: {colors.border};
+				--sg-text: {colors.text};
+				--sg-accent: {colors.accent};
+			"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-label="SvelteGrab Keyboard Shortcuts"
+			tabindex="-1"
+		>
+			<div class="sg-help-header">
+				<span class="sg-help-title">SvelteGrab Shortcuts</span>
+				<button class="sg-help-close" onclick={() => (showHelpOverlay = false)} aria-label="Close">&times;</button>
+			</div>
+			<div class="sg-help-content">
+				<table class="sg-help-table">
+					<thead><tr><th class="sg-help-th">Shortcut</th><th class="sg-help-th">Action</th></tr></thead>
+					<tbody>
+						<tr><td class="sg-help-keys"><kbd>{modifier.charAt(0).toUpperCase() + modifier.slice(1)}+Click</kbd></td><td class="sg-help-desc">Grab component stack</td></tr>
+						<tr><td class="sg-help-keys"><kbd>Cmd/Ctrl+C</kbd></td><td class="sg-help-desc">Copy hovered element (selection mode)</td></tr>
+						<tr><td class="sg-help-keys"><kbd>Arrow keys</kbd></td><td class="sg-help-desc">Navigate component tree (selection mode)</td></tr>
+						<tr><td class="sg-help-keys"><kbd>O</kbd></td><td class="sg-help-desc">Open in editor (popup visible)</td></tr>
+						<tr><td class="sg-help-keys"><kbd>S</kbd></td><td class="sg-help-desc">Screenshot element (popup visible)</td></tr>
+						{#if enableAgentRelay}<tr><td class="sg-help-keys"><kbd>Tab</kbd></td><td class="sg-help-desc">Open agent prompt (selection mode)</td></tr>{/if}
+						<tr><td class="sg-help-keys"><kbd>Escape</kbd></td><td class="sg-help-desc">Close popup / exit selection mode</td></tr>
+					</tbody>
+				</table>
+			</div>
+			<div class="sg-help-footer">Press {modifier.charAt(0).toUpperCase() + modifier.slice(1)}+? to close</div>
 		</div>
 	</div>
 {/if}
@@ -2821,5 +2940,83 @@
 
 	.sg-agent-history-resume-btn:hover {
 		background: rgba(96, 165, 250, 0.2);
+	}
+
+	/* Hint toast */
+	.sg-hint-toast {
+		position: fixed;
+		bottom: 20px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 100000;
+		background: var(--sg-bg, #1e1e2e);
+		color: var(--sg-text, #cdd6f4);
+		border: 1px solid var(--sg-accent, #58a6ff);
+		border-radius: 8px;
+		padding: 8px 16px;
+		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+		font-size: 12px;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+		animation: sg-toast-in 0.2s ease-out, sg-toast-out 0.3s ease-in 2.7s forwards;
+		pointer-events: none;
+	}
+
+	@keyframes sg-toast-in {
+		from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+		to { opacity: 1; transform: translateX(-50%) translateY(0); }
+	}
+
+	@keyframes sg-toast-out {
+		from { opacity: 1; }
+		to { opacity: 0; }
+	}
+
+	/* Help overlay */
+	.sg-help-overlay {
+		position: fixed; inset: 0; z-index: 99999; background: rgba(0, 0, 0, 0.3);
+	}
+
+	.sg-help-popup {
+		position: fixed; top: 50%; left: 50%;
+		transform: translate(-50%, -50%);
+		background: var(--sg-bg); border: 1px solid var(--sg-border);
+		border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		min-width: 340px; max-width: 500px;
+		overflow: hidden;
+		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+		font-size: 12px; color: var(--sg-text);
+		display: flex; flex-direction: column;
+	}
+
+	.sg-help-header {
+		display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
+		border-bottom: 1px solid var(--sg-border);
+	}
+
+	.sg-help-title { color: var(--sg-accent); font-weight: 600; flex: 1; }
+
+	.sg-help-close {
+		background: none; border: none; color: #888; cursor: pointer;
+		padding: 2px 6px; font-size: 14px; border-radius: 4px;
+	}
+	.sg-help-close:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+
+	.sg-help-content { padding: 8px 14px; }
+
+	.sg-help-table { width: 100%; border-collapse: collapse; }
+	.sg-help-th { text-align: left; padding: 4px 0; color: #888; font-size: 10px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+
+	.sg-help-keys kbd {
+		background: rgba(255, 255, 255, 0.1); padding: 2px 6px;
+		border-radius: 3px; font-size: 11px; font-family: inherit;
+		border: 1px solid rgba(255, 255, 255, 0.15);
+	}
+	.sg-help-desc { color: #ccc; padding: 6px 0 6px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
+
+	.sg-help-footer {
+		padding: 8px 14px; text-align: center; color: #888; font-size: 10px;
+		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
+		border-top: 1px solid var(--sg-border);
 	}
 </style>

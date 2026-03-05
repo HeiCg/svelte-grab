@@ -123,6 +123,9 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 | `agentId` | `string` | `'claude-code'` | Agent identifier |
 | `enableMcp` | `boolean` | `false` | Auto-send grabs to MCP server |
 | `mcpPort` | `number` | `4723` | MCP server port |
+| `copyOnKeyboard` | `boolean` | `true` | Enable Cmd+C / Ctrl+C to copy in selection mode |
+| `projectRoot` | `string` | `''` | Absolute path to project root (for "Open in Editor") |
+| `showActiveIndicator` | `boolean` | `true` | Show active indicator badge when selection mode is on |
 
 ### Output Formats
 
@@ -523,6 +526,11 @@ window.__SVELTE_GRAB__.registerPlugin(plugin); // Register a plugin
 
 ## Theming
 
+All tools share the same two-prop theme system:
+
+- **`lightTheme`** — selects the base preset (dark by default, light when `true`)
+- **`theme`** — overrides individual colors on top of the chosen preset
+
 ```svelte
 <!-- Dark theme (default) -->
 <SvelteGrab />
@@ -530,7 +538,10 @@ window.__SVELTE_GRAB__.registerPlugin(plugin); // Register a plugin
 <!-- Light theme -->
 <SvelteGrab lightTheme />
 
-<!-- Custom colors -->
+<!-- Light theme with custom accent -->
+<SvelteGrab lightTheme theme={{ accent: '#ff6b35' }} />
+
+<!-- Custom colors on dark base -->
 <SvelteGrab
   theme={{
     background: '#0d1117',
@@ -541,7 +552,7 @@ window.__SVELTE_GRAB__.registerPlugin(plugin); // Register a plugin
 />
 ```
 
-All tools share the same theme system via `theme` and `lightTheme` props.
+Available theme keys: `background`, `border`, `text`, `accent`.
 
 ## How It Works
 

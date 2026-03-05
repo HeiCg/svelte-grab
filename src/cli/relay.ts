@@ -17,7 +17,8 @@ export async function startRelay(options: { port?: number; provider?: string } =
 				providers.push(new ClaudeCodeProvider());
 			} catch {
 				console.warn('[svelte-grab] Claude Code SDK not available. Relay will run without agent providers.');
-				console.warn('Install: npm install @anthropic-ai/claude-agent-sdk');
+				console.warn('  The SDK is only needed if you want the relay to execute agent actions.');
+				console.warn('  Install: npm install @anthropic-ai/claude-agent-sdk');
 			}
 		}
 
