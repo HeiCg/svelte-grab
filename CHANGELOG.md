@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.4.0 (2026-03-05)
+
+### Highlights
+
+**Live browser-to-Claude Code bridge** — Select a component, type what you want changed, and Claude Code acts on it instantly. No copy-paste, no context switching.
+
+### Claude Code Integration
+
+- **`watch_for_grab` MCP tool** — Blocks until the user sends context from the browser, creating a reactive loop. Claude Code calls it, user selects element + types prompt, tool resolves with everything. Call in a loop for continuous interaction.
+- **Sidecar HTTP server in stdio mode** — When Claude Code connects via stdio, a sidecar HTTP server starts automatically so the browser can POST context to it.
+- **SSE `/events` endpoint** — Real-time status updates from MCP server to browser (agent listening, processing, sent).
+- **Live connection status** — Prompt overlay shows green dot when Claude Code is listening, red when disconnected. Button text adapts: "Send to Claude Code" / "Send (queued)" / "Copy with Context".
+- **Prompt mode sends to MCP** — `confirmPrompt()` now sends to MCP server when `enableMcp` is true, not just clipboard.
+
+### react-grab Feature Parity
+
+Features inspired by [react-grab](https://github.com/aidenybai/react-grab):
+
+- **Animation freezing** — Pauses CSS animations, transitions, SVG animations, and Web Animations API during selection for stable captures (`freezeAnimations` prop, default: `true`).
+- **Pseudo-state preservation** — Freezes :hover/:focus computed styles as inline styles so you can grab transient UI states (`freezePseudoStates` prop, default: `true`).
+- **Point-sampling drag selection** — Replaces naive `querySelectorAll('*')` with `elementsFromPoint()` grid sampling, coverage filtering, and nested element dedup.
+- **CSS selector generation** — 3-tier strategy (ID, test attributes, nth-child) for element reacquisition after DOM changes.
+- **History persistence** — Grab history persisted to sessionStorage with byte-size trimming (`enableHistoryPersistence` prop, default: `true`).
+- **Prompt mode** — Inline prompt overlay for adding context/instructions to selections (`enablePromptMode` prop, default: `true`).
+
+### Agent Providers
+
+- **CursorProvider** — Spawns `cursor-agent` CLI with streaming JSON event parsing. Supports resume/abort/undo.
+- **CopilotProvider** — Spawns `copilot` CLI with `--silent --allow-all` flags, reads stdout as plain text.
+- **CodexProvider** — Lazy-loads `@openai/codex-sdk`, uses `startThread()`/`resumeThread()` API.
+- **`connectToRelay()`** — Browser-side function to register remote handlers via WebSocket.
+
+### CLI
+
+- **`svelte-grab add <provider>`** — Add an agent provider to `svelte-grab.config.json` (claude-code, cursor, copilot, codex).
+- **`svelte-grab remove <provider>`** — Remove a provider from configuration.
+- **`svelte-grab configure`** — Interactive configuration (activation key, editor, ports, theme) via readline prompts.
+- **Config file** — `svelte-grab.config.json` with `loadConfig()`, `saveConfig()`, `showDiff()` utilities.
+- **Help text** — Step-by-step Claude Code integration guide in CLI help output.
+
+### Utilities
+
+- `parse-activation-key.ts` — Configurable activation key parsing for keyboard shortcuts.
+- `safe-polygon.ts` — Triangle-based hover zone tracking for dropdown menus.
+- `copy-content.ts` — Multi-format clipboard (text/plain + text/html + application/x-svelte-grab).
+- `action-cycle.ts` — Cycle through a list of actions with `next()`/`reset()`/`current`.
+- `element-visibility.ts` — Element visibility checker using computed styles.
+- `confirmation-focus-manager.ts` — Singleton focus manager for confirmation dialogs.
+- `log-intro.ts` — Console intro banner with npm registry version check.
+
 ## 1.3.0 (2026-03-04)
 
 ### Documentation

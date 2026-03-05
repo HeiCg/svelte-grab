@@ -20,13 +20,76 @@ This search phase is slow and non-deterministic.
 svelte-grab eliminates the search phase entirely:
 
 1. Alt+Click the element you want to change
-2. Component stack with file paths is copied to clipboard
-3. Paste into your agent prompt
-4. Agent jumps directly to the right file
+2. Type your instruction right there in the overlay
+3. Claude Code receives component context + your prompt and acts immediately
 
 ```
 <button class="btn-primary"> in src/lib/components/Header.svelte:42
   in src/routes/+layout.svelte:15
+
+User instruction: Make this button bigger and change the color to blue
+```
+
+## Quick Start: Claude Code Integration
+
+The fastest way to use svelte-grab with Claude Code:
+
+### 1. Install
+
+```bash
+npm install svelte-grab
+```
+
+### 2. Add to your layout
+
+```svelte
+<!-- src/routes/+layout.svelte -->
+<script>
+  import { SvelteDevKit } from 'svelte-grab';
+</script>
+
+{@render children()}
+<SvelteDevKit enableMcp />
+```
+
+### 3. Configure Claude Code
+
+Add to `~/.claude.json`:
+
+```json
+{
+  "mcpServers": {
+    "svelte-grab": {
+      "command": "npx",
+      "args": ["svelte-grab-mcp", "--stdio"]
+    }
+  }
+}
+```
+
+### 4. Use it
+
+In Claude Code, say:
+
+> "use watch_for_grab to listen for my selections"
+
+Then in your browser:
+1. **Alt+Click** any element
+2. **Type your prompt** in the overlay (e.g. "make this button bigger")
+3. **Cmd+Enter** to send
+
+Claude Code receives everything — file paths, component stack, HTML preview, and your instruction — and makes the change.
+
+The overlay shows a **green dot** when Claude Code is listening and a **red dot** when disconnected.
+
+```
+Browser                    MCP Server                  Claude Code
+   |                           |                            |
+   |  Alt+Click + prompt       |                            |
+   |------ POST /context ----->|                            |
+   |                           |-- resolve watch_for_grab ->|
+   |                           |                            |-- reads files, makes change
+   |<---- SSE: processing -----|                            |
 ```
 
 ## Tools Overview
@@ -77,6 +140,12 @@ Or use **SvelteDevKit** to enable all tools at once:
 <SvelteDevKit />
 ```
 
+Or use the CLI to auto-inject:
+
+```bash
+npx svelte-grab init
+```
+
 ## SvelteGrab — Component Inspector
 
 The core tool. Hold Alt, hover to see file:line tooltips, click to capture the component stack.
@@ -85,14 +154,18 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 
 - **Selection mode** — Hold Alt to highlight elements with Svelte metadata
 - **Multi-select** — Shift+Alt+Click to select multiple elements
-- **Drag selection** — Click+drag in selection mode to box-select elements
+- **Drag selection** — Click+drag in selection mode to box-select elements (point-sampling grid)
 - **Editor integration** — Press `O` to open file in VSCode, Cursor, WebStorm, Zed, or Sublime
 - **Screenshot capture** — Press `S` to capture element screenshot (requires `html-to-image`)
 - **Context menu** — Right-click in selection mode for quick actions
 - **Floating toolbar** — Optional draggable toolbar for common actions
-- **History** — Tracks last 20 grabs with timestamps
+- **History** — Tracks last 20 grabs with timestamps, persisted to sessionStorage
 - **Arrow navigation** — Use arrow keys in selection mode to walk the component tree
+- **Prompt mode** — Type instructions inline and send directly to Claude Code
 - **Agent relay** — Send selections to Claude Code or other agents via WebSocket
+- **MCP integration** — Direct bridge to Claude Code with live connection status
+- **Animation freezing** — Pauses CSS animations/transitions during selection for stable captures
+- **Pseudo-state preservation** — Freezes :hover/:focus states so you can grab transient UI
 - **Session management** — Undo, redo, resume, and retry agent actions from the UI
 - **Plugin system** — Extend with custom hooks, actions, and content transforms
 - **Keyboard copy** — Cmd+C / Ctrl+C to copy in selection mode
@@ -121,11 +194,15 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 | `enableAgentRelay` | `boolean` | `false` | Enable WebSocket relay |
 | `agentRelayUrl` | `string` | `'ws://localhost:4722'` | Relay server URL |
 | `agentId` | `string` | `'claude-code'` | Agent identifier |
-| `enableMcp` | `boolean` | `false` | Auto-send grabs to MCP server |
+| `enableMcp` | `boolean` | `false` | Enable MCP bridge to Claude Code |
 | `mcpPort` | `number` | `4723` | MCP server port |
+| `freezeAnimations` | `boolean` | `true` | Freeze CSS animations during selection |
+| `freezePseudoStates` | `boolean` | `true` | Preserve :hover/:focus states during selection |
+| `enableHistoryPersistence` | `boolean` | `true` | Persist history to sessionStorage |
+| `enablePromptMode` | `boolean` | `true` | Enable inline prompt overlay |
 | `copyOnKeyboard` | `boolean` | `true` | Enable Cmd+C / Ctrl+C to copy in selection mode |
 | `projectRoot` | `string` | `''` | Absolute path to project root (for "Open in Editor") |
-| `showActiveIndicator` | `boolean` | `true` | Show active indicator badge when selection mode is on |
+| `showActiveIndicator` | `boolean` | `true` | Show active indicator badge |
 
 ### Output Formats
 
@@ -252,6 +329,9 @@ Single component that includes all 7 tools. Selectively enable/disable tools:
 
 <!-- Only specific tools -->
 <SvelteDevKit enabledTools={['grab', 'state', 'a11y']} />
+
+<!-- With Claude Code integration -->
+<SvelteDevKit enableMcp />
 ```
 
 Accepts all SvelteGrab props plus:
@@ -262,9 +342,113 @@ Accepts all SvelteGrab props plus:
 
 Available tools: `'grab'`, `'state'`, `'style'`, `'props'`, `'a11y'`, `'errors'`, `'profiler'`
 
-## Agent Relay
+## Claude Code Integration (MCP)
 
-Send captured element context directly to Claude Code or other coding agents via WebSocket.
+The recommended way to connect svelte-grab to Claude Code. Select a component, type your instruction, and Claude Code acts on it — no copy-paste needed.
+
+### How it works
+
+1. Claude Code connects to svelte-grab's MCP server via stdio
+2. It calls `watch_for_grab`, which **blocks** until you send something from the browser
+3. You Alt+Click an element, type your prompt, hit Cmd+Enter
+4. The MCP tool resolves with the full component context + your instruction
+5. Claude Code reads the files and makes the change
+6. Call `watch_for_grab` again for the next instruction
+
+### Setup
+
+**1. Configure Claude Code** (`~/.claude.json`):
+
+```json
+{
+  "mcpServers": {
+    "svelte-grab": {
+      "command": "npx",
+      "args": ["svelte-grab-mcp", "--stdio"]
+    }
+  }
+}
+```
+
+**2. Enable in your app:**
+
+```svelte
+<SvelteDevKit enableMcp />
+```
+
+**3. In Claude Code, say:**
+
+> "use watch_for_grab to listen for my selections"
+
+**4. In the browser:**
+
+- Alt+Click any element — the prompt overlay appears
+- Type what you want changed
+- Cmd+Enter to send to Claude Code
+- The green dot means Claude Code is listening; red means disconnected
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `watch_for_grab` | **Blocks** until the user sends context from the browser. Returns component stack, HTML preview, and the user's instruction. Call in a loop for continuous interaction. |
+| `get_element_context` | Returns the last grabbed context immediately (non-blocking). Context is cleared after reading. |
+| `get_a11y_report` | Returns the last accessibility audit from SvelteA11yReporter. |
+| `get_style_context` | Returns the last CSS analysis from SvelteStyleGrab. |
+| `get_error_context` | Returns captured console errors from SvelteErrorContext. |
+| `get_profiler_report` | Returns render profiling data from SvelteRenderProfiler. |
+| `undo_last_action` | Returns an undo instruction with the original context. |
+| `get_session_history` | Returns recent interactions (up to 20) with timestamps and prompts. |
+| `list_available_tools` | Lists which tools have data available and when it was captured. |
+
+### HTTP Endpoints
+
+The MCP server also exposes HTTP endpoints (available in both stdio and HTTP modes):
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Health check with agent status |
+| `GET` | `/events` | SSE stream for real-time browser status updates |
+| `POST` | `/context` | Receive context from browser |
+| `POST` | `/mcp` | MCP protocol endpoint (HTTP mode only) |
+
+### Alternative: HTTP mode
+
+If you prefer not to use stdio, start the MCP server as a standalone HTTP process:
+
+```bash
+npx svelte-grab mcp
+npx svelte-grab mcp --port=4723
+```
+
+Then configure Claude Code to connect via HTTP:
+
+```json
+{
+  "mcpServers": {
+    "svelte-grab": {
+      "type": "url",
+      "url": "http://localhost:4723/mcp"
+    }
+  }
+}
+```
+
+### Programmatic usage
+
+```typescript
+import { startMcpServer } from 'svelte-grab/mcp';
+
+// HTTP mode
+const server = await startMcpServer({ port: 4723 });
+
+// Stdio mode (for direct agent integration)
+await startMcpServer({ stdio: true });
+```
+
+## Agent Relay (WebSocket)
+
+An alternative to MCP for agents that support WebSocket connections. The relay bridges browser selections to agent providers.
 
 ### 1. Start the relay server
 
@@ -290,144 +474,62 @@ const server = await createRelayServer({
 });
 ```
 
-The relay bridges browser selections to agent providers. Press Tab in selection mode to open the inline prompt, or use the context menu "Send to Agent" action.
+### Supported Providers
+
+| Provider | CLI name | SDK |
+|----------|----------|-----|
+| Claude Code | `claude-code` | `@anthropic-ai/claude-agent-sdk` |
+| Cursor | `cursor` | `cursor-agent` CLI |
+| Copilot | `copilot` | `copilot` CLI |
+| Codex | `codex` | `@openai/codex-sdk` |
 
 ### Session Management
 
-The relay supports full session lifecycle — undo, redo, resume, and retry — so you can iterate on agent changes without starting over.
+The relay supports full session lifecycle — undo, redo, resume, and retry.
 
-**After a successful agent action:**
-- **Undo** — Click "Undo" in the status toast to revert the last change
-- **Resume** — Click "Resume" to open the prompt modal for a follow-up instruction in the same session context
-
-**After a failed agent action:**
-- **Retry** — Click "Retry" in the status toast to re-send the same request
-
-**Session history:**
-- The prompt modal shows a "History" toggle to browse all past interactions
-- Each entry shows the prompt, result/error, and timestamp
-- Click "Resume" on any entry to continue from that point
-- The toolbar shows a "Sessions" button when history is available
-
-The relay server persists session context per connection, so undo/redo/resume send follow-up prompts with the previous interaction context. Retry re-sends the exact original request.
+- **Undo** — Revert the last agent change
+- **Resume** — Follow-up instruction in the same session context
+- **Retry** — Re-send a failed request
+- **History** — Browse all past interactions with timestamps
 
 ```typescript
-// Programmatic session management via AgentClient
 import { AgentClient } from 'svelte-grab/core';
 
 const client = new AgentClient();
 client.connect('ws://localhost:4722');
 
-// After a request completes:
-client.undo();                          // Undo last change
-client.redo();                          // Redo undone change
-client.resume('Now make it responsive'); // Follow-up prompt
-client.retry();                         // Re-send last request
-client.getHistory();                    // Get all interactions
+client.undo();
+client.redo();
+client.resume('Now make it responsive');
+client.retry();
+client.getHistory();
 ```
 
-## MCP Server
-
-A simpler alternative to the WebSocket relay. The MCP server lets Claude Code (and other MCP-compatible agents) receive grabbed element context directly via HTTP — no separate relay process needed.
-
-**How it works:**
-
-```
-Browser: Alt+Click element -> POST http://localhost:4723/context (automatic)
-Claude Code: calls get_element_context tool -> receives the grabbed context
-```
-
-### 1. Start the MCP server
+## CLI
 
 ```bash
-npx svelte-grab mcp
-npx svelte-grab mcp --port=4723
+npx svelte-grab <command> [options]
 ```
 
-Or use the standalone binary:
+| Command | Description |
+|---------|-------------|
+| `init` | Auto-inject SvelteDevKit into your root layout |
+| `add <provider>` | Add an agent provider (claude-code, cursor, copilot, codex) |
+| `remove <provider>` | Remove an agent provider |
+| `configure` | Interactive configuration (activation key, editor, ports, theme) |
+| `relay` | Start the WebSocket relay server |
+| `mcp` | Start the MCP server |
+| `help` | Show help |
 
 ```bash
-npx svelte-grab-mcp
-npx svelte-grab-mcp --port=4723
+npx svelte-grab init                     # Add to your SvelteKit project
+npx svelte-grab init --dry-run           # Preview changes without writing
+npx svelte-grab add cursor               # Add Cursor agent provider
+npx svelte-grab remove copilot           # Remove Copilot provider
+npx svelte-grab configure                # Interactive configuration
+npx svelte-grab relay --provider=cursor  # Start relay with Cursor provider
+npx svelte-grab mcp --stdio              # Start MCP server for Claude Code
 ```
-
-For direct Claude Code integration via stdio:
-
-```bash
-npx svelte-grab mcp --stdio
-```
-
-### 2. Enable in your app
-
-```svelte
-<SvelteGrab enableMcp />
-
-<!-- Custom port -->
-<SvelteGrab enableMcp mcpPort={4723} />
-
-<!-- With SvelteDevKit -->
-<SvelteDevKit enableMcp />
-```
-
-When `enableMcp` is enabled, every grab automatically sends the captured context to the MCP server via a fire-and-forget HTTP POST. The UI is never blocked — if the server isn't running, the request silently fails.
-
-### 3. Claude Code configuration
-
-Add to your Claude Code MCP config (`.claude/settings.json` or equivalent):
-
-```json
-{
-  "mcpServers": {
-    "svelte-grab": {
-      "command": "npx",
-      "args": ["svelte-grab-mcp", "--stdio"]
-    }
-  }
-}
-```
-
-Or connect to the HTTP server:
-
-```json
-{
-  "mcpServers": {
-    "svelte-grab": {
-      "type": "url",
-      "url": "http://localhost:4723/mcp"
-    }
-  }
-}
-```
-
-### 4. Programmatic usage
-
-```typescript
-import { startMcpServer } from 'svelte-grab/mcp';
-
-// HTTP mode
-const server = await startMcpServer({ port: 4723 });
-
-// Stdio mode (for direct agent integration)
-await startMcpServer({ stdio: true });
-```
-
-### MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `get_element_context` | Returns the last grabbed element context (component stack, HTML preview, optional prompt). Context is cleared after reading. |
-| `undo_last_action` | Returns an undo instruction with the original context from the last interaction. Use this to tell the agent to revert its last change. |
-| `get_session_history` | Returns the list of recent interactions (up to 20) with timestamps, prompts, and content previews. |
-
-The MCP server maintains a session history (up to 50 entries) of all contexts received via `POST /context`. This enables undo and history browsing without a WebSocket connection.
-
-### HTTP Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check. Returns `{ status: "ok", hasContext: boolean }` |
-| `POST` | `/context` | Receive context from browser. Body: `{ content: string[], prompt?: string }` |
-| `POST` | `/mcp` | MCP protocol endpoint (StreamableHTTP transport) |
 
 ## Plugin System
 
@@ -519,9 +621,9 @@ window.__SVELTE_GRAB__.registerPlugin(plugin); // Register a plugin
 | **O** | Open in editor (when popup visible) |
 | **S** | Screenshot element (when popup visible) |
 | **Arrow keys** | Navigate component tree (selection mode) |
-| **Tab** | Open agent prompt (selection mode) |
+| **Tab** | Open prompt overlay (selection mode) |
 | **Cmd/Ctrl+C** | Copy hovered element (selection mode) |
-| **Cmd/Ctrl+Enter** | Send agent prompt |
+| **Cmd/Ctrl+Enter** | Send prompt to agent |
 | **Escape** | Close popup / exit selection mode |
 
 ## Theming
@@ -577,6 +679,7 @@ SvelteGrab walks up this metadata tree to build the full component hierarchy. Al
 | `html-to-image` | Screenshot capture |
 | `ws` | Agent relay server |
 | `@anthropic-ai/claude-agent-sdk` | Claude Code relay provider |
+| `@openai/codex-sdk` | Codex relay provider |
 | `@modelcontextprotocol/sdk` | MCP protocol transport (stdio/StreamableHTTP) |
 
 ## License
