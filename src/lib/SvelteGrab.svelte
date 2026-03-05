@@ -184,6 +184,13 @@
 	let promptText = $state('');
 
 	// ============================================================
+	// MCP connection state (SSE)
+	// ============================================================
+	let mcpAgentListening = $state(false);
+	let mcpStatus = $state<'idle' | 'watching' | 'processing' | 'sent'>('idle');
+	let mcpEventSource: EventSource | null = null;
+
+	// ============================================================
 	// Arrow navigation state
 	// ============================================================
 	let navElement = $state<HTMLElement | null>(null);
@@ -730,13 +737,25 @@
 		const elementStack = getComponentStack(element);
 		const formatted = formatForAgent(elementStack, element);
 
+		// Send via MCP (direct to Claude Code session)
+		if (enableMcp) {
+			sendToMcp([formatted], promptText);
+			mcpStatus = 'sent';
+			// Reset status after 3s
+			setTimeout(() => { mcpStatus = mcpAgentListening ? 'watching' : 'idle'; }, 3000);
+		}
+
+		// Send via WebSocket relay
 		if (enableAgentRelay && agentClient) {
 			agentClient.sendRequest(agentId, {
 				content: [formatted],
 				prompt: promptText,
 				selectedCount: selectedElements.length || 1
 			});
-		} else {
+		}
+
+		// Fallback: copy to clipboard if no agent transport
+		if (!enableMcp && !enableAgentRelay) {
 			const withContext = promptText
 				? `Instructions: ${promptText}\n\n${formatted}`
 				: formatted;
@@ -1382,6 +1401,37 @@
 			callbacks.getSelectedElements = () => [...selectedElementsSet];
 			callbacks.clearSelection = () => clearSelection();
 
+			// Connect to MCP server SSE for real-time status
+			if (enableMcp) {
+				try {
+					mcpEventSource = new EventSource(`http://localhost:${mcpPort}/events`);
+					mcpEventSource.addEventListener('agent-status', (e) => {
+						const data = JSON.parse(e.data);
+						if (data.status === 'watching') {
+							mcpAgentListening = true;
+							mcpStatus = 'watching';
+						} else if (data.status === 'processing') {
+							mcpStatus = 'processing';
+						} else {
+							mcpAgentListening = false;
+							mcpStatus = 'idle';
+						}
+					});
+					mcpEventSource.addEventListener('context-received', (e) => {
+						const data = JSON.parse(e.data);
+						if (data.agentWatching) {
+							mcpStatus = 'processing';
+						}
+					});
+					mcpEventSource.onerror = () => {
+						mcpAgentListening = false;
+						mcpStatus = 'idle';
+					};
+				} catch {
+					// SSE not available, proceed without real-time status
+				}
+			}
+
 			// Connect agent relay if enabled
 			if (enableAgentRelay) {
 				agentClient = new AgentClient();
@@ -1438,6 +1488,7 @@
 		clearTimeout(mountTimeoutId);
 		cleanup?.();
 		agentClient?.disconnect();
+		mcpEventSource?.close();
 		pluginRegistry.clear();
 		destroyGlobalAPI();
 	});
@@ -1699,14 +1750,40 @@
 	>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="sg-prompt-container" onkeydown={(e) => e.stopPropagation()}>
+			{#if enableMcp}
+				<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 10px;">
+					<span style="
+						width: 6px; height: 6px; border-radius: 50%;
+						background: {mcpAgentListening ? '#22c55e' : '#ef4444'};
+						display: inline-block;
+					"></span>
+					<span style="color: var(--sg-text); opacity: 0.7;">
+						{#if mcpStatus === 'watching'}
+							Claude Code listening
+						{:else if mcpStatus === 'processing'}
+							Processing...
+						{:else if mcpStatus === 'sent'}
+							Sent!
+						{:else}
+							No agent connected
+						{/if}
+					</span>
+				</div>
+			{/if}
 			<div class="sg-prompt-header" style="color: var(--sg-text); font-size: 11px; margin-bottom: 4px; opacity: 0.7;">
-				Add context (Enter to copy, Esc to cancel)
+				{#if enableMcp && mcpAgentListening}
+					Describe what to change (Cmd+Enter to send)
+				{:else}
+					Add context (Cmd+Enter to copy, Esc to cancel)
+				{/if}
 			</div>
 			<!-- svelte-ignore a11y_autofocus -->
 			<textarea
 				class="sg-prompt-input"
 				bind:value={promptText}
-				placeholder="Add context or instructions..."
+				placeholder={enableMcp && mcpAgentListening
+					? 'e.g. "Make this button bigger and change the color to blue"'
+					: 'Add context or instructions...'}
 				autofocus
 				onkeydown={(e) => {
 					if (e.key === 'Escape') {
@@ -1722,10 +1799,10 @@
 				style="
 					background: var(--sg-bg);
 					color: var(--sg-text);
-					border: 1px solid var(--sg-border);
+					border: 1px solid {enableMcp && mcpAgentListening ? '#22c55e' : 'var(--sg-border)'};
 					border-radius: 6px;
 					padding: 8px;
-					width: 280px;
+					width: 300px;
 					min-height: 60px;
 					resize: vertical;
 					font-family: system-ui, sans-serif;
@@ -1734,18 +1811,49 @@
 				"
 			></textarea>
 			<div style="display: flex; gap: 6px; margin-top: 6px;">
-				<button
-					onclick={() => confirmPrompt()}
-					style="
-						background: var(--sg-accent);
-						color: white;
-						border: none;
-						border-radius: 4px;
-						padding: 4px 12px;
-						font-size: 11px;
-						cursor: pointer;
-					"
-				>Copy with Context</button>
+				{#if enableMcp && mcpAgentListening}
+					<button
+						onclick={() => confirmPrompt()}
+						style="
+							background: #22c55e;
+							color: white;
+							border: none;
+							border-radius: 4px;
+							padding: 4px 12px;
+							font-size: 11px;
+							cursor: pointer;
+							font-weight: 500;
+						"
+					>Send to Claude Code</button>
+				{:else if enableMcp}
+					<button
+						onclick={() => confirmPrompt()}
+						style="
+							background: var(--sg-accent);
+							color: white;
+							border: none;
+							border-radius: 4px;
+							padding: 4px 12px;
+							font-size: 11px;
+							cursor: pointer;
+							opacity: 0.7;
+						"
+						title="Context will be queued — start Claude Code with watch_for_grab to receive it"
+					>Send (queued)</button>
+				{:else}
+					<button
+						onclick={() => confirmPrompt()}
+						style="
+							background: var(--sg-accent);
+							color: white;
+							border: none;
+							border-radius: 4px;
+							padding: 4px 12px;
+							font-size: 11px;
+							cursor: pointer;
+						"
+					>Copy with Context</button>
+				{/if}
 				{#if enableAgentRelay}
 					<button
 						onclick={() => {
@@ -1773,7 +1881,7 @@
 							font-size: 11px;
 							cursor: pointer;
 						"
-					>Send to Agent</button>
+					>Send via Relay</button>
 				{/if}
 			</div>
 		</div>

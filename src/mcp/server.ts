@@ -31,6 +31,42 @@ interface SessionHistoryEntry {
 let sessionHistory: SessionHistoryEntry[] = [];
 let sessionCounter = 0;
 
+// ============================================================
+// Watch queue — resolves pending watch_for_grab tool calls
+// ============================================================
+type WatchResolver = (ctx: ContextPayload) => void;
+const watchQueue: WatchResolver[] = [];
+
+// SSE clients — for browser real-time status
+const sseClients = new Set<ServerResponse>();
+
+// Track whether an agent is currently watching
+let agentWatching = false;
+
+/**
+ * Notify all pending watchers that new context arrived.
+ */
+function notifyWatchers(ctx: ContextPayload): void {
+	const waiters = watchQueue.splice(0);
+	for (const resolve of waiters) {
+		resolve(ctx);
+	}
+}
+
+/**
+ * Send an SSE event to all connected browsers.
+ */
+function broadcastSSE(event: string, data: unknown): void {
+	const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+	for (const client of sseClients) {
+		try {
+			client.write(payload);
+		} catch {
+			sseClients.delete(client);
+		}
+	}
+}
+
 /**
  * Validate that the payload has the expected shape.
  */
@@ -76,6 +112,46 @@ function sendJson(res: ServerResponse, status: number, data: unknown): void {
 }
 
 /**
+ * Process incoming context from the browser.
+ * Stores it, saves to history, and notifies any waiting agents.
+ */
+function processIncomingContext(data: ContextPayload): void {
+	storedContext = data;
+
+	// Store per-tool context if toolName provided
+	if (data.toolName) {
+		toolContexts.set(data.toolName, {
+			content: data.content.join('\n'),
+			timestamp: Date.now()
+		});
+	}
+
+	// Save to session history
+	sessionCounter++;
+	sessionHistory.push({
+		id: `session-${sessionCounter}`,
+		content: data.content,
+		prompt: data.prompt,
+		timestamp: Date.now()
+	});
+
+	// Keep last 50 entries
+	if (sessionHistory.length > 50) {
+		sessionHistory = sessionHistory.slice(-50);
+	}
+
+	// Notify waiting agents (watch_for_grab)
+	notifyWatchers(data);
+
+	// Notify browsers that context was received
+	broadcastSSE('context-received', {
+		id: `session-${sessionCounter}`,
+		hasPrompt: !!data.prompt,
+		agentWatching
+	});
+}
+
+/**
  * Handle MCP protocol requests via StreamableHTTP transport.
  * Uses @modelcontextprotocol/sdk if available, otherwise returns 501.
  */
@@ -118,6 +194,61 @@ function extractToolSection(toolName: string): string | null {
  * Register MCP tools on a server instance.
  */
 function registerMcpTools(server: any): void {
+	// ============================================================
+	// watch_for_grab — blocks until the browser sends new context
+	// ============================================================
+	server.tool(
+		'watch_for_grab',
+		'Waits for the user to select a component in the browser and send context via svelte-grab. ' +
+		'This tool BLOCKS until the user Alt+Clicks an element and submits their prompt. ' +
+		'Returns the component context (file paths, component stack, HTML) plus the user\'s instruction. ' +
+		'Call this in a loop to continuously receive instructions from the browser. ' +
+		'The user selects a component, types what they want changed, and hits Enter — you receive everything here.',
+		{},
+		async () => {
+			agentWatching = true;
+			broadcastSSE('agent-status', { status: 'watching', message: 'Claude Code is listening...' });
+
+			// If there's already unread context, return it immediately
+			if (storedContext) {
+				const ctx = storedContext;
+				storedContext = null;
+
+				const parts: string[] = [...ctx.content];
+				if (ctx.prompt) {
+					parts.push(`\nUser instruction: ${ctx.prompt}`);
+				}
+
+				agentWatching = false;
+				broadcastSSE('agent-status', { status: 'processing', message: 'Processing...' });
+
+				return {
+					content: [{ type: 'text', text: parts.join('\n') }]
+				};
+			}
+
+			// Wait for the next context from the browser
+			const ctx = await new Promise<ContextPayload>((resolve) => {
+				watchQueue.push(resolve);
+			});
+
+			// Clear stored context since we're consuming it
+			storedContext = null;
+
+			const parts: string[] = [...ctx.content];
+			if (ctx.prompt) {
+				parts.push(`\nUser instruction: ${ctx.prompt}`);
+			}
+
+			agentWatching = false;
+			broadcastSSE('agent-status', { status: 'processing', message: 'Processing...' });
+
+			return {
+				content: [{ type: 'text', text: parts.join('\n') }]
+			};
+		}
+	);
+
 	server.tool(
 		'get_element_context',
 		'Returns the last element context captured by svelte-grab in the browser. Returns the grabbed component stack, HTML preview, and optional prompt. Context is cleared after reading.',
@@ -265,6 +396,10 @@ function registerMcpTools(server: any): void {
 				tools.push('element_context: available (last grab)');
 			}
 
+			if (agentWatching) {
+				tools.push('watch_for_grab: active (waiting for browser input)');
+			}
+
 			for (const [name, ctx] of toolContexts) {
 				const age = Math.floor((Date.now() - ctx.timestamp) / 1000);
 				const ageStr = age < 60 ? `${age}s ago` : `${Math.floor(age / 60)}m ago`;
@@ -285,10 +420,93 @@ function registerMcpTools(server: any): void {
 }
 
 /**
- * Start the MCP server in HTTP mode.
+ * Create the HTTP request handler for the context bridge.
+ * Used by both standalone HTTP mode and as a sidecar in stdio mode.
  */
-async function startHttpServer(preferredPort: number): Promise<{ close: () => void }> {
-	// Find available port (auto-increment if preferred is in use)
+function createHttpHandler() {
+	return async (req: IncomingMessage, res: ServerResponse) => {
+		setCorsHeaders(res);
+
+		// Handle preflight
+		if (req.method === 'OPTIONS') {
+			res.writeHead(204);
+			res.end();
+			return;
+		}
+
+		const url = req.url || '/';
+
+		// GET /health
+		if (req.method === 'GET' && url === '/health') {
+			sendJson(res, 200, {
+				status: 'ok',
+				hasContext: storedContext !== null,
+				agentWatching,
+				watcherCount: watchQueue.length,
+				sseClients: sseClients.size
+			});
+			return;
+		}
+
+		// GET /events — SSE endpoint for browser real-time updates
+		if (req.method === 'GET' && url === '/events') {
+			res.writeHead(200, {
+				'Content-Type': 'text/event-stream',
+				'Cache-Control': 'no-cache',
+				'Connection': 'keep-alive',
+				'Access-Control-Allow-Origin': '*'
+			});
+
+			// Send current status immediately
+			const statusPayload = JSON.stringify({
+				status: agentWatching ? 'watching' : 'idle',
+				message: agentWatching ? 'Claude Code is listening...' : 'No agent connected'
+			});
+			res.write(`event: agent-status\ndata: ${statusPayload}\n\n`);
+
+			sseClients.add(res);
+
+			req.on('close', () => {
+				sseClients.delete(res);
+			});
+			return;
+		}
+
+		// POST /context — browser sends grabbed context here
+		if (req.method === 'POST' && url === '/context') {
+			try {
+				const body = await readBody(req);
+				const data = JSON.parse(body);
+
+				if (!isValidContextPayload(data)) {
+					sendJson(res, 400, { error: 'Invalid payload. Expected { content: string[], prompt?: string }' });
+					return;
+				}
+
+				processIncomingContext(data);
+
+				sendJson(res, 200, { ok: true, agentWatching });
+			} catch {
+				sendJson(res, 400, { error: 'Invalid JSON' });
+			}
+			return;
+		}
+
+		// POST /mcp — MCP protocol endpoint (only in HTTP mode)
+		if (req.method === 'POST' && url === '/mcp') {
+			await handleMcpProtocol(req, res);
+			return;
+		}
+
+		// 404 for everything else
+		sendJson(res, 404, { error: 'Not found' });
+	};
+}
+
+/**
+ * Start the HTTP server on the given port.
+ */
+async function startHttpListener(preferredPort: number): Promise<{ close: () => void; port: number }> {
 	let port: number;
 	try {
 		port = await findAvailablePort(preferredPort);
@@ -297,97 +515,41 @@ async function startHttpServer(preferredPort: number): Promise<{ close: () => vo
 	}
 
 	if (port !== preferredPort) {
-		console.log(`[svelte-grab mcp] Port ${preferredPort} was in use, using ${port} instead`);
+		console.error(`[svelte-grab mcp] Port ${preferredPort} was in use, using ${port} instead`);
 	}
 
 	return new Promise((resolve, reject) => {
-		const server = createServer(async (req, res) => {
-			setCorsHeaders(res);
-
-			// Handle preflight
-			if (req.method === 'OPTIONS') {
-				res.writeHead(204);
-				res.end();
-				return;
-			}
-
-			const url = req.url || '/';
-
-			// GET /health
-			if (req.method === 'GET' && url === '/health') {
-				sendJson(res, 200, { status: 'ok', hasContext: storedContext !== null });
-				return;
-			}
-
-			// POST /context — browser sends grabbed context here
-			if (req.method === 'POST' && url === '/context') {
-				try {
-					const body = await readBody(req);
-					const data = JSON.parse(body);
-
-					if (!isValidContextPayload(data)) {
-						sendJson(res, 400, { error: 'Invalid payload. Expected { content: string[], prompt?: string }' });
-						return;
-					}
-
-					storedContext = data;
-
-					// Store per-tool context if toolName provided
-					if (data.toolName) {
-						toolContexts.set(data.toolName, {
-							content: data.content.join('\n'),
-							timestamp: Date.now()
-						});
-					}
-
-					// Save to session history
-					sessionCounter++;
-					sessionHistory.push({
-						id: `session-${sessionCounter}`,
-						content: data.content,
-						prompt: data.prompt,
-						timestamp: Date.now()
-					});
-
-					// Keep last 50 entries
-					if (sessionHistory.length > 50) {
-						sessionHistory = sessionHistory.slice(-50);
-					}
-
-					sendJson(res, 200, { ok: true });
-				} catch {
-					sendJson(res, 400, { error: 'Invalid JSON' });
-				}
-				return;
-			}
-
-			// POST /mcp — MCP protocol endpoint
-			if (req.method === 'POST' && url === '/mcp') {
-				await handleMcpProtocol(req, res);
-				return;
-			}
-
-			// 404 for everything else
-			sendJson(res, 404, { error: 'Not found' });
-		});
+		const server = createServer(createHttpHandler());
 
 		server.on('error', (err: NodeJS.ErrnoException) => {
 			reject(err);
 		});
 
 		server.listen(port, () => {
-			console.log(`[svelte-grab mcp] HTTP server listening on http://localhost:${port}`);
-			console.log(`[svelte-grab mcp] Health check: http://localhost:${port}/health`);
-			console.log(`[svelte-grab mcp] Context endpoint: POST http://localhost:${port}/context`);
-			resolve({ close: () => server.close() });
+			resolve({ close: () => server.close(), port });
 		});
 	});
 }
 
 /**
- * Start the MCP server in stdio mode for direct Claude Code integration.
+ * Start the MCP server in HTTP mode.
  */
-async function startStdioServer(): Promise<void> {
+async function startHttpServer(preferredPort: number): Promise<{ close: () => void }> {
+	const { close, port } = await startHttpListener(preferredPort);
+
+	console.log(`[svelte-grab mcp] HTTP server listening on http://localhost:${port}`);
+	console.log(`[svelte-grab mcp] Health check: http://localhost:${port}/health`);
+	console.log(`[svelte-grab mcp] Context endpoint: POST http://localhost:${port}/context`);
+	console.log(`[svelte-grab mcp] SSE events: http://localhost:${port}/events`);
+
+	return { close };
+}
+
+/**
+ * Start the MCP server in stdio mode for direct Claude Code integration.
+ * Also starts a sidecar HTTP server so the browser can POST context.
+ */
+async function startStdioServer(httpPort: number): Promise<void> {
 	const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
 	const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
 
@@ -398,20 +560,30 @@ async function startStdioServer(): Promise<void> {
 
 	registerMcpTools(server);
 
+	// Start sidecar HTTP server for browser context bridge
+	try {
+		const { port } = await startHttpListener(httpPort);
+		// Log to stderr since stdout is used by stdio transport
+		console.error(`[svelte-grab mcp] Sidecar HTTP on http://localhost:${port} (for browser context)`);
+	} catch {
+		console.error(`[svelte-grab mcp] Warning: Could not start sidecar HTTP server on port ${httpPort}`);
+	}
+
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
 }
 
 /**
  * Start the MCP server.
- * In stdio mode, connects via stdin/stdout for direct Claude Code integration.
- * In HTTP mode, starts an HTTP server with /health, /context, and /mcp endpoints.
+ * In stdio mode, connects via stdin/stdout for direct Claude Code integration
+ * and starts a sidecar HTTP server for browser context.
+ * In HTTP mode, starts an HTTP server with /health, /context, /events, and /mcp endpoints.
  */
 export async function startMcpServer(options: McpServerOptions = {}): Promise<{ close: () => void } | void> {
 	const { port = DEFAULT_MCP_PORT, stdio = false } = options;
 
 	if (stdio) {
-		await startStdioServer();
+		await startStdioServer(port);
 		return;
 	}
 

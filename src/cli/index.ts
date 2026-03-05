@@ -116,6 +116,7 @@ Commands:
 
   mcp       Start the MCP server for direct agent integration. Browser sends
             context via HTTP POST, agents read it via MCP protocol.
+            In stdio mode, also starts a sidecar HTTP server for browser context.
             Options:
               --port=4723   HTTP server port (default: 4723)
               --stdio       Use stdio transport instead of HTTP (for Claude Code
@@ -125,6 +126,14 @@ Commands:
 
 Global Options:
   --version, -v   Print version number
+
+Claude Code Integration (recommended):
+  1. Add MCP server to Claude Code settings (~/.claude.json):
+     { "mcpServers": { "svelte-grab": { "command": "npx", "args": ["svelte-grab-mcp", "--stdio"] } } }
+  2. Add <SvelteDevKit enableMcp /> to your root layout
+  3. In Claude Code, say: "use watch_for_grab to listen for my selections"
+  4. Alt+Click any element in the browser, type your prompt, hit Cmd+Enter
+  5. Claude Code receives the component context + your instruction and acts on it
 
 Examples:
   npx svelte-grab init                     # Add to your SvelteKit project
