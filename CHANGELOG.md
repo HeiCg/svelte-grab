@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0 (2026-03-04)
+
+### Bug Fixes
+
+- **SvelteGrab:** Fix "Open in Editor" not working — `window.open()` silently fails for custom protocol URLs (`vscode://`, `cursor://`, etc.); now uses anchor element click which reliably triggers protocol handlers ([#6](https://github.com/HeiCg/svelte-grab/issues/6))
+- **SvelteGrab:** Fix `detectProjectRoot` treating Vite dev-relative paths (`/src/...`, `/lib/...`) as absolute, which produced empty root strings and broken editor URLs
+- **SvelteGrab:** Add console warning when editor URL cannot be resolved to an absolute path, with guidance to set the `projectRoot` prop
+
 ## 1.1.0 (2026-02-25)
 
 ### Bug Fixes

@@ -218,6 +218,11 @@
 			return null;
 		}
 
+		// Paths like "/src/routes/..." are Vite dev-relative — can't detect root from them
+		if (filePath.startsWith('/src/') || filePath.startsWith('/lib/')) {
+			return null;
+		}
+
 		const srcIndex = filePath.indexOf('/src/');
 		if (srcIndex > 0) {
 			return filePath.slice(0, srcIndex);
@@ -253,6 +258,11 @@
 				? root.slice(0, -1) + relativePath
 				: root + relativePath;
 		} else {
+			console.warn(
+				`[SvelteGrab] Cannot resolve absolute path for "${file}". ` +
+				`Set the "projectRoot" prop to your project's absolute path so "Open in Editor" works correctly. ` +
+				`Example: <SvelteGrab projectRoot="/Users/you/my-project" />`
+			);
 			absolutePath = file.startsWith('/') ? file : `/${file}`;
 		}
 
@@ -284,7 +294,9 @@
 	function openInEditor(file: string, line: number): void {
 		const url = buildEditorUrl(file, line);
 		if (url) {
-			window.open(url, '_self');
+			const a = document.createElement('a');
+			a.href = url;
+			a.click();
 		}
 	}
 
