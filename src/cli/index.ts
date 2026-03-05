@@ -43,6 +43,31 @@ async function main() {
 			break;
 		}
 
+		case 'add': {
+			const { add } = await import('./add.js');
+			const provider = args[1];
+			const dryRun = args.includes('--dry-run');
+			const portArg = args.find((a: string) => a.startsWith('--port='));
+			add(provider, { dryRun, port: portArg ? parseInt(portArg.split('=')[1], 10) : undefined });
+			break;
+		}
+
+		case 'remove': {
+			const { remove } = await import('./remove.js');
+			const provider = args[1];
+			const dryRun = args.includes('--dry-run');
+			remove(provider, { dryRun });
+			break;
+		}
+
+		case 'configure':
+		case 'config': {
+			const { configure } = await import('./configure.js');
+			const dryRun = args.includes('--dry-run');
+			await configure({ dryRun });
+			break;
+		}
+
 		case 'mcp': {
 			const { startMcpServer } = await import('../mcp/server.js');
 			const mcpPortArg = args.find((a: string) => a.startsWith('--port='));
@@ -69,6 +94,19 @@ Commands:
             Options:
               --dry-run     Show what would be changed without writing files
 
+  add       Add an agent provider (claude-code, cursor, copilot, codex).
+            Options:
+              --dry-run     Preview changes without writing
+              --port=N      Custom relay port for this provider
+
+  remove    Remove an agent provider from configuration.
+            Options:
+              --dry-run     Preview changes without writing
+
+  configure Interactive configuration (activation key, editor, ports, theme).
+            Options:
+              --dry-run     Preview changes without writing
+
   relay     Start the WebSocket relay server that bridges browser selections
             to coding agents (e.g. Claude Code). Your app connects via
             <SvelteGrab enableAgentRelay />.
@@ -91,8 +129,11 @@ Global Options:
 Examples:
   npx svelte-grab init                     # Add to your SvelteKit project
   npx svelte-grab init --dry-run           # Preview changes without writing
+  npx svelte-grab add cursor               # Add Cursor agent provider
+  npx svelte-grab remove copilot           # Remove Copilot provider
+  npx svelte-grab configure                # Interactive configuration
   npx svelte-grab relay                    # Start relay on default port
-  npx svelte-grab relay --port=5000        # Start relay on custom port
+  npx svelte-grab relay --provider=cursor  # Start relay with Cursor provider
   npx svelte-grab mcp --stdio              # Start MCP server for Claude Code
 `);
 			break;

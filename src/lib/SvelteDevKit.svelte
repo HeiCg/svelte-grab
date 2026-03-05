@@ -50,6 +50,10 @@
 		enableDragSelect = true,
 		enableMcp = false,
 		mcpPort = 4723,
+		freezeAnimations = true,
+		freezePseudoStates = true,
+		enableHistoryPersistence = true,
+		enablePromptMode = true,
 		// SvelteGrab props forwarding
 		autoCopyFormat = 'agent',
 		showPopup = true,
@@ -170,6 +174,10 @@
 		{enableMultiSelect}
 		{showActiveIndicator}
 		{maxHistorySize}
+		{freezeAnimations}
+		{freezePseudoStates}
+		{enableHistoryPersistence}
+		{enablePromptMode}
 	/>
 {/if}
 

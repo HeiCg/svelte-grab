@@ -29,6 +29,11 @@
 	import { findSvelteParent, findSvelteChild, findSvelteSibling } from './core/dom-navigation.js';
 	import { createGlobalAPI, destroyGlobalAPI } from './core/global-api.js';
 	import { AgentClient } from './core/agent-client.js';
+	import { freezeGlobalAnimations } from './utils/freeze-animations.js';
+	import { freezePseudoStates as freezePseudoStatesFn, suspendPointerEventsFreeze, resumePointerEventsFreeze } from './utils/freeze-pseudo-states.js';
+	import { loadHistory, saveHistory, addHistoryEntry, clearAllHistory, type PersistentHistoryEntry } from './utils/history-storage.js';
+	import { createElementSelector, reacquireElement } from './utils/element-selector.js';
+	import { getElementsInDragRect } from './utils/drag-selection.js';
 	import {
 		detectDevMode,
 		shortenPath as sharedShortenPath,
@@ -66,7 +71,11 @@
 		enableArrowNav = true,
 		enableDragSelect = true,
 		enableMcp = false,
-		mcpPort = 4723
+		mcpPort = 4723,
+		freezeAnimations: freezeAnimationsProp = true,
+		freezePseudoStates: freezePseudoStatesProp = true,
+		enableHistoryPersistence = true,
+		enablePromptMode = true
 	}: SvelteGrabProps = $props();
 
 	// Use $derived for reactive theme selection based on lightTheme prop
@@ -161,6 +170,18 @@
 	let agentHistory = $state<AgentHistoryEntry[]>([]);
 	let lastAgentStatus = $state<'idle' | 'pending' | 'done' | 'error'>('idle');
 	let showAgentHistory = $state(false);
+
+	// ============================================================
+	// Freeze state
+	// ============================================================
+	let unfreezeAnimations: (() => void) | null = null;
+	let unfreezePseudoStates: (() => void) | null = null;
+
+	// ============================================================
+	// Prompt mode state
+	// ============================================================
+	let promptMode = $state(false);
+	let promptText = $state('');
 
 	// ============================================================
 	// Arrow navigation state
@@ -641,6 +662,91 @@
 		return sharedCheckModifier(event, modifier);
 	}
 
+	/** Activate freeze effects when entering selection mode */
+	function activateFreezes(): void {
+		if (freezeAnimationsProp && !unfreezeAnimations) {
+			unfreezeAnimations = freezeGlobalAnimations();
+		}
+		if (freezePseudoStatesProp && !unfreezePseudoStates) {
+			unfreezePseudoStates = freezePseudoStatesFn();
+		}
+	}
+
+	/** Deactivate freeze effects when exiting selection mode */
+	function deactivateFreezes(): void {
+		if (unfreezeAnimations) {
+			unfreezeAnimations();
+			unfreezeAnimations = null;
+		}
+		if (unfreezePseudoStates) {
+			unfreezePseudoStates();
+			unfreezePseudoStates = null;
+		}
+	}
+
+	/** Enter selection mode with freeze support */
+	function enterSelectionMode(): void {
+		selectionMode = true;
+		activateFreezes();
+	}
+
+	/** Exit selection mode with freeze cleanup */
+	function exitSelectionMode(): void {
+		selectionMode = false;
+		promptMode = false;
+		promptText = '';
+		deactivateFreezes();
+	}
+
+	/** Add entry to history with persistence support */
+	function addToHistoryWithPersistence(entry: HistoryEntry, element?: HTMLElement): void {
+		history = [entry, ...history].slice(0, maxHistorySize);
+		if (enableHistoryPersistence && element) {
+			try {
+				const selector = createElementSelector(element);
+				addHistoryEntry({
+					timestamp: entry.timestamp,
+					componentName: entry.componentName,
+					tagName: element.tagName.toLowerCase(),
+					htmlPreview: entry.htmlPreview,
+					elementSelector: selector,
+					stack: entry.stack
+				});
+			} catch {
+				// Graceful degradation if selector generation fails
+			}
+		}
+	}
+
+	/** Handle prompt mode confirmation */
+	function confirmPrompt(): void {
+		const element = hoveredElement || grabbedElement;
+		if (!element) {
+			promptMode = false;
+			promptText = '';
+			return;
+		}
+
+		const elementStack = getComponentStack(element);
+		const formatted = formatForAgent(elementStack, element);
+
+		if (enableAgentRelay && agentClient) {
+			agentClient.sendRequest(agentId, {
+				content: [formatted],
+				prompt: promptText,
+				selectedCount: selectedElements.length || 1
+			});
+		} else {
+			const withContext = promptText
+				? `Instructions: ${promptText}\n\n${formatted}`
+				: formatted;
+			copyToClipboard(withContext);
+		}
+
+		promptMode = false;
+		promptText = '';
+	}
+
 	function handleClick(event: MouseEvent) {
 		// Close context menu on any click
 		if (contextMenuVisible) {
@@ -714,7 +820,7 @@
 		}
 
 		// Clear selection mode when opening popup
-		selectionMode = false;
+		exitSelectionMode();
 		document.body.style.cursor = '';
 		hoveredElement = null;
 		hoveredInfo = null;
@@ -745,10 +851,16 @@
 				contextMenuVisible = false;
 				return;
 			}
+			// In prompt mode, escape cancels prompt
+			if (promptMode) {
+				promptMode = false;
+				promptText = '';
+				return;
+			}
 			// In toggle mode, escape deactivates
 			if (activationMode === 'toggle' && toggleActive) {
 				toggleActive = false;
-				selectionMode = false;
+				exitSelectionMode();
 				document.body.style.cursor = '';
 				hoveredElement = null;
 				hoveredInfo = null;
@@ -774,6 +886,12 @@
 			showAgentPrompt = true;
 		}
 
+		// Enter to open prompt mode (when selection mode active with hovered element)
+		if (event.key === 'Enter' && selectionMode && hoveredElement && enablePromptMode && !promptMode) {
+			event.preventDefault();
+			promptMode = true;
+		}
+
 		// Alt+? to toggle help overlay
 		if ((event.key === '?' || event.key === '/') && checkModifier(event) && showPopup) {
 			event.preventDefault();
@@ -786,11 +904,12 @@
 				if (!toggleKeyHandled) {
 					toggleKeyHandled = true;
 					toggleActive = !toggleActive;
-					selectionMode = toggleActive;
 					if (toggleActive) {
+						enterSelectionMode();
 						document.body.style.cursor = 'crosshair';
 						pluginRegistry.executeHook('onActivate');
 					} else {
+						exitSelectionMode();
 						document.body.style.cursor = '';
 						pluginRegistry.executeHook('onDeactivate');
 						hoveredElement = null;
@@ -799,7 +918,7 @@
 				}
 			} else {
 				// Hold mode
-				selectionMode = true;
+				enterSelectionMode();
 				document.body.style.cursor = 'crosshair';
 				pluginRegistry.executeHook('onActivate');
 
@@ -871,7 +990,7 @@
 				toggleKeyHandled = false;
 			} else {
 				// Hold mode: deactivate on key release
-				selectionMode = false;
+				exitSelectionMode();
 				document.body.style.cursor = '';
 				hoveredElement = null;
 				hoveredInfo = null;
@@ -1080,18 +1199,19 @@
 		// Only select if drag was significant (not just a click)
 		if (selectionBox.width < 5 && selectionBox.height < 5) return;
 
-		// Find all elements with svelte meta that intersect the box
-		const allElements = document.querySelectorAll('*');
-		for (const el of allElements) {
-			const meta = (el as HTMLElement & { __svelte_meta?: SvelteMeta }).__svelte_meta;
-			if (!meta?.loc) continue;
-
-			const rect = el.getBoundingClientRect();
-			// Check intersection
-			if (rect.right >= box.left && rect.left <= box.right &&
-				rect.bottom >= box.top && rect.top <= box.bottom) {
-				selectedElementsSet.add(el as HTMLElement);
-			}
+		// Use improved point-sampling drag selection
+		const dragRect = {
+			x: selectionBox.left,
+			y: selectionBox.top,
+			width: selectionBox.width,
+			height: selectionBox.height
+		};
+		const isValidElement = (el: Element): boolean => {
+			return !!(el as HTMLElement & { __svelte_meta?: SvelteMeta }).__svelte_meta?.loc;
+		};
+		const elements = getElementsInDragRect(dragRect, isValidElement);
+		for (const el of elements) {
+			selectedElementsSet.add(el as HTMLElement);
 		}
 
 		pluginRegistry.executeHook('onSelectionChange', [...selectedElementsSet]);
@@ -1181,6 +1301,21 @@
 		// Check if hint was already shown this session
 		try { hintShownThisSession = sessionStorage.getItem('svelte-grab-hint-shown') === '1'; } catch {}
 
+		// Load persistent history
+		if (enableHistoryPersistence) {
+			try {
+				const persistedHistory = loadHistory();
+				for (const entry of persistedHistory) {
+					history = [...history, {
+						timestamp: entry.timestamp,
+						stack: entry.stack,
+						htmlPreview: entry.htmlPreview,
+						componentName: entry.componentName
+					}];
+				}
+			} catch {}
+		}
+
 		mountTimeoutId = setTimeout(() => {
 			if (destroyed) return;
 			isDev = detectDevMode(forceEnable);
@@ -1211,7 +1346,7 @@
 				if (activationMode === 'toggle') {
 					toggleActive = true;
 				}
-				selectionMode = true;
+				enterSelectionMode();
 				document.body.style.cursor = 'crosshair';
 				pluginRegistry.executeHook('onActivate');
 			};
@@ -1219,7 +1354,7 @@
 				if (activationMode === 'toggle') {
 					toggleActive = false;
 				}
-				selectionMode = false;
+				exitSelectionMode();
 				document.body.style.cursor = '';
 				hoveredElement = null;
 				hoveredInfo = null;
@@ -1496,13 +1631,13 @@
 			class:sg-toolbar-btn-active={selectionMode}
 			onclick={() => {
 				if (selectionMode) {
-					selectionMode = false;
+					exitSelectionMode();
 					document.body.style.cursor = '';
 					if (activationMode === 'toggle') toggleActive = false;
 					hoveredElement = null;
 					hoveredInfo = null;
 				} else {
-					selectionMode = true;
+					enterSelectionMode();
 					document.body.style.cursor = 'crosshair';
 					if (activationMode === 'toggle') toggleActive = true;
 				}
@@ -1548,6 +1683,103 @@
 {/if}
 
 <!-- Agent prompt -->
+{#if isDev && promptMode && hoveredElement}
+	<div
+		class="sg-prompt-overlay"
+		style="
+			--sg-bg: {colors.background};
+			--sg-border: {colors.border};
+			--sg-text: {colors.text};
+			--sg-accent: {colors.accent};
+			position: fixed;
+			left: {hoverPosition.x}px;
+			top: {hoverPosition.y + 30}px;
+			z-index: 2147483647;
+		"
+	>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="sg-prompt-container" onkeydown={(e) => e.stopPropagation()}>
+			<div class="sg-prompt-header" style="color: var(--sg-text); font-size: 11px; margin-bottom: 4px; opacity: 0.7;">
+				Add context (Enter to copy, Esc to cancel)
+			</div>
+			<!-- svelte-ignore a11y_autofocus -->
+			<textarea
+				class="sg-prompt-input"
+				bind:value={promptText}
+				placeholder="Add context or instructions..."
+				autofocus
+				onkeydown={(e) => {
+					if (e.key === 'Escape') {
+						e.preventDefault();
+						promptMode = false;
+						promptText = '';
+					}
+					if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+						e.preventDefault();
+						confirmPrompt();
+					}
+				}}
+				style="
+					background: var(--sg-bg);
+					color: var(--sg-text);
+					border: 1px solid var(--sg-border);
+					border-radius: 6px;
+					padding: 8px;
+					width: 280px;
+					min-height: 60px;
+					resize: vertical;
+					font-family: system-ui, sans-serif;
+					font-size: 12px;
+					outline: none;
+				"
+			></textarea>
+			<div style="display: flex; gap: 6px; margin-top: 6px;">
+				<button
+					onclick={() => confirmPrompt()}
+					style="
+						background: var(--sg-accent);
+						color: white;
+						border: none;
+						border-radius: 4px;
+						padding: 4px 12px;
+						font-size: 11px;
+						cursor: pointer;
+					"
+				>Copy with Context</button>
+				{#if enableAgentRelay}
+					<button
+						onclick={() => {
+							if (agentClient) {
+								const element = hoveredElement || grabbedElement;
+								if (element) {
+									const elementStack = getComponentStack(element);
+									const formatted = formatForAgent(elementStack, element);
+									agentClient.sendRequest(agentId, {
+										content: [formatted],
+										prompt: promptText,
+										selectedCount: selectedElements.length || 1
+									});
+								}
+							}
+							promptMode = false;
+							promptText = '';
+						}}
+						style="
+							background: transparent;
+							color: var(--sg-accent);
+							border: 1px solid var(--sg-accent);
+							border-radius: 4px;
+							padding: 4px 12px;
+							font-size: 11px;
+							cursor: pointer;
+						"
+					>Send to Agent</button>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}
+
 {#if isDev && showAgentPrompt}
 	<div class="sg-agent-overlay" onclick={() => (showAgentPrompt = false)} role="presentation">
 		<div class="sg-agent-prompt" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}

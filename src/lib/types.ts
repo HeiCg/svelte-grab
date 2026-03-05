@@ -110,6 +110,14 @@ export interface SvelteGrabProps {
 	enableMcp?: boolean;
 	/** Port for MCP HTTP server. Default: 4723 */
 	mcpPort?: number;
+	/** Freeze CSS animations/transitions while selection mode is active. Default: true */
+	freezeAnimations?: boolean;
+	/** Freeze :hover/:focus pseudo-states while selection mode is active. Default: true */
+	freezePseudoStates?: boolean;
+	/** Persist grab history to sessionStorage for cross-navigation reacquisition. Default: true */
+	enableHistoryPersistence?: boolean;
+	/** Enable prompt/input mode (Enter key opens textarea for context). Default: true */
+	enablePromptMode?: boolean;
 }
 
 // ============================================================
@@ -479,6 +487,14 @@ export interface SvelteDevKitProps {
 	showCategories?: ('box-model' | 'visual' | 'typography' | 'layout' | 'all')[];
 	/** Include subtree in a11y analysis. Default: true */
 	includeSubtree?: boolean;
+	/** Freeze CSS animations/transitions while selection mode is active. Default: true */
+	freezeAnimations?: boolean;
+	/** Freeze :hover/:focus pseudo-states while selection mode is active. Default: true */
+	freezePseudoStates?: boolean;
+	/** Persist grab history to sessionStorage. Default: true */
+	enableHistoryPersistence?: boolean;
+	/** Enable prompt/input mode. Default: true */
+	enablePromptMode?: boolean;
 }
 
 // ============================================================
