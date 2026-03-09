@@ -125,6 +125,7 @@
 	}
 
 	function clearHighlights() {
+		if (typeof document === 'undefined') return;
 		document.querySelectorAll('[data-sg-a11y-highlight]').forEach(el => {
 			el.removeAttribute('data-sg-a11y-highlight');
 		});

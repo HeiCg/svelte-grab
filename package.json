@@ -48,16 +48,17 @@
     "build": "svelte-package -i src/lib -o dist && npm run build:server",
     "build:server": "tsc -p tsconfig.server.json",
     "prepare": "npm run build",
-    "check": "svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run"
   },
   "sideEffects": false,
   "peerDependencies": {
-    "svelte": "^5.0.0",
-    "html-to-image": "^1.11.0",
-    "ws": "^8.0.0",
     "@anthropic-ai/claude-agent-sdk": ">=0.1.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
-    "@openai/codex-sdk": ">=0.1.0"
+    "@openai/codex-sdk": ">=0.1.0",
+    "html-to-image": "^1.11.0",
+    "svelte": "^5.0.0",
+    "ws": "^8.0.0"
   },
   "peerDependenciesMeta": {
     "html-to-image": {
@@ -83,6 +84,7 @@
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
     "typescript": "^5.0.0",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.0.18"
   }
 }
