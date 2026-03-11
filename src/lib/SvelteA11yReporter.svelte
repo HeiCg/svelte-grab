@@ -125,6 +125,7 @@
 	}
 
 	function clearHighlights() {
+		if (typeof document === 'undefined') return;
 		document.querySelectorAll('[data-sg-a11y-highlight]').forEach(el => {
 			el.removeAttribute('data-sg-a11y-highlight');
 		});
@@ -223,7 +224,7 @@
 					{#if report.critical.length === 0}
 						<div class="sg-a11y-empty">No critical issues found ✅</div>
 					{:else}
-						{#each report.critical as issue, i}
+						{#each report.critical as issue, i (i)}
 							<div class="sg-a11y-issue sg-a11y-issue-critical">
 								<div class="sg-a11y-issue-header">
 									<span class="sg-a11y-issue-num">{i + 1}</span>
@@ -250,7 +251,7 @@
 					{#if report.warnings.length === 0}
 						<div class="sg-a11y-empty">No warnings found ✅</div>
 					{:else}
-						{#each report.warnings as issue, i}
+						{#each report.warnings as issue, i (i)}
 							<div class="sg-a11y-issue sg-a11y-issue-warning">
 								<div class="sg-a11y-issue-header">
 									<span class="sg-a11y-issue-num">{i + 1}</span>
@@ -276,7 +277,7 @@
 					{#if report.passes.length === 0}
 						<div class="sg-a11y-empty">No positive checks</div>
 					{:else}
-						{#each report.passes as pass}
+						{#each report.passes as pass, i (i)}
 							<div class="sg-a11y-pass">✓ {pass}</div>
 						{/each}
 					{/if}
