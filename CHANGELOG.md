@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.1 (2026-03-11)
+
+### Bug Fixes
+
+- **SvelteA11yReporter:** Fix SSR crash — `clearHighlights()` called from `onDestroy` used `document.querySelectorAll()` without a browser guard, causing `ReferenceError: document is not defined` when Svelte's SSR compiler runs `onDestroy` callbacks in Node.js ([#8](https://github.com/HeiCg/svelte-grab/pull/8))
+
+### Template Improvements
+
+- **SvelteA11yReporter:** Add keyed `{#each}` blocks for critical issues, warnings, and passes lists
+
+### Dev Dependencies
+
+- Add `svelte-check-rs` for faster type checking
+
 ## 1.4.0 (2026-03-05)
 
 ### Highlights

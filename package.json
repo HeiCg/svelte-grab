@@ -1,6 +1,6 @@
 {
   "name": "svelte-grab",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Click any element to get component stack with source locations. Makes coding agents 3x faster for UI changes.",
   "keywords": [
     "svelte",
