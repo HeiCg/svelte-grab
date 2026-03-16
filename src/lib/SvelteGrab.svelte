@@ -30,7 +30,7 @@
 	import { createGlobalAPI, destroyGlobalAPI } from './core/global-api.js';
 	import { AgentClient } from './core/agent-client.js';
 	import { freezeGlobalAnimations } from './utils/freeze-animations.js';
-	import { freezePseudoStates as freezePseudoStatesFn, suspendPointerEventsFreeze, resumePointerEventsFreeze } from './utils/freeze-pseudo-states.js';
+	import { freezePseudoStates as freezePseudoStatesFn } from './utils/freeze-pseudo-states.js';
 	import { loadHistory, saveHistory, addHistoryEntry, clearAllHistory, type PersistentHistoryEntry } from './utils/history-storage.js';
 	import { createElementSelector, reacquireElement } from './utils/element-selector.js';
 	import { getElementsInDragRect } from './utils/drag-selection.js';

@@ -4,8 +4,6 @@
  * Used during context capture to preserve visual state.
  */
 
-const POINTER_EVENTS_STYLE_ID = 'data-svelte-grab-pointer-freeze';
-
 /** CSS properties to capture from :hover elements */
 const HOVER_PROPERTIES = [
 	'background-color',
@@ -49,9 +47,6 @@ const POINTER_EVENTS = [
 const FOCUS_EVENTS = ['focus', 'blur', 'focusin', 'focusout'] as const;
 
 type StyleBackup = Map<string, string>;
-
-/** Module-level reference to the pointer-events style element for suspend/resume */
-let pointerEventsStyle: HTMLStyleElement | null = null;
 
 /**
  * Stop an event from propagating (used as capture-phase listener).
@@ -240,13 +235,6 @@ export function freezePseudoStates(): () => void {
 		}
 	}
 
-	// --- Inject pointer-events: none on <html> ---
-	const peStyle = document.createElement('style');
-	peStyle.setAttribute(POINTER_EVENTS_STYLE_ID, '');
-	peStyle.textContent = 'html { pointer-events: none !important; }';
-	document.head.appendChild(peStyle);
-	pointerEventsStyle = peStyle;
-
 	// --- Return cleanup ---
 	return () => {
 		if (cleaned) return;
@@ -263,44 +251,5 @@ export function freezePseudoStates(): () => void {
 			cleanup();
 		}
 		eventCleanups.length = 0;
-
-		// Remove pointer-events style
-		try {
-			if (peStyle.parentNode) {
-				peStyle.parentNode.removeChild(peStyle);
-			}
-		} catch {
-			// ignore
-		}
-		if (pointerEventsStyle === peStyle) {
-			pointerEventsStyle = null;
-		}
 	};
-}
-
-/**
- * Temporarily remove the pointer-events freeze style.
- * Useful when you need `elementsFromPoint` to work during drag selection.
- */
-export function suspendPointerEventsFreeze(): void {
-	try {
-		if (pointerEventsStyle && pointerEventsStyle.parentNode) {
-			pointerEventsStyle.parentNode.removeChild(pointerEventsStyle);
-		}
-	} catch {
-		// ignore
-	}
-}
-
-/**
- * Re-add the pointer-events freeze style after a suspend.
- */
-export function resumePointerEventsFreeze(): void {
-	try {
-		if (pointerEventsStyle && !pointerEventsStyle.parentNode) {
-			document.head.appendChild(pointerEventsStyle);
-		}
-	} catch {
-		// ignore
-	}
 }
