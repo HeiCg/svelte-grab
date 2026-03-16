@@ -246,21 +246,60 @@
 	}
 
 	/**
-	 * Try to detect project root from an absolute file path
+	 * Cached Vite project root (undefined = not yet attempted, null = detection failed)
+	 */
+	let viteProjectRootCache: string | null | undefined = undefined;
+
+	/**
+	 * Detect project root from Vite dev server's /@fs/ script URLs.
+	 * Vite serves files from node_modules via /@fs/<absolute-path>/node_modules/...
+	 * which reveals the project's absolute filesystem path.
+	 */
+	function detectViteProjectRoot(): string | null {
+		if (viteProjectRootCache !== undefined) return viteProjectRootCache;
+
+		try {
+			const scripts = document.querySelectorAll('script[src]');
+			for (const script of scripts) {
+				const src = script.getAttribute('src') || '';
+				// Match /@fs/<absolute-path>/node_modules/ (most reliable)
+				const fsNodeModules = src.match(/\/@fs\/(.*?)\/node_modules\//);
+				if (fsNodeModules) {
+					viteProjectRootCache = '/' + fsNodeModules[1];
+					return viteProjectRootCache;
+				}
+				// Match /@fs/<absolute-path>/src/ as fallback
+				const fsSrc = src.match(/\/@fs\/(.*?)\/src\//);
+				if (fsSrc) {
+					viteProjectRootCache = '/' + fsSrc[1];
+					return viteProjectRootCache;
+				}
+			}
+		} catch {
+			// DOM access may fail in unusual environments
+		}
+
+		viteProjectRootCache = null;
+		return null;
+	}
+
+	/**
+	 * Try to detect project root from a file path.
+	 * Handles both absolute paths and relative paths from Vite/SvelteKit.
 	 */
 	function detectProjectRoot(filePath: string): string | null {
-		if (!filePath.startsWith('/') || filePath.startsWith('/.')) {
+		// Relative paths (e.g., "src/lib/components/Foo.svelte") — common in Vite dev
+		if (!filePath.startsWith('/')) {
+			return detectViteProjectRoot();
+		}
+
+		if (filePath.startsWith('/.')) {
 			return null;
 		}
 
-		// Paths like "/src/routes/..." are Vite dev-relative — can't detect root from them
+		// Paths like "/src/routes/..." are Vite dev-relative
 		if (filePath.startsWith('/src/') || filePath.startsWith('/lib/')) {
-			// Try Vite's BASE_URL as a fallback
-			try {
-				const baseUrl = (import.meta as any).env?.BASE_URL;
-				if (baseUrl && baseUrl !== '/') return baseUrl.replace(/\/$/, '');
-			} catch {}
-			return null;
+			return detectViteProjectRoot();
 		}
 
 		// SvelteKit convention: /src/routes/ pattern
@@ -305,8 +344,8 @@
 				: root + relativePath;
 		} else {
 			console.warn(
-				`[SvelteGrab] Cannot resolve absolute path for "${file}". ` +
-				`Set the "projectRoot" prop to your project's absolute path so "Open in Editor" works correctly. ` +
+				`[SvelteGrab] Could not auto-detect project root for relative path "${file}". ` +
+				`Set the "projectRoot" prop to your project's absolute path. ` +
 				`Example: <SvelteGrab projectRoot="/Users/you/my-project" />`
 			);
 			absolutePath = file.startsWith('/') ? file : `/${file}`;
