@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.2 (2026-03-16)
+
+### Bug Fixes
+
+- **freezePseudoStates:** Remove `pointer-events: none` on `<html>` that broke Alt+Click targeting — `event.target` always resolved to `<html>` instead of the actual clicked element ([#10](https://github.com/HeiCg/svelte-grab/pull/10))
+- **Open in Editor:** Auto-detect Vite project root from `/@fs/` script URLs so "Open in Editor" works with relative paths in Vite/SvelteKit dev mode without needing the `projectRoot` prop ([#11](https://github.com/HeiCg/svelte-grab/pull/11))
+
+### Cleanup
+
+- Remove dead `suspendPointerEventsFreeze`/`resumePointerEventsFreeze` exports (were never called)
+
 ## 1.4.1 (2026-03-11)
 
 ### Bug Fixes
