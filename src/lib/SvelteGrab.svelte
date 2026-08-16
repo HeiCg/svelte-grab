@@ -181,6 +181,9 @@
 	// Prompt mode state
 	// ============================================================
 	let promptMode = $state(false);
+	// Whether the activation modifier is physically held; lets the prompt overlay
+	// survive releasing it (typing with a modifier held garbles input on macOS).
+	let modifierHeld = false;
 	let promptText = $state('');
 
 	// ============================================================
@@ -764,12 +767,24 @@
 		}
 	}
 
+	/** Close the prompt overlay; leave selection mode too if the modifier was already released */
+	function closePromptOverlay(): void {
+		promptMode = false;
+		promptText = '';
+		if (activationMode === 'hold' && !modifierHeld) {
+			exitSelectionMode();
+			document.body.style.cursor = '';
+			hoveredElement = null;
+			hoveredInfo = null;
+			pluginRegistry.executeHook('onDeactivate');
+		}
+	}
+
 	/** Handle prompt mode confirmation */
 	function confirmPrompt(): void {
 		const element = hoveredElement || grabbedElement;
 		if (!element) {
-			promptMode = false;
-			promptText = '';
+			closePromptOverlay();
 			return;
 		}
 
@@ -801,8 +816,7 @@
 			copyToClipboard(withContext);
 		}
 
-		promptMode = false;
-		promptText = '';
+		closePromptOverlay();
 	}
 
 	function handleClick(event: MouseEvent) {
@@ -911,8 +925,7 @@
 			}
 			// In prompt mode, escape cancels prompt
 			if (promptMode) {
-				promptMode = false;
-				promptText = '';
+				closePromptOverlay();
 				return;
 			}
 			// In toggle mode, escape deactivates
@@ -954,6 +967,10 @@
 		if ((event.key === '?' || event.key === '/') && checkModifier(event) && showPopup) {
 			event.preventDefault();
 			showHelpOverlay = !showHelpOverlay;
+		}
+
+		if (isModifierKey(event.key)) {
+			modifierHeld = true;
 		}
 
 		// Activation mode handling
@@ -1043,11 +1060,12 @@
 
 	function handleKeyup(event: KeyboardEvent) {
 		if (isModifierKey(event.key)) {
+			modifierHeld = false;
 			if (activationMode === 'toggle') {
 				// Just reset the handled flag, don't deactivate
 				toggleKeyHandled = false;
-			} else {
-				// Hold mode: deactivate on key release
+			} else if (!promptMode) {
+				// Hold mode: deactivate on key release (unless the prompt overlay is open)
 				exitSelectionMode();
 				document.body.style.cursor = '';
 				hoveredElement = null;
@@ -1106,6 +1124,11 @@
 		}
 
 		if (!selectionMode) return;
+
+		// Freeze hover tracking while the prompt overlay is open, so the overlay
+		// doesn't chase the cursor away from its own buttons and the grabbed
+		// element can't change out from under the typed instruction.
+		if (promptMode) return;
 
 		const target = event.target as HTMLElement;
 
@@ -1827,8 +1850,7 @@
 				onkeydown={(e) => {
 					if (e.key === 'Escape') {
 						e.preventDefault();
-						promptMode = false;
-						promptText = '';
+						closePromptOverlay();
 					}
 					if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
 						e.preventDefault();
