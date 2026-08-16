@@ -75,7 +75,9 @@
 		freezeAnimations: freezeAnimationsProp = true,
 		freezePseudoStates: freezePseudoStatesProp = true,
 		enableHistoryPersistence = true,
-		enablePromptMode = true
+		enablePromptMode = true,
+		screenshotSkipFonts = true,
+		screenshotPixelRatio
 	}: SvelteGrabProps = $props();
 
 	// Use $derived for reactive theme selection based on lightTheme prop
@@ -680,7 +682,8 @@
 
 			const blob = await htmlToImage.toBlob(element, {
 				backgroundColor: undefined,
-				skipFonts: true
+				skipFonts: screenshotSkipFonts,
+				pixelRatio: screenshotPixelRatio
 			});
 
 			if (!blob) {

@@ -76,6 +76,10 @@ export interface SvelteGrabProps {
 	copyOnKeyboard?: boolean;
 	/** Enable screenshot capture (requires html-to-image). Default: true */
 	enableScreenshot?: boolean;
+	/** Skip embedding web fonts in screenshots; faster, but fallback font metrics can overflow and clip text. Default: true */
+	screenshotSkipFonts?: boolean;
+	/** Pixel ratio for screenshot capture. Defaults to the device pixel ratio. */
+	screenshotPixelRatio?: number;
 	/** Enable multi-selection mode. Default: true */
 	enableMultiSelect?: boolean;
 	/** Project root path for opening files in editor. Required for "Open in editor" to work correctly. */
@@ -457,6 +461,10 @@ export interface SvelteDevKitProps {
 	copyOnKeyboard?: boolean;
 	/** Enable screenshot capture (requires html-to-image). Default: true */
 	enableScreenshot?: boolean;
+	/** Skip embedding web fonts in screenshots; faster, but fallback font metrics can overflow and clip text. Default: true */
+	screenshotSkipFonts?: boolean;
+	/** Pixel ratio for screenshot capture. Defaults to the device pixel ratio. */
+	screenshotPixelRatio?: number;
 	/** Enable multi-selection mode. Default: true */
 	enableMultiSelect?: boolean;
 	/** Show active indicator badge. Default: true */
