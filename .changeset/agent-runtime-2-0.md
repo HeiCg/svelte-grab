@@ -5,7 +5,6 @@
 feat: svelte-grab 2.0, the agent runtime. Give coding agents eyes into your Svelte app.
 
 - New MCP tools that query the live page: `ui_tabs`, `ui_snapshot`, `ui_find`, `ui_inspect`, `ui_wait_for_hmr`, `ui_verify`, `ui_component_impact`, `ui_annotations` and `ui_profile`, for the loop `ui_snapshot -> ui_find -> ui_inspect -> edit -> ui_wait_for_hmr -> ui_verify`. Every reported element carries its component, source location and a `[data-sg-ref="eN"]` locator for Playwright MCP / chrome-devtools MCP.
-- Opt-in CDP mode (`svelte-grab-mcp --cdp=http://127.0.0.1:9222` or `SVELTE_GRAB_CDP`, loopback only, off by default): `ui_perf_metrics` (Chrome counters around an action) and `ui_leak_check` (open/close cycles with forced GC, retained detached elements by component and file:line).
 - New optional Vite plugin `svelte-grab/vite`: HMR file list, module-graph importers, open-in-editor through Vite.
 - Annotation mode and opt-in `hotkeys="minimal"`.
 - New optional peer `zod` (needed by the MCP server alongside `@modelcontextprotocol/sdk`).
