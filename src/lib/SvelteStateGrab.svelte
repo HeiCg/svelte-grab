@@ -62,6 +62,8 @@
 	});
 
 	function toggleSection(section: string) {
+		// Copy-then-reassign keeps `expandedSections` ($state) immutable.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const next = new Set(expandedSections);
 		if (next.has(section)) next.delete(section);
 		else next.add(section);

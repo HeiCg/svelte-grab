@@ -79,6 +79,8 @@
 	 */
 	function buildTrace(element: SvelteElement): PropTrace {
 		const chain: PropTraceNode[] = [];
+		// Local, non-reactive dedup set for one trace build.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const seen = new Set<string>();
 		let depth = 0;
 

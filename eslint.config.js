@@ -92,6 +92,21 @@ export default tseslint.config(
 	},
 	// Svelte component files.
 	...svelte.configs['flat/recommended'],
+	// Rune modules (`*.svelte.ts`): Svelte parser around the TS parser.
+	{
+		files: ['**/*.svelte.ts', '**/*.svelte.js'],
+		languageOptions: {
+			parser: svelteParser,
+			// `project` (type info) is inherited from the src/**/*.ts block above.
+			parserOptions: {
+				parser: tseslint.parser,
+				tsconfigRootDir: import.meta.dirname
+			},
+			globals: {
+				...globals.browser
+			}
+		}
+	},
 	{
 		files: ['**/*.svelte'],
 		languageOptions: {

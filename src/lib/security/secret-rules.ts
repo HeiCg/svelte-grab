@@ -118,7 +118,7 @@ export function decodeBase64Url(input: string): string | null {
 
 function utf8Decode(bytes: number[]): string {
 	let out = '';
-	for (let i = 0; i < bytes.length; ) {
+	for (let i = 0; i < bytes.length;) {
 		const b = bytes[i++];
 		let cp: number;
 		if (b < 0x80) cp = b;

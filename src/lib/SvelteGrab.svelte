@@ -1819,8 +1819,7 @@
 							value={view.annotation.comment}
 							placeholder="Comment"
 							aria-label="Comment for annotation #{id}"
-							onchange={(e) => annotationStore.update(id, e.currentTarget.value)}
-						></textarea>
+							onchange={(e) => annotationStore.update(id, e.currentTarget.value)}></textarea>
 					</li>
 				{/each}
 			</ol>
@@ -2125,8 +2124,7 @@
 					font-family: system-ui, sans-serif;
 					font-size: 12px;
 					outline: none;
-				"
-			></textarea>
+				"></textarea>
 			<div style="display: flex; gap: 6px; margin-top: 6px;">
 				{#if annotating}
 					<button class="sg-ann-primary-btn" onclick={() => saveAnnotation(annotationTargets)}
@@ -2308,8 +2306,7 @@
 					class="sg-agent-textarea"
 					bind:value={agentPromptText}
 					placeholder="Describe what you want the agent to do..."
-					onkeydown={handleAgentKeydown}
-				></textarea>
+					onkeydown={handleAgentKeydown}></textarea>
 			{/if}
 			<div class="sg-agent-footer">
 				<span class="sg-agent-hint"

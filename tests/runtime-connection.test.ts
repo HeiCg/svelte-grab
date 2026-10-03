@@ -164,12 +164,10 @@ describe('agent runtime connection', () => {
 	});
 
 	it('handles commands for its tab and posts the result', async () => {
-		const dispatch = vi.fn(
-			async (): Promise<RuntimeCommandOutcome> => ({
-				ok: true,
-				result: { text: 'e1 button "Save"', data: { nodes: [] } }
-			})
-		);
+		const dispatch = vi.fn(async (): Promise<RuntimeCommandOutcome> => ({
+			ok: true,
+			result: { text: 'e1 button "Save"', data: { nodes: [] } }
+		}));
 		const h = start({ dispatch });
 		FakeEventSource.last().open();
 		FakeEventSource.last().command({
@@ -191,9 +189,10 @@ describe('agent runtime connection', () => {
 	});
 
 	it('ignores commands for another tab, malformed events and duplicate ids', async () => {
-		const dispatch = vi.fn(
-			async (): Promise<RuntimeCommandOutcome> => ({ ok: true, result: { text: '' } })
-		);
+		const dispatch = vi.fn(async (): Promise<RuntimeCommandOutcome> => ({
+			ok: true,
+			result: { text: '' }
+		}));
 		const h = start({ dispatch });
 		const es = FakeEventSource.last();
 		es.open();
