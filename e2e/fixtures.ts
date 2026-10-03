@@ -25,14 +25,17 @@ export const test = base.extend<{ activated: Page }>({
 
 export { expect };
 
-/** Navigate to the demo app and wait until the dev tools have wired up. */
-export async function gotoPlayground(page: Page): Promise<void> {
+/**
+ * Navigate to the demo app and wait until the dev tools have wired up.
+ * `path` may carry query params (e.g. `/?mcp=1&mcpPort=4799`).
+ */
+export async function gotoPlayground(page: Page, path = '/'): Promise<void> {
 	const devKitReady = page.waitForEvent('console', {
 		predicate: (msg) => msg.text().includes('[SvelteGrab] Active'),
 		timeout: 15_000
 	}).catch(() => undefined);
 
-	await page.goto('/');
+	await page.goto(path);
 	await expect(page.getByTestId('app-root')).toBeVisible();
 
 	await devKitReady;

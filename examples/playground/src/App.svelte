@@ -15,6 +15,15 @@
 	import FixtureForm from './components/fixtures/FixtureForm.svelte';
 
 	const items = ['Apples', 'Bananas', 'Cherries', 'Dates'];
+
+	// MCP bridge from the URL, for e2e/agent-loop.spec.ts and manual runs:
+	// `?mcp=1&mcpPort=4799&mcpToken=secret`. Without `mcp=1` the defaults stay
+	// (enableMcp off, port 4723, no token).
+	const query = new URLSearchParams(window.location.search);
+	const enableMcp = query.get('mcp') === '1';
+	const portParam = Number(query.get('mcpPort'));
+	const mcpPort = Number.isInteger(portParam) && portParam > 0 ? portParam : undefined;
+	const mcpToken = query.get('mcpToken') || undefined;
 </script>
 
 <!--
@@ -23,7 +32,7 @@
 	detectDevMode() scans for. forceEnable is intentionally NOT set — we want the
 	genuine dev-mode detection path to run so e2e verifies it end-to-end.
 -->
-<SvelteDevKit />
+<SvelteDevKit {enableMcp} {mcpPort} {mcpToken} />
 
 <main class="pg-app" data-testid="app-root">
 	<header class="pg-header">
