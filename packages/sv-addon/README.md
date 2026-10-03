@@ -16,7 +16,7 @@ It does the same as `npx svelte-grab init`, through sv:
 | MCP servers for your coding agent: `svelte-grab` (stdio), optional `svelte` (`@sveltejs/mcp`) and `playwright` (`@playwright/mcp`). Existing entries are never replaced. | `.mcp.json` |
 | `svelteGrab()` from `svelte-grab/vite` after `sveltekit()` / `svelte()` in `plugins`, when the config has a plain `plugins: [...]` array; otherwise a next step tells you what to add. | `vite.config.(ts\|js)` |
 | `<SvelteDevKit />` gated by `dev` from `$app/environment` (SvelteKit) or at the end of `src/App.svelte` (Vite + Svelte). `enableMcp` is set when `.mcp.json` declares the `svelte-grab` server. | `src/routes/+layout.svelte` / `src/App.svelte` |
-| Agent skills `svelte-grab` (UI loop) and `svelte-grab-audit` (security + performance audit). A file you edited is never overwritten: the new version goes next to it as `<file>.new`. An existing `AGENTS.md` gets a one-time pointer. | `.claude/skills/*/`, `AGENTS.md` |
+| Agent skills `svelte-grab` (UI loop) and `svelte-grab-audit` (security + performance audit). Files you have not touched since the last install are updated in place (tracked in `.claude/skills/.svelte-grab-skills.json`); a file you edited is never overwritten: the new version goes next to it as `<file>.new`. Files no longer shipped are listed in the next steps (the add-on cannot delete files). An existing `AGENTS.md` gets a one-time pointer. | `.claude/skills/*/`, `.claude/skills/.svelte-grab-skills.json`, `AGENTS.md` |
 
 Running it twice changes nothing.
 
