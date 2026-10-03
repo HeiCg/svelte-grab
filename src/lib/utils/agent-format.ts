@@ -72,8 +72,13 @@ export function formatForAgent(
 		for (let i = 0; i < entries.length; i++) {
 			const entry = entries[i];
 			// Component entries carry the child's tag; their file is the usage site.
+			// Block entries (if/each/await/key/render) are labelled as blocks.
 			const name =
-				entry.componentName || extractComponentName(entry.file) || entry.file.split('/').pop() || 'unknown';
+				blockLabel(entry.type) ||
+				entry.componentName ||
+				extractComponentName(entry.file) ||
+				entry.file.split('/').pop() ||
+				'unknown';
 			parts.push(`  ${i + 1}. ${name} (${shortenPath(entry.file)}:${entry.line})`);
 		}
 	} else {
@@ -131,4 +136,10 @@ export function formatMultipleForAgent(
 		const elementStack = getStack(element);
 		return `--- Element ${index + 1} ---\n${formatForAgent(elementStack, element, deps)}`;
 	}).join('\n\n');
+}
+
+/** `{#each}`-style label for Svelte block stack entries, or `null` for components/elements. */
+function blockLabel(type: string | undefined): string | null {
+	if (!type || type === 'component' || type === 'element') return null;
+	return type === 'render' ? '{@render}' : `{#${type}}`;
 }
