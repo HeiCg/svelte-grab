@@ -606,18 +606,15 @@ describe('runtime HTTP endpoints', () => {
 			expect(r.status).toBe(400);
 		});
 
-		it('refuses bodies over the 2 MB cap exactly like POST /context', async () => {
-			// readBody() destroys the socket on overflow, so the client sees either
-			// the 413 or a connection reset (pre-existing /context behavior).
+		it('answers bodies over the 2 MB cap with a readable 413, like POST /context', async () => {
 			const oversized = JSON.stringify({ content: ['x'.repeat(2 * 1024 * 1024 + 10)] });
-			const outcome = (p: string) =>
-				send(port, 'POST', p, { body: oversized }).then(
-					(r) => `status ${r.status}`,
-					() => 'refused'
-				);
-			const [runtime, context] = await Promise.all([outcome(path), outcome('/context')]);
-			expect(['status 413', 'refused']).toContain(runtime);
-			expect(runtime).toBe(context);
+			const tooLarge = { status: 413, json: { error: 'Request body too large' } };
+			const [runtime, context] = await Promise.all([
+				send(port, 'POST', path, { body: oversized }),
+				send(port, 'POST', '/context', { body: oversized })
+			]);
+			expect(runtime).toEqual(tooLarge);
+			expect(context).toEqual(tooLarge);
 		});
 	});
 
