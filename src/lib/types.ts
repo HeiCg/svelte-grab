@@ -610,7 +610,11 @@ export interface SvelteDevKitProps {
 	maxHistorySize?: number;
 
 	// Sub-tool config props
-	/** Secondary modifier for StateGrab. Default: 'shift' */
+	/**
+	 * Secondary modifier for StateGrab. Default: 'meta' (Alt+Meta+Click) when
+	 * SvelteGrab is enabled with multi-select, since Shift+Alt+Click is
+	 * multi-select; otherwise 'shift' (Alt+Shift+Click, the standalone default).
+	 */
 	stateSecondaryModifier?: 'shift' | 'ctrl' | 'meta';
 	/** Secondary modifier for StyleGrab. Default: 'ctrl' */
 	styleSecondaryModifier?: 'shift' | 'ctrl' | 'meta';

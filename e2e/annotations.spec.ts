@@ -69,11 +69,9 @@ test.describe('annotation mode', () => {
 		await expect(page.locator('[data-annotation-badge="1"]')).toHaveCount(1);
 
 		// #2: multi-select two buttons with Shift+Alt+Click, then N.
-		// (In the default 'full' set, Alt+Shift+Click also opens StateGrab; Escape closes it.)
 		await page.keyboard.down('Alt');
 		for (const testid of ['fx-button-a', 'fx-button-b']) {
 			await page.getByTestId(testid).click({ modifiers: ['Alt', 'Shift'] });
-			await page.keyboard.press('Escape');
 		}
 		await expect(page.locator('.svelte-grab-highlight-selected')).toHaveCount(2);
 		await page.keyboard.press('n');

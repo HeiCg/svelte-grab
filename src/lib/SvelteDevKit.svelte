@@ -7,7 +7,8 @@
 	 *
 	 * This is a convenience wrapper that includes:
 	 * - SvelteGrab (Alt+Click for component location)
-	 * - SvelteStateGrab (Alt+Shift+Click for component state)
+	 * - SvelteStateGrab (Alt+Meta+Click for component state; Alt+Shift+Click when
+ *   SvelteGrab multi-select is off, since Shift+Alt+Click is multi-select)
 	 * - SvelteStyleGrab (Alt+Ctrl+Click for computed styles)
 	 * - SveltePropsTracer (Alt+DoubleClick for component hierarchy)
 	 * - SvelteA11yReporter (Alt+RightClick or Alt+A for accessibility)
@@ -77,7 +78,7 @@
 		showActiveIndicator = true,
 		maxHistorySize = 20,
 		// Sub-tool config props
-		stateSecondaryModifier = 'shift',
+		stateSecondaryModifier,
 		styleSecondaryModifier = 'ctrl',
 		maxSnapshots = 5,
 		profileDuration = 10,
@@ -104,6 +105,15 @@
 	// 'minimal' turns off every trigger except SvelteGrab's point/multi/region/annotate.
 	let toolHotkeys = $derived(toolHotkeysEnabled(hotkeys));
 
+	// StateGrab's standalone trigger (Alt+Shift+Click) is SvelteGrab's multi-select
+	// (Shift+Alt+Click): both fire, and the StateGrab popup blocks the next click.
+	// When both tools are mounted with multi-select on, default StateGrab to
+	// Alt+Meta+Click (Ctrl is StyleGrab's). An explicit stateSecondaryModifier wins.
+	let stateModifier = $derived<'shift' | 'ctrl' | 'meta'>(
+		stateSecondaryModifier ??
+			(isEnabled('grab') && enableMultiSelect && modifier !== 'meta' ? 'meta' : 'shift')
+	);
+
 	// Build shortcuts list based on enabled tools
 	let shortcuts = $derived.by(() => {
 		const list: { keys: string; description: string }[] = [];
@@ -114,7 +124,7 @@
 			list.push({ keys: `${modLabel} held + ${ANNOTATION_KEY_LABEL}`, description: 'Annotate selection' });
 		}
 		if (!toolHotkeys) return list;
-		if (isEnabled('state')) list.push({ keys: `${modLabel}+${stateSecondaryModifier.charAt(0).toUpperCase() + stateSecondaryModifier.slice(1)}+Click`, description: 'State Inspector' });
+		if (isEnabled('state')) list.push({ keys: `${modLabel}+${stateModifier.charAt(0).toUpperCase() + stateModifier.slice(1)}+Click`, description: 'State Inspector' });
 		if (isEnabled('style')) list.push({ keys: `${modLabel}+${styleSecondaryModifier.charAt(0).toUpperCase() + styleSecondaryModifier.slice(1)}+Click`, description: 'Style Inspector' });
 		if (isEnabled('props')) list.push({ keys: `${modLabel}+DoubleClick`, description: 'Props Tracer' });
 		if (isEnabled('a11y')) {
@@ -211,7 +221,7 @@
 	<SvelteStateGrab
 		{modifier}
 		enableHotkeys={toolHotkeys}
-		secondaryModifier={stateSecondaryModifier}
+		secondaryModifier={stateModifier}
 		{forceEnable}
 		showPopup={showPopup}
 		{theme}

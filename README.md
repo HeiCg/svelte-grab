@@ -99,7 +99,7 @@ svelte-grab ships 7 specialized tools + a unified wrapper:
 | Tool | Trigger | What it does |
 |------|---------|--------------|
 | **SvelteGrab** | Alt+Click | Component location stack with file:line |
-| **SvelteStateGrab** | Alt+Shift+Click | Props, attributes, bound values inspection |
+| **SvelteStateGrab** | Alt+Shift+Click (Alt+Meta+Click in SvelteDevKit) | Props, attributes, bound values inspection |
 | **SvelteStyleGrab** | Alt+Ctrl+Click | CSS analysis with source attribution |
 | **SveltePropsTracer** | Alt+DoubleClick | Component hierarchy trace |
 | **SvelteA11yReporter** | Alt+RightClick / Alt+A | Accessibility audit with WCAG scoring |
@@ -222,7 +222,7 @@ The annotations stay pending for the agent until it reads them with `ui_annotati
 
 ### Minimal hotkeys
 
-`hotkeys="minimal"` (on SvelteGrab or SvelteDevKit) keeps only the shortcuts that point at UI: Alt+Click (point), Shift+Alt+Click (multi), Alt+Drag (region), Escape and `N` (annotate). Everything else is off: Enter, `O`, `S`, Tab, arrows, Cmd/Ctrl+C, Alt+? and the right-click menu in SvelteGrab; in SvelteDevKit also Alt+Shift+Click (state), Alt+Ctrl+Click (style), Alt+DoubleClick (tracer), Alt+RightClick / Alt+A (a11y), Alt+E (errors), Alt+P (profiler), Alt+Shift+C and Alt+?. Those tools stay mounted, so error capture keeps running and the MCP runtime can still use their logic. Each tool also takes `enableHotkeys={false}` on its own. The default (`'full'`) is unchanged.
+`hotkeys="minimal"` (on SvelteGrab or SvelteDevKit) keeps only the shortcuts that point at UI: Alt+Click (point), Shift+Alt+Click (multi), Alt+Drag (region), Escape and `N` (annotate). Everything else is off: Enter, `O`, `S`, Tab, arrows, Cmd/Ctrl+C, Alt+? and the right-click menu in SvelteGrab; in SvelteDevKit also Alt+Meta+Click (state), Alt+Ctrl+Click (style), Alt+DoubleClick (tracer), Alt+RightClick / Alt+A (a11y), Alt+E (errors), Alt+P (profiler), Alt+Shift+C and Alt+?. Those tools stay mounted, so error capture keeps running and the MCP runtime can still use their logic. Each tool also takes `enableHotkeys={false}` on its own. The default (`'full'`) is unchanged.
 
 ```svelte
 <SvelteDevKit enableMcp hotkeys="minimal" />
@@ -249,6 +249,8 @@ src/routes/contact/+page.svelte:12:1
 ## SvelteStateGrab — State Inspector
 
 Alt+Shift+Click any element to inspect its component state.
+
+Inside SvelteDevKit the trigger is **Alt+Meta+Click** (Meta = Cmd on macOS, Win on Windows), because Shift+Alt+Click is SvelteGrab's multi-select. DevKit falls back to Alt+Shift+Click when multi-select is off (`enableMultiSelect={false}`) or SvelteGrab is not enabled. Set `stateSecondaryModifier` on SvelteDevKit to pick the modifier yourself.
 
 **Shows:** Props, HTML attributes, data attributes, bound values (form inputs, text content), child component count, and component location.
 
@@ -364,6 +366,8 @@ Accepts all SvelteGrab props plus:
 |------|------|---------|-------------|
 | `enabledTools` | `DevKitTool[]` | all tools | Which tools to activate |
 | `hotkeys` | `'full' \| 'minimal'` | `'full'` | `'minimal'` turns off every tool trigger except Alt+Click, Shift+Alt+Click, Alt+Drag, Escape and `N`; the tools stay mounted ([Minimal hotkeys](#minimal-hotkeys)) |
+| `stateSecondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | `'meta'` with multi-select, else `'shift'` | StateGrab trigger modifier (Alt+Meta+Click by default, so it does not collide with Shift+Alt+Click multi-select) |
+| `styleSecondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | `'ctrl'` | StyleGrab trigger modifier (Alt+Ctrl+Click) |
 
 Available tools: `'grab'`, `'state'`, `'style'`, `'props'`, `'a11y'`, `'errors'`, `'profiler'`
 
@@ -729,7 +733,8 @@ window.__SVELTE_GRAB__.registerPlugin(plugin); // Register a plugin
 |----------|--------|
 | **Alt+Click** | Grab component stack |
 | **Shift+Alt+Click** | Multi-select element |
-| **Alt+Shift+Click** | Inspect component state |
+| **Alt+Meta+Click** | Inspect component state (SvelteDevKit; Meta = Cmd/Win) |
+| **Alt+Shift+Click** | Inspect component state (standalone SvelteStateGrab) |
 | **Alt+Ctrl+Click** | Analyze CSS styles |
 | **Alt+DoubleClick** | Trace component hierarchy |
 | **Alt+RightClick** | Audit accessibility |

@@ -5,7 +5,7 @@ import { test as base, expect, type Page } from '@playwright/test';
  *
  * Activation mechanics (from src/lib):
  *  - Grab:        Alt + Click            (SvelteGrab.handleClick, checks event.altKey)
- *  - StateGrab:   Alt + Shift + Click
+ *  - StateGrab:   Alt + Meta + Click   (in SvelteDevKit; Alt + Shift + Click standalone)
  *  - StyleGrab:   Alt + Ctrl + Click     (secondaryModifier === 'ctrl')
  *  - A11y (page): Alt + A                (keydown, checkModifier(event,'alt') && key==='a')
  *  - Profiler:    Alt + P                (keydown)
