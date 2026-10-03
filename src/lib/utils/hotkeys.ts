@@ -127,3 +127,75 @@ export function resolveReservedModifiers(opts: ReservedModifierOptions): ExtraMo
 	if (opts.enableMultiSelect) reserved.delete('shift');
 	return [...reserved].filter((m) => m !== opts.modifier);
 }
+
+/**
+ * Whether a click carries a tool's secondary modifier. With no secondary
+ * modifier (the standalone default) any click matches.
+ */
+export function matchesSecondaryModifier(
+	event: Pick<MouseEvent, 'ctrlKey' | 'metaKey' | 'shiftKey'>,
+	secondary: ExtraModifier | undefined
+): boolean {
+	return secondary === undefined || event[EXTRA_MODIFIER_KEYS[secondary]];
+}
+
+/** Inputs SvelteDevKit resolves before picking the A11y element-audit trigger. */
+export interface A11yElementModifierOptions {
+	hotkeys: HotkeysMode | undefined;
+	/** Primary modifier shared by every tool. */
+	modifier: string;
+	/** SvelteGrab is mounted. */
+	grabEnabled: boolean;
+	/** SvelteGrab's selection-mode context menu (Modifier+RightClick) is on. */
+	showContextMenu: boolean;
+}
+
+/**
+ * Secondary modifier of the A11y element audit inside SvelteDevKit.
+ * Modifier+RightClick is SvelteGrab's selection-mode context menu, so the audit
+ * moves to Modifier+Shift+RightClick (Shift+Alt+Click multi-select is
+ * left-button only, so the combos never meet). `undefined` (plain
+ * Modifier+RightClick) when there is no context menu to collide with, and in
+ * `'minimal'` mode, where both triggers are off. Never the primary modifier.
+ */
+export function resolveA11yElementModifier(
+	opts: A11yElementModifierOptions
+): ExtraModifier | undefined {
+	if (!toolHotkeysEnabled(opts.hotkeys) || !opts.grabEnabled || !opts.showContextMenu) {
+		return undefined;
+	}
+	return opts.modifier === 'shift' ? 'meta' : 'shift';
+}
+
+/** Inputs for SvelteGrab's right-click reservations inside SvelteDevKit. */
+export interface ReservedContextMenuOptions {
+	/** Primary modifier shared by every tool. */
+	modifier: string;
+	a11yEnabled: boolean;
+	/** A11y's resolved element-audit secondary modifier. */
+	a11yElementModifier: ExtraModifier | undefined;
+}
+
+/**
+ * Extra modifiers SvelteGrab's context menu must ignore inside SvelteDevKit:
+ * the A11y element audit's secondary modifier while A11y is mounted. Never the
+ * primary modifier.
+ */
+export function resolveReservedContextMenuModifiers(
+	opts: ReservedContextMenuOptions
+): ExtraModifier[] {
+	if (!opts.a11yEnabled || !opts.a11yElementModifier) return [];
+	return opts.a11yElementModifier === opts.modifier ? [] : [opts.a11yElementModifier];
+}
+
+/**
+ * Whether SvelteGrab must leave the second click of a double-click
+ * (`event.detail >= 2`) to the PropsTracer: true while the tracer's
+ * Modifier+DoubleClick trigger is live.
+ */
+export function shouldYieldDoubleClick(opts: {
+	hotkeys: HotkeysMode | undefined;
+	propsEnabled: boolean;
+}): boolean {
+	return toolHotkeysEnabled(opts.hotkeys) && opts.propsEnabled;
+}

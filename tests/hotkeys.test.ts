@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { hasReservedModifier, resolveReservedModifiers } from '../src/lib/utils/hotkeys.js';
+import {
+	hasReservedModifier,
+	resolveReservedModifiers,
+	matchesSecondaryModifier,
+	resolveA11yElementModifier,
+	resolveReservedContextMenuModifiers,
+	shouldYieldDoubleClick
+} from '../src/lib/utils/hotkeys.js';
 
 function click(opts: Partial<Pick<MouseEvent, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>>) {
 	return { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, ...opts };
@@ -93,5 +100,97 @@ describe('resolveReservedModifiers', () => {
 	it('deduplicates and drops the primary modifier', () => {
 		expect(resolveReservedModifiers({ ...base, stateModifier: 'ctrl' })).toEqual(['ctrl']);
 		expect(resolveReservedModifiers({ ...base, modifier: 'ctrl' })).toEqual(['meta']);
+	});
+});
+
+describe('matchesSecondaryModifier', () => {
+	it('always matches without a secondary modifier (standalone default)', () => {
+		expect(matchesSecondaryModifier(click({ altKey: true }), undefined)).toBe(true);
+		expect(matchesSecondaryModifier(click({ altKey: true, shiftKey: true }), undefined)).toBe(true);
+	});
+
+	it('requires the secondary modifier when set', () => {
+		expect(matchesSecondaryModifier(click({ altKey: true }), 'shift')).toBe(false);
+		expect(matchesSecondaryModifier(click({ altKey: true, shiftKey: true }), 'shift')).toBe(true);
+		expect(matchesSecondaryModifier(click({ altKey: true, ctrlKey: true }), 'shift')).toBe(false);
+		expect(matchesSecondaryModifier(click({ altKey: true, metaKey: true }), 'meta')).toBe(true);
+	});
+});
+
+describe('resolveA11yElementModifier', () => {
+	const base = {
+		hotkeys: 'full' as const,
+		modifier: 'alt' as const,
+		grabEnabled: true,
+		showContextMenu: true
+	};
+
+	it('moves the element audit to Alt+Shift+RightClick next to the SvelteGrab context menu', () => {
+		expect(resolveA11yElementModifier(base)).toBe('shift');
+		expect(resolveA11yElementModifier({ ...base, hotkeys: undefined })).toBe('shift');
+	});
+
+	it('keeps plain Modifier+RightClick when there is no context menu to collide with', () => {
+		expect(resolveA11yElementModifier({ ...base, grabEnabled: false })).toBeUndefined();
+		expect(resolveA11yElementModifier({ ...base, showContextMenu: false })).toBeUndefined();
+	});
+
+	it('is undefined in minimal mode (both triggers are off)', () => {
+		expect(resolveA11yElementModifier({ ...base, hotkeys: 'minimal' })).toBeUndefined();
+	});
+
+	it('never picks the primary modifier', () => {
+		expect(resolveA11yElementModifier({ ...base, modifier: 'shift' })).toBe('meta');
+	});
+});
+
+describe('resolveReservedContextMenuModifiers', () => {
+	it('reserves the A11y element modifier while A11y is enabled', () => {
+		expect(
+			resolveReservedContextMenuModifiers({
+				modifier: 'alt',
+				a11yEnabled: true,
+				a11yElementModifier: 'shift'
+			})
+		).toEqual(['shift']);
+	});
+
+	it('reserves nothing without A11y or without a secondary modifier', () => {
+		expect(
+			resolveReservedContextMenuModifiers({
+				modifier: 'alt',
+				a11yEnabled: false,
+				a11yElementModifier: 'shift'
+			})
+		).toEqual([]);
+		expect(
+			resolveReservedContextMenuModifiers({
+				modifier: 'alt',
+				a11yEnabled: true,
+				a11yElementModifier: undefined
+			})
+		).toEqual([]);
+	});
+
+	it('drops an entry equal to the primary modifier', () => {
+		expect(
+			resolveReservedContextMenuModifiers({
+				modifier: 'shift',
+				a11yEnabled: true,
+				a11yElementModifier: 'shift'
+			})
+		).toEqual([]);
+	});
+});
+
+describe('shouldYieldDoubleClick', () => {
+	it('yields double-clicks to a live PropsTracer trigger', () => {
+		expect(shouldYieldDoubleClick({ hotkeys: 'full', propsEnabled: true })).toBe(true);
+		expect(shouldYieldDoubleClick({ hotkeys: undefined, propsEnabled: true })).toBe(true);
+	});
+
+	it('does not yield without the tracer or in minimal mode', () => {
+		expect(shouldYieldDoubleClick({ hotkeys: 'full', propsEnabled: false })).toBe(false);
+		expect(shouldYieldDoubleClick({ hotkeys: 'minimal', propsEnabled: true })).toBe(false);
 	});
 });

@@ -143,7 +143,9 @@
 		screenshotPixelRatio,
 		enableAnnotations = true,
 		hotkeys = 'full',
-		reservedModifiers = []
+		reservedModifiers = [],
+		reservedContextMenuModifiers = [],
+		yieldDoubleClick = false
 	}: SvelteGrabProps = $props();
 
 	/** Whether a shortcut is active under the `hotkeys` set ('full' keeps all). */
@@ -154,6 +156,26 @@
 	/** Whether a mouse event holds another tool's modifier (see `reservedModifiers`). */
 	function isReservedClick(event: MouseEvent): boolean {
 		return hasReservedModifier(event, reservedModifiers, modifier);
+	}
+
+	/** Whether a right-click is another tool's trigger (see `reservedContextMenuModifiers`). */
+	function isReservedContextMenu(event: MouseEvent): boolean {
+		return (
+			isReservedClick(event) ||
+			hasReservedModifier(event, reservedContextMenuModifiers, modifier)
+		);
+	}
+
+	/**
+	 * Close the grab popup and the context menu. SvelteDevKit calls this (via
+	 * `bind:this`) when the PropsTracer opens from Modifier+DoubleClick: the
+	 * first click of the double-click already grabbed. That grab's clipboard
+	 * copy and history entry stay; the tracer's own copy then replaces the
+	 * clipboard. The multi-selection is left untouched.
+	 */
+	export function dismiss(): void {
+		visible = false;
+		contextMenuVisible = false;
 	}
 
 	// Resolve theme via the shared design-system helper so SvelteGrab's colors
@@ -758,6 +780,12 @@
 		event.preventDefault();
 		event.stopPropagation();
 
+		// Second click of a Modifier+DoubleClick belongs to the PropsTracer
+		// (SvelteDevKit). Still swallowed: it must not reach the popup backdrop
+		// the first click opened, or the backdrop would close (and detach) before
+		// the `dblclick` it is the target of could bubble to the tracer.
+		if (yieldDoubleClick && event.detail >= 2) return;
+
 		const target = event.target as HTMLElement;
 
 		// Find the actual element with Svelte metadata
@@ -1120,8 +1148,9 @@
 	function handleContextMenu(event: MouseEvent) {
 		if (!selectionMode || !showContextMenu || !hoveredElement || !hotkeyOn('contextMenu')) return;
 		// macOS turns Ctrl+Click into a right-click: with Ctrl reserved, that
-		// click is StyleGrab's, not a request for this menu.
-		if (isReservedClick(event)) return;
+		// click is StyleGrab's, not a request for this menu. Same for the A11y
+		// element audit's Alt+Shift+RightClick in SvelteDevKit.
+		if (isReservedContextMenu(event)) return;
 
 		event.preventDefault();
 		event.stopPropagation();

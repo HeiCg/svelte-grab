@@ -11,7 +11,9 @@
  *   SvelteGrab multi-select is off, since Shift+Alt+Click is multi-select)
 	 * - SvelteStyleGrab (Alt+Ctrl+Click for computed styles)
 	 * - SveltePropsTracer (Alt+DoubleClick for component hierarchy)
-	 * - SvelteA11yReporter (Alt+RightClick or Alt+A for accessibility)
+	 * - SvelteA11yReporter (Alt+Shift+RightClick or Alt+A for accessibility;
+	 *   Alt+RightClick is SvelteGrab's selection-mode context menu, so the
+	 *   element audit takes Shift unless SvelteGrab or its menu is off)
 	 * - SvelteErrorContext (Alt+E for captured errors)
 	 * - SvelteRenderProfiler (Alt+P for render profiling)
 	 *
@@ -39,7 +41,10 @@
 	import {
 		ANNOTATION_KEY_LABEL,
 		toolHotkeysEnabled,
-		resolveReservedModifiers
+		resolveReservedModifiers,
+		resolveA11yElementModifier,
+		resolveReservedContextMenuModifiers,
+		shouldYieldDoubleClick
 	} from './utils/hotkeys.js';
 
 	let {
@@ -133,6 +138,38 @@
 		})
 	);
 
+	// Alt+RightClick is both SvelteGrab's selection-mode context menu and the
+	// A11y element audit: move the audit to Alt+Shift+RightClick (multi-select
+	// is Shift+Alt+left-click only) and keep the menu off that combo.
+	let a11yElementModifier = $derived(
+		resolveA11yElementModifier({
+			hotkeys,
+			modifier,
+			grabEnabled: isEnabled('grab'),
+			showContextMenu
+		})
+	);
+	let reservedContextMenuModifiers = $derived(
+		resolveReservedContextMenuModifiers({
+			modifier,
+			a11yEnabled: isEnabled('a11y'),
+			a11yElementModifier
+		})
+	);
+
+	// Alt+DoubleClick (tracer) starts with an Alt+Click, which grabs at once
+	// (no click delay). SvelteGrab skips the second click, and when the tracer
+	// opens DevKit closes the popup the first click left (its copy is then
+	// replaced by the trace).
+	let yieldDoubleClick = $derived(
+		shouldYieldDoubleClick({ hotkeys, propsEnabled: isEnabled('props') })
+	);
+	let grab = $state<ReturnType<typeof SvelteGrab>>();
+
+	function capitalize(m: string): string {
+		return m.charAt(0).toUpperCase() + m.slice(1);
+	}
+
 	// Build shortcuts list based on enabled tools
 	let shortcuts = $derived.by(() => {
 		const list: { keys: string; description: string }[] = [];
@@ -147,7 +184,10 @@
 		if (isEnabled('style')) list.push({ keys: `${modLabel}+${styleSecondaryModifier.charAt(0).toUpperCase() + styleSecondaryModifier.slice(1)}+Click`, description: 'Style Inspector' });
 		if (isEnabled('props')) list.push({ keys: `${modLabel}+DoubleClick`, description: 'Props Tracer' });
 		if (isEnabled('a11y')) {
-			list.push({ keys: `${modLabel}+RightClick`, description: 'A11y Report (element)' });
+			const a11yKeys = a11yElementModifier
+				? `${modLabel}+${capitalize(a11yElementModifier)}+RightClick`
+				: `${modLabel}+RightClick`;
+			list.push({ keys: a11yKeys, description: 'A11y Report (element)' });
 			list.push({ keys: `${modLabel}+A`, description: 'A11y Report (full page)' });
 		}
 		if (isEnabled('errors')) list.push({ keys: `${modLabel}+E`, description: 'Error Context' });
@@ -234,6 +274,9 @@
 		{enableAnnotations}
 		{hotkeys}
 		{reservedModifiers}
+		{reservedContextMenuModifiers}
+		{yieldDoubleClick}
+		bind:this={grab}
 	/>
 {/if}
 
@@ -267,6 +310,7 @@
 	<SveltePropsTracer
 		{modifier}
 		enableHotkeys={toolHotkeys}
+		onTrace={() => grab?.dismiss()}
 		{forceEnable}
 		showPopup={showPopup}
 		{theme}
@@ -278,6 +322,7 @@
 	<SvelteA11yReporter
 		{modifier}
 		enableHotkeys={toolHotkeys}
+		secondaryModifier={a11yElementModifier}
 		{forceEnable}
 		showPopup={showPopup}
 		{theme}
