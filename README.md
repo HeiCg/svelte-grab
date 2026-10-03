@@ -197,13 +197,13 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 | `enableMcp` | `boolean` | `false` | Enable MCP bridge to Claude Code |
 | `mcpPort` | `number` | `4723` | MCP server port. If the server is not there, the page probes the next 9 ports via `/health` |
 | `mcpToken` | `string` | — | Token for an MCP server started with `SVELTE_GRAB_TOKEN` / `--token` (sent as `x-svelte-grab-token` on POSTs, `?token=` on `/events`) |
-| `enableAgentRuntime` | `boolean` | `true` | With `enableMcp`, let coding agents query the page (`ui_snapshot`, `ui_find`) through the MCP server |
+| `enableAgentRuntime` | `boolean` | `true` | With `enableMcp`, let coding agents query the page (`ui_snapshot`, `ui_find`, `ui_wait_for_hmr`) through the MCP server |
 | `freezeAnimations` | `boolean` | `true` | Freeze CSS animations during selection |
 | `freezePseudoStates` | `boolean` | `true` | Preserve :hover/:focus states during selection |
 | `enableHistoryPersistence` | `boolean` | `true` | Persist history to sessionStorage |
 | `enablePromptMode` | `boolean` | `true` | Enable inline prompt overlay |
 | `copyOnKeyboard` | `boolean` | `true` | Enable Cmd+C / Ctrl+C to copy in selection mode |
-| `projectRoot` | `string` | `''` | Absolute path to project root (for "Open in Editor") |
+| `projectRoot` | `string` | `''` | Absolute path to project root (for "Open in Editor"). Not needed with the `svelte-grab/vite` plugin, which provides it |
 | `showActiveIndicator` | `boolean` | `true` | Show active indicator badge |
 
 ### Output Formats
@@ -405,6 +405,7 @@ The recommended way to connect svelte-grab to Claude Code. Select a component, t
 | `ui_tabs` | Lists connected browser tabs (`tabId`, url, title, focused, lastSeen, active). `ui_*` tools target the active tab (last focused, else most recently seen) unless given `tabId`. |
 | `ui_snapshot` | Compact tree of the live UI: only elements with Svelte metadata or an a11y role/name, one line each (`eN <role/tag> "<name>" <Component> <file:line>`). Args: `scope`, `detail`, `maxNodes`, `tabId`. |
 | `ui_find` | Finds elements by `text`, `role`, `name`, `component`, `file` or `selector` (plus `limit`, `tabId`). Returns refs with stable key, component, source, role, name, box and visibility. |
+| `ui_wait_for_hmr` | Call right after editing a file. Waits for the Vite HMR update (or full reload) touching `files` (suffix match; any update when omitted), lets the DOM settle, re-resolves every ref and returns `{ status, updated, errors, rebound: [{from,to}], lost, kept, consoleErrors, source }`. Args: `files`, `timeoutMs` (default 15000, max 55000), `since` (epoch ms, also accepts an update that already happened, from the last 20), `tabId`. |
 
 The `ui_*` tools query the page live: the app must be open in dev with `<SvelteGrab/>` mounted (otherwise they return "No browser tab connected"). Refs are stamped on elements as `data-sg-ref`, so `[data-sg-ref="e12"]` works as a locator in Playwright MCP or chrome-devtools MCP for real clicks and screenshots.
 
@@ -417,6 +418,42 @@ With `enableMcp` (and `enableAgentRuntime`, on by default), the page also answer
 - Every reported element gets a session ref (`e12`) stamped as `data-sg-ref`, so other tools (Playwright MCP, chrome-devtools-mcp) can act on it with the locator `[data-sg-ref="e12"]`. Each result also carries a stable key (`ui://<file>:<line>:<col>#<Component>[role=..,name=..][i]`) that re-resolves after re-renders.
 
 Set `enableAgentRuntime={false}` to keep the MCP bridge without the runtime.
+
+### Vite plugin (`svelte-grab/vite`)
+
+Optional, dev server only (`apply: 'serve'`; production builds never see it). Add it after your framework plugin:
+
+```ts
+// vite.config.ts (SvelteKit)
+import { sveltekit } from '@sveltejs/kit/vite';
+import { svelteGrab } from 'svelte-grab/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [sveltekit(), svelteGrab()]
+});
+```
+
+```ts
+// vite.config.ts (plain Vite + Svelte)
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { svelteGrab } from 'svelte-grab/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [svelte(), svelteGrab()]
+});
+```
+
+What it adds:
+
+- **HMR bridge.** A small client module forwards Vite's HMR events (`vite:beforeUpdate`, `vite:afterUpdate`, `vite:beforeFullReload`, `vite:error`) to the page as `svelte-grab:hmr` window events. It is injected into `index.html` and into every app module that imports `svelte-grab` (SvelteKit renders its own HTML). `ui_wait_for_hmr` uses `import.meta.hot` directly when Vite provides it (it does in every setup we tested, see below) and falls back to the bridge; without either it falls back to watching DOM mutations (`source: "heuristic"`, no file list).
+- **Module-graph importers.** `GET /__svelte-grab/importers?file=Card.svelte` returns `{ found, matches, importers: [{ file, url }] }` from Vite's module graph (path, root-relative path or suffix). Same-origin requests only (cross-origin `Origin` / `Sec-Fetch-Site` get a 403).
+- **Open in editor.** The client sets `window.__SVELTE_GRAB_VITE__ = { version, root, ... }`. SvelteGrab then opens files through Vite's built-in `/__open-in-editor` (launch-editor, which picks up the running editor or `LAUNCH_EDITOR`) with the real project root, and falls back to the `editor` deep link if that request fails. `projectRoot` is no longer needed.
+
+Options: `svelteGrab({ hmrBridge: false, importers: false })` turns each part off.
+
+`ui_wait_for_hmr` works without the plugin too: Vite injects `import.meta.hot` into svelte-grab's modules both when the package is pre-bundled by `optimizeDeps` (the default) and when it is excluded and served from `node_modules` (checked with Vite 6 + vite-plugin-svelte 5 and Vite 8 + vite-plugin-svelte 7).
 
 ### HTTP Endpoints
 
