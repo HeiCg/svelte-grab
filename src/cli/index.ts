@@ -60,6 +60,12 @@ async function main() {
 			break;
 		}
 
+		case 'skills': {
+			const { runSkillsCommand } = await import('./skills.js');
+			process.exitCode = runSkillsCommand(args);
+			break;
+		}
+
 		case 'relay': {
 			const { startRelay } = await import('./relay.js');
 			const portArg = args.find((a: string) => a.startsWith('--port='));
@@ -132,6 +138,21 @@ Commands:
                                       --with-svelte-mcp=false; default on)
               --with-playwright-mcp   Also add the @playwright/mcp entry (default off)
               --no-vite-plugin        Do not edit vite.config
+              --no-skills             Do not copy the agent skills (default: copy the
+                                      svelte-grab and svelte-grab-audit skills into
+                                      .claude/skills/, plus a pointer in AGENTS.md if
+                                      the project has one)
+              --skills-dir <dir>      Where the skills go (e.g. .agents/skills)
+              --force-skills          Overwrite skill files you edited (default: the
+                                      new version is written next to them as <file>.new)
+
+  skills    Install or update the agent skills shipped in the package.
+            Subcommands:
+              install       Copy skills into .claude/skills/ (idempotent; edited
+                            files get a <file>.new). Options: --skills-dir <dir>,
+                            --force (overwrite edited files), --dry-run
+              list          List the packaged skills
+              path          Print the packaged skills directory
 
   add       Add an agent provider (claude-code, cursor, copilot, codex).
             Options:
@@ -191,6 +212,7 @@ Examples:
   npx svelte-grab init                     # Add to your SvelteKit project
   npx svelte-grab init --dry-run           # Preview changes without writing
   npx svelte-grab init --with-playwright-mcp  # Also add Playwright MCP to .mcp.json
+  npx svelte-grab skills install --skills-dir .agents/skills  # Skills for other agents
   npx svelte-grab add cursor               # Add Cursor agent provider
   npx svelte-grab remove copilot           # Remove Copilot provider
   npx svelte-grab configure                # Interactive configuration

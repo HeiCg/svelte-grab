@@ -1,0 +1,18 @@
+{
+	"name": "svelte-grab",
+	"description": "Give coding agents eyes into your Svelte app: the svelte-grab MCP server (ui_snapshot, ui_find, ui_inspect, ui_verify, ui_network, ui_security_scan, ...) plus the svelte-grab and svelte-grab-audit skills.",
+	"author": {
+		"name": "HeiCg"
+	},
+	"homepage": "https://github.com/HeiCg/svelte-grab#readme",
+	"repository": "https://github.com/HeiCg/svelte-grab",
+	"license": "MIT",
+	"keywords": ["svelte", "sveltekit", "mcp", "devtools", "security", "performance"],
+	"mcpServers": {
+		"svelte-grab": {
+			"type": "stdio",
+			"command": "npx",
+			"args": ["svelte-grab-mcp", "--stdio"]
+		}
+	}
+}

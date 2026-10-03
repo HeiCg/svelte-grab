@@ -17,6 +17,7 @@ import { CommandChannel, type RuntimeCommandMessage, type SendOptions } from './
 import { parseHelloPayload, parseResultPayload, isPlainObject, type RuntimeResultData } from './runtime/validate.js';
 import { registerRuntimeTools, type McpToolServer, type ZodNamespace } from './runtime/tools.js';
 import { resolveCdpConfig, type CdpConfig } from './cdp/client.js';
+import { registerSkillPrompts, type McpPromptServer } from './prompts.js';
 
 /** Max request body size (2 MB) for POST endpoints. */
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -417,9 +418,9 @@ function extractToolSection(toolName: string): string | null {
 }
 
 /**
- * Register MCP tools on a server instance.
+ * Register MCP tools (and the skill prompts) on a server instance.
  */
-function registerMcpTools(server: McpToolServer, z: ZodNamespace): void {
+function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespace): void {
 	// ============================================================
 	// watch_for_grab — blocks until the browser sends new context
 	// ============================================================
@@ -673,6 +674,9 @@ function registerMcpTools(server: McpToolServer, z: ZodNamespace): void {
 
 	// Agent runtime: ui_tabs (server-only), ui_snapshot / ui_find / ui_inspect (page round trip).
 	registerRuntimeTools(server, z, { registry: tabRegistry, channel: commandChannel, cdp: () => cdpConfig });
+
+	// Prompts: the packaged skills (svelte-grab-loop, security-audit, performance-audit).
+	registerSkillPrompts(server, z);
 }
 
 /**

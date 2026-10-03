@@ -11,6 +11,11 @@ declare module '@modelcontextprotocol/sdk/server/mcp.js' {
 			},
 			handler: (args: Record<string, unknown>, extra: unknown) => Promise<unknown>
 		): unknown;
+		registerPrompt(
+			name: string,
+			config: { title?: string; description?: string; argsSchema?: Record<string, unknown> },
+			cb: (args: Record<string, unknown>, extra: unknown) => unknown
+		): unknown;
 		connect(transport: unknown): Promise<void>;
 	}
 }

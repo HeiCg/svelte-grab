@@ -16,6 +16,7 @@ It does the same as `npx svelte-grab init`, through sv:
 | MCP servers for your coding agent: `svelte-grab` (stdio), optional `svelte` (`@sveltejs/mcp`) and `playwright` (`@playwright/mcp`). Existing entries are never replaced. | `.mcp.json` |
 | `svelteGrab()` from `svelte-grab/vite` after `sveltekit()` / `svelte()` in `plugins`, when the config has a plain `plugins: [...]` array; otherwise a next step tells you what to add. | `vite.config.(ts\|js)` |
 | `<SvelteDevKit />` gated by `dev` from `$app/environment` (SvelteKit) or at the end of `src/App.svelte` (Vite + Svelte). `enableMcp` is set when `.mcp.json` declares the `svelte-grab` server. | `src/routes/+layout.svelte` / `src/App.svelte` |
+| Agent skills `svelte-grab` (UI loop) and `svelte-grab-audit` (security + performance audit). A file you edited is never overwritten: the new version goes next to it as `<file>.new`. An existing `AGENTS.md` gets a one-time pointer. | `.claude/skills/*/`, `AGENTS.md` |
 
 Running it twice changes nothing.
 
@@ -27,16 +28,17 @@ Running it twice changes nothing.
 | `svelteMcp` | `yes` | Also add the official Svelte MCP? (asked only with `mcpJson`) |
 | `playwrightMcp` | `no` | Also add Playwright MCP? (asked only with `mcpJson`) |
 | `vitePlugin` | `yes` | Add the svelte-grab Vite plugin? |
+| `skills` | `yes` | Install the svelte-grab agent skills into `.claude/skills/`? |
 
 Skip the prompts:
 
 ```bash
-npx sv add @svelte-grab="mcpJson:yes+svelteMcp:yes+playwrightMcp:no+vitePlugin:yes"
+npx sv add @svelte-grab="mcpJson:yes+svelteMcp:yes+playwrightMcp:no+vitePlugin:yes+skills:yes"
 ```
 
 ## Development
 
-The add-on logic lives in `src/plan.ts` and reuses the string transforms of the main package (`../../src/cli/transforms.ts`, the same code as `svelte-grab init`). `src/index.ts` only wires it into `defineAddon`. tsdown bundles everything except `sv` (a peer dependency the CLI provides) into `dist/index.mjs`.
+The add-on logic lives in `src/plan.ts` and reuses the string transforms of the main package (`../../src/cli/transforms.ts`, the same code as `svelte-grab init`). It installs the skills with the same planner as `init` (`../../src/cli/skills-plan.ts`); the skill files are embedded at build time into `src/skills.generated.ts` by `scripts/embed-skills.mjs` (part of `npm run build`), because `sv add` runs before `svelte-grab` is installed and its `skills/` folder cannot be read from `node_modules` yet. A root test fails when the generated file is stale: rerun `node packages/sv-addon/scripts/embed-skills.mjs`. `src/index.ts` only wires it into `defineAddon`. tsdown bundles everything except `sv` (a peer dependency the CLI provides) into `dist/index.mjs`.
 
 Unit tests run from the repo root with a fake `sv` object, no install needed:
 

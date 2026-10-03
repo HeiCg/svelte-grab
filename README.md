@@ -22,7 +22,7 @@ npm install -D svelte-grab @modelcontextprotocol/sdk zod
 npx svelte-grab init            # --dry-run to preview
 ```
 
-`init` writes or merges `.mcp.json` (the `svelte-grab` server, plus the official Svelte MCP), adds `svelteGrab()` from `svelte-grab/vite` to your Vite config and puts `<SvelteDevKit enableMcp />` in `src/routes/+layout.svelte` (or `src/App.svelte`), gated by `dev`. It never replaces existing `.mcp.json` entries, shows a diff of what it changes and is safe to run twice. With [`sv`](https://svelte.dev/docs/cli), `npx sv add @svelte-grab` does the same ([packages/sv-addon](packages/sv-addon)).
+`init` writes or merges `.mcp.json` (the `svelte-grab` server, plus the official Svelte MCP), adds `svelteGrab()` from `svelte-grab/vite` to your Vite config and puts `<SvelteDevKit enableMcp />` in `src/routes/+layout.svelte` (or `src/App.svelte`), gated by `dev`, and copies the [agent skills](#agent-skills) into `.claude/skills/`. It never replaces existing `.mcp.json` entries, shows a diff of what it changes and is safe to run twice. With [`sv`](https://svelte.dev/docs/cli), `npx sv add @svelte-grab` does the same ([packages/sv-addon](packages/sv-addon)).
 
 The resulting `.mcp.json`:
 
@@ -161,6 +161,28 @@ Refs live as long as the element. After a re-render or HMR, pass the old ref to 
 ## Pairs with the official Svelte MCP (`@sveltejs/mcp`)
 
 The [official Svelte MCP](https://svelte.dev/docs/mcp) works on code: it serves the Svelte and SvelteKit docs and runs `svelte-autofixer` on components the agent writes. svelte-grab works on the running page: what rendered, where it came from, and how it looks after the change. They do not overlap, which is why `init` adds both to `.mcp.json` (`--no-svelte-mcp` to skip it). A typical split: svelte-grab finds `SettingsCard.svelte:27` and verifies the result; the Svelte MCP answers "how do snippets work" and checks the edited component before it is saved.
+
+## Agent skills
+
+svelte-grab ships two [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) in the npm package (`skills/`), so the agent knows the workflow without you explaining it:
+
+| Skill | Use it for |
+|-------|-----------|
+| `svelte-grab` | The core loop: `ui_snapshot -> ui_find -> ui_inspect -> ui_component_impact -> edit -> ui_wait_for_hmr -> ui_verify -> ui_profile`, refs as `[data-sg-ref]` locators for Playwright / chrome-devtools MCP, annotations, which tool when. |
+| `svelte-grab-audit` | "Security audit", "performance audit", "what does screen X load", "is anything leaking credentials", "why is this page slow", "memory leak". A phased, per-screen workflow (recon with `npx svelte-grab audit`, then `ui_network({ reload: true })`, `ui_security_scan`, `ui_profile`, `ui_verify` and, in CDP mode, `ui_perf_metrics` / `ui_leak_check`), validation rules (`confirmed` needs reproduction evidence, `needs_validation` names the missing fact, secrets stay redacted), default budgets (50 requests, 1.5 MB, 10 third-party per screen) and three supporting files: `CHECKLIST.md` (security and performance checklists, each item mapped to the tool that checks it and its pass criteria), `REPORT-TEMPLATE.md` and `finding-schema.json`. |
+
+Ways to get them:
+
+- **`npx svelte-grab init`** copies both into `.claude/skills/` (Claude Code) by default. `--skills-dir .agents/skills` for other agents, `--no-skills` to skip. If the project has an `AGENTS.md`, a short pointer to the skills is appended once.
+- **`npx svelte-grab skills install`** reinstalls or updates them after an upgrade (`--skills-dir`, `--dry-run`, `--force`). A file you edited is never overwritten: the new version is written next to it as `<file>.new` (or pass `--force` / `init --force-skills`). `svelte-grab skills list` and `svelte-grab skills path` show what the package ships.
+- **The [Skills CLI](https://github.com/vercel-labs/skills)**, straight from GitHub: `npx skills add HeiCg/svelte-grab --skill svelte-grab-audit` (or `--skill svelte-grab`).
+- **`npx sv add @svelte-grab`** installs them too (`skills` option, default yes).
+- **MCP prompts**, zero install, any MCP client: the svelte-grab server exposes `svelte-grab-loop`, `security-audit` (optional `screen` / `url` arguments) and `performance-audit` (optional `screen`). Each returns the skill workflow with the matching checklist inlined (in Claude Code: `/mcp__svelte-grab__security-audit`).
+- **Claude Code plugin**: this repo is a plugin marketplace (`.claude-plugin/`) with a `svelte-grab` plugin that bundles both skills and the MCP server (`npx svelte-grab-mcp --stdio`, so `svelte-grab` must be installed in the project): `/plugin marketplace add HeiCg/svelte-grab`, then `/plugin install svelte-grab@svelte-grab`.
+
+There is deliberately no `postinstall` script that drops the skills into your project: install-time scripts are a supply-chain risk and modern package managers block them by default, so installing them is always an explicit command.
+
+The audit workflow takes ideas from [cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill) (phased audit, verified findings with `confirmed` / `needs_validation` verdicts, a JSON schema for findings) and [adnxy/rnsec](https://github.com/adnxy/rnsec) (zero-config, framework-specific static rules with JSON/HTML reports). To learn how HTTP traffic and its security headers look on the wire, [dstotijn/hetty](https://github.com/dstotijn/hetty) (an HTTP toolkit for security research) is a good companion; svelte-grab does not integrate it.
 
 ## Human handoff: Alt+Click + prompt
 
@@ -792,6 +814,7 @@ npx svelte-grab <command> [options]
 | `configure` | Interactive configuration (activation key, editor, ports, theme) |
 | `relay` | Start the WebSocket relay server (maintenance mode) |
 | `mcp` | Start the MCP server |
+| `skills install\|list\|path` | Install or update the [agent skills](#agent-skills) in `.claude/skills/` (`--skills-dir`, `--force`, `--dry-run`), list them, or print the packaged directory |
 | `help` | Show help |
 
 ### `init`
@@ -802,6 +825,7 @@ npx svelte-grab <command> [options]
 | Playwright MCP | Adds a `playwright` entry (`npx -y @playwright/mcp@latest`). | off unless `--with-playwright-mcp` |
 | `vite.config.(ts\|js)` | Adds `import { svelteGrab } from 'svelte-grab/vite'` and `svelteGrab()` right after `sveltekit(...)` / `svelte(...)` when the config has a plain `plugins: [...]` array. Any other shape is left untouched and the two lines to add are printed. | `--no-vite-plugin` |
 | Root component | SvelteKit: `src/routes/+layout.svelte` (created if missing), wrapped in `{#if dev}` from `$app/environment`. Vite + Svelte: end of `src/App.svelte`. Skipped when the file already imports `svelte-grab`. | |
+| Agent skills | Copies `skills/svelte-grab` and `skills/svelte-grab-audit` into `.claude/skills/`. Identical files are skipped; a file you edited gets the new version next to it as `<file>.new`. Appends a one-time pointer to an existing `AGENTS.md`. | `--no-skills`; `--skills-dir <dir>` to change the target; `--force-skills` to overwrite edited files |
 | `enableMcp` | Set on the injected `<SvelteDevKit />` only when `.mcp.json` declares the `svelte-grab` server after the run (added now or already there). With `--no-mcp-json` or an unreadable `.mcp.json` the page does not try to reach an MCP server. | |
 
 `init` also lists the dev dependencies still missing from `package.json` (`svelte-grab`, plus `@modelcontextprotocol/sdk` and `zod` when MCP is configured) with the install command for your package manager. `--dry-run` prints every diff and writes nothing. Running it again changes nothing.
@@ -810,6 +834,7 @@ npx svelte-grab <command> [options]
 npx svelte-grab init                     # Set up .mcp.json, Vite plugin and layout
 npx svelte-grab init --dry-run           # Preview changes without writing
 npx svelte-grab init --with-playwright-mcp --no-vite-plugin
+npx svelte-grab skills install --skills-dir .agents/skills  # Skills for agents that read .agents/skills
 npx svelte-grab add cursor               # Add Cursor agent provider
 npx svelte-grab remove copilot           # Remove Copilot provider
 npx svelte-grab configure                # Interactive configuration

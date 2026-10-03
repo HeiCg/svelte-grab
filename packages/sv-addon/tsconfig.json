@@ -8,5 +8,5 @@
 		"noEmit": true,
 		"types": []
 	},
-	"include": ["src/**/*", "../../src/cli/transforms.ts"]
+	"include": ["src/**/*", "../../src/cli/transforms.ts", "../../src/cli/skills-plan.ts"]
 }

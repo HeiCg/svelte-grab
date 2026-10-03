@@ -3,7 +3,8 @@
  *
  * Does what `npx svelte-grab init` does: svelte-grab dev dependency, `.mcp.json`
  * (svelte-grab + optional @sveltejs/mcp and @playwright/mcp), `svelteGrab()` in
- * the Vite config and `<SvelteDevKit />` in the root layout.
+ * the Vite config, `<SvelteDevKit />` in the root layout and the agent skills
+ * in `.claude/skills/`.
  */
 import { defineAddon, defineAddonOptions } from 'sv';
 import { ADDON_ID, DEFAULT_OPTIONS, nextStepsFor, runSvelteGrabAddon, type AddonReport } from './plan.js';
@@ -30,6 +31,11 @@ const options = defineAddonOptions()
 		question: 'Add the svelte-grab Vite plugin (HMR file list, importers, open-in-editor)?',
 		type: 'boolean',
 		default: DEFAULT_OPTIONS.vitePlugin
+	})
+	.add('skills', {
+		question: 'Install the svelte-grab agent skills into .claude/skills/ (UI loop + security/performance audit)?',
+		type: 'boolean',
+		default: DEFAULT_OPTIONS.skills
 	})
 	.build();
 
