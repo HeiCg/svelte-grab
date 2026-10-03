@@ -32,6 +32,7 @@
 	import { createElementSelector } from './utils/element-selector.js';
 	import { getElementsInDragRect } from './utils/drag-selection.js';
 	import { hideFromThirdParties } from './utils/hide-from-third-parties.js';
+	import { startAgentRuntime, type AgentRuntimeHandle } from './runtime/connection.js';
 	import {
 		getComponentStack as getComponentStackPure,
 		findMetaElement,
@@ -94,6 +95,7 @@
 		enableDragSelect = true,
 		enableMcp = false,
 		mcpPort = 4723,
+		enableAgentRuntime = true,
 		freezeAnimations: freezeAnimationsProp = true,
 		freezePseudoStates: freezePseudoStatesProp = true,
 		enableHistoryPersistence = true,
@@ -215,6 +217,8 @@
 	let mcpAgentListening = $state(false);
 	let mcpStatus = $state<'idle' | 'watching' | 'processing' | 'sent'>('idle');
 	let mcpEventSource: EventSource | null = null;
+	// In-page agent runtime (ui_snapshot / ui_find over the MCP server channel)
+	let agentRuntime: AgentRuntimeHandle | null = null;
 
 	// ============================================================
 	// Toolbar state
@@ -1233,6 +1237,14 @@
 				}
 			}
 
+			// Answer agent queries (ui_snapshot / ui_find) relayed by the MCP server
+			if (enableMcp && enableAgentRuntime) {
+				agentRuntime = startAgentRuntime({
+					serverUrl: `http://localhost:${mcpPort}`,
+					forceEnable
+				});
+			}
+
 			// Connect agent relay if enabled
 			if (enableAgentRelay) {
 				agentClient = new AgentClient();
@@ -1304,6 +1316,8 @@
 		copyFb.reset();
 		agentClient?.disconnect();
 		mcpEventSource?.close();
+		agentRuntime?.stop();
+		agentRuntime = null;
 		pluginRegistry.clear();
 		destroyGlobalAPI();
 	});
