@@ -21,6 +21,20 @@ export function packagedSkillsDir(): string | null {
 }
 
 /**
+ * Version of the installed svelte-grab package (recorded in the skills
+ * manifest), or null when package.json cannot be read. Same two-levels-up
+ * layout as packagedSkillsDir().
+ */
+export function packageVersion(): string | null {
+	try {
+		const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf-8'));
+		return pkg?.name === 'svelte-grab' && typeof pkg.version === 'string' ? pkg.version : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Every file of every skill under `dir` (one folder per skill with a
  * SKILL.md), sorted by path so plans and listings are stable.
  */

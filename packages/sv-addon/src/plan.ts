@@ -24,7 +24,7 @@ import {
 	planSkillsInstall,
 	type SkillFile
 } from '../../../src/cli/skills-plan.js';
-import { SKILL_FILES } from './skills.generated.js';
+import { SKILL_FILES, SKILLS_VERSION } from './skills.generated.js';
 
 export const ADDON_ID = '@svelte-grab/sv';
 
@@ -69,6 +69,8 @@ export interface AddonRunContext {
 	dependencyVersion?: (pkg: string) => string | undefined;
 	/** Skill files to install (default: the ones embedded at build time). */
 	skillFiles?: readonly SkillFile[];
+	/** Version recorded in the skills manifest (default: the one embedded at build time). */
+	skillsVersion?: string;
 }
 
 export interface AddonReport {
@@ -77,7 +79,7 @@ export interface AddonReport {
 	vitePlugin: 'added' | 'already-present' | 'manual' | 'skipped';
 	layout: 'written' | 'already-present' | 'manual';
 	devDependencies: string[];
-	/** Skill files written (including `<file>.new` next to user-edited ones); empty when skipped. */
+	/** Skill files written (including `<file>.new` next to user-edited ones and the manifest); empty when skipped. */
 	skillsWritten: string[];
 	/** Manual follow-ups for nextSteps. */
 	notes: string[];
@@ -158,9 +160,14 @@ export function runSvelteGrabAddon(ctx: AddonRunContext): AddonReport {
 		});
 	}
 
-	// 4. Agent skills: same planner as `svelte-grab init` (src/cli/skills-plan.ts)
+	// 4. Agent skills: same planner as `svelte-grab init` (src/cli/skills-plan.ts),
+	// including the install manifest (.claude/skills/.svelte-grab-skills.json):
+	// unedited files from an older version are updated in place, edited ones
+	// get a <file>.new.
 	if (options.skills) {
-		// sv.file passes '' for a missing file; returning false leaves it untouched.
+		// sv.file passes '' for a missing file, so an empty file reads as missing
+		// (for the manifest too: it is then treated as absent and rewritten).
+		// Returning false leaves the file untouched.
 		const read = (path: string): string | null => {
 			let current: string | null = null;
 			ctx.sv.file(path, (content) => {
@@ -169,7 +176,13 @@ export function runSvelteGrabAddon(ctx: AddonRunContext): AddonReport {
 			});
 			return current;
 		};
-		const plan = planSkillsInstall(ctx.skillFiles ?? SKILL_FILES, read, { skillsDir: DEFAULT_SKILLS_DIR });
+		// sv's file API cannot delete: files no longer shipped stay (as `obsolete`,
+		// still in the manifest) and are listed in nextSteps instead.
+		const plan = planSkillsInstall(ctx.skillFiles ?? SKILL_FILES, read, {
+			skillsDir: DEFAULT_SKILLS_DIR,
+			version: ctx.skillsVersion ?? SKILLS_VERSION,
+			removeObsolete: false
+		});
 		for (const write of plan.writes) {
 			ctx.sv.file(write.path, () => write.content);
 			report.skillsWritten.push(write.path);
@@ -179,6 +192,13 @@ export function runSvelteGrabAddon(ctx: AddonRunContext): AddonReport {
 			report.notes.push(
 				`${conflicts.length} skill file(s) in ${DEFAULT_SKILLS_DIR}/ differ from this version (edited?): ` +
 					'the new version is next to each as <file>.new; merge it or run `npx svelte-grab skills install --force`'
+			);
+		}
+		const leftovers = plan.files.filter((f) => f.action === 'obsolete' || f.action === 'orphaned');
+		if (leftovers.length) {
+			report.notes.push(
+				`No longer shipped by svelte-grab, delete when done: ${leftovers.map((f) => f.path).join(', ')} ` +
+					'(`npx svelte-grab skills install` removes the ones you did not edit)'
 			);
 		}
 		ctx.sv.file('AGENTS.md', (content) => {
