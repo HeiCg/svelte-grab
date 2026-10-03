@@ -1,3 +1,17 @@
+<script module lang="ts">
+	import { installNetworkCapture } from './runtime/network.js';
+
+	/**
+	 * Capture network requests from module evaluation on (dev only), before
+	 * the app's first fetches, so `ui_network({ reload: true })` sees the
+	 * initial load. The agent runtime retains the capture once it starts; the
+	 * early hold is dropped on mount (releaseEarlyNetworkCapture), which
+	 * restores the original fetch/XHR/... when the runtime is not running.
+	 * No-op outside the Vite dev server and during SSR.
+	 */
+	installNetworkCapture();
+</script>
+
 <script lang="ts">
 	/**
 	 * SvelteGrab - Click any element to get component stack with source locations
@@ -39,6 +53,7 @@
 		type AgentRuntimeHandle
 	} from './runtime/connection.js';
 	import { resolveMcpPort } from './runtime/server-probe.js';
+	import { releaseEarlyNetworkCapture } from './runtime/network.js';
 	import {
 		annotationStore,
 		addAnnotation,
@@ -1328,6 +1343,8 @@
 				forceEnable
 			});
 		}
+		// The runtime (if it started) now retains the network capture.
+		releaseEarlyNetworkCapture();
 	}
 
 	let destroyed = false;
@@ -1371,6 +1388,7 @@
 			isDev = detectDevMode(forceEnable);
 
 			if (!isDev) {
+				releaseEarlyNetworkCapture();
 				console.log(
 					'[SvelteGrab] Disabled - no Svelte dev metadata found.\n' +
 					'  Possible causes:\n' +
@@ -1435,6 +1453,7 @@
 			// MCP server: find its port (it may have fallen back), then open the
 			// status stream and the agent runtime there.
 			if (enableMcp) void connectMcp();
+			else releaseEarlyNetworkCapture();
 
 			// Connect agent relay if enabled
 			if (enableAgentRelay) {
@@ -1522,6 +1541,7 @@
 		mcpEventSource?.close();
 		agentRuntime?.stop();
 		agentRuntime = null;
+		releaseEarlyNetworkCapture();
 		pluginRegistry.clear();
 		destroyGlobalAPI();
 	});
