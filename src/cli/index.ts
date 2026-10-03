@@ -3,9 +3,37 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { validatePort } from '../utils/port.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
+
+const DEFAULT_RELAY_PORT = 4722;
+const DEFAULT_MCP_PORT = 4723;
+
+/**
+ * Parse a `--port=N` argument into a validated port (integer 1..65535),
+ * falling back to the given default with a warning. Returns undefined if no
+ * --port arg was supplied so downstream defaults still apply.
+ */
+function parsePortArg(arg: string | undefined, fallback: number): number | undefined {
+	if (!arg) return undefined;
+	return validatePort(arg.split('=')[1], fallback);
+}
+
+/**
+ * Parse the optional bearer-token flag.
+ *  --token          -> true (auto-generate a token, printed on startup)
+ *  --token=VALUE    -> use VALUE as the token
+ * Returns undefined when not supplied (token auth stays disabled unless the
+ * SVELTE_GRAB_TOKEN env var enables it).
+ */
+function parseTokenArg(allArgs: string[]): boolean | string | undefined {
+	const withValue = allArgs.find((a) => a.startsWith('--token='));
+	if (withValue) return withValue.split('=')[1] || true;
+	if (allArgs.includes('--token')) return true;
+	return undefined;
+}
 
 function getVersion(): string {
 	try {
@@ -37,8 +65,9 @@ async function main() {
 			const portArg = args.find((a: string) => a.startsWith('--port='));
 			const providerArg = args.find((a: string) => a.startsWith('--provider='));
 			await startRelay({
-				port: portArg ? parseInt(portArg.split('=')[1], 10) : undefined,
-				provider: providerArg ? providerArg.split('=')[1] : undefined
+				port: parsePortArg(portArg, DEFAULT_RELAY_PORT),
+				provider: providerArg ? providerArg.split('=')[1] : undefined,
+				token: parseTokenArg(args)
 			});
 			break;
 		}
@@ -48,7 +77,7 @@ async function main() {
 			const provider = args[1];
 			const dryRun = args.includes('--dry-run');
 			const portArg = args.find((a: string) => a.startsWith('--port='));
-			add(provider, { dryRun, port: portArg ? parseInt(portArg.split('=')[1], 10) : undefined });
+			add(provider, { dryRun, port: parsePortArg(portArg, DEFAULT_RELAY_PORT) });
 			break;
 		}
 
@@ -71,9 +100,9 @@ async function main() {
 		case 'mcp': {
 			const { startMcpServer } = await import('../mcp/server.js');
 			const mcpPortArg = args.find((a: string) => a.startsWith('--port='));
-			const mcpPort = mcpPortArg ? parseInt(mcpPortArg.split('=')[1], 10) : undefined;
+			const mcpPort = parsePortArg(mcpPortArg, DEFAULT_MCP_PORT);
 			const stdio = args.includes('--stdio');
-			await startMcpServer({ port: mcpPort, stdio });
+			await startMcpServer({ port: mcpPort, stdio, token: parseTokenArg(args) });
 			break;
 		}
 
@@ -110,17 +139,23 @@ Commands:
   relay     Start the WebSocket relay server that bridges browser selections
             to coding agents (e.g. Claude Code). Your app connects via
             <SvelteGrab enableAgentRelay />.
+            Binds to 127.0.0.1 only and validates the browser Origin.
             Options:
               --port=4722           Server port (default: 4722)
               --provider=claude-code  Agent provider (default: claude-code)
+              --token[=VALUE]       Require a bearer token (auto-generated if no
+                                    VALUE). Also via SVELTE_GRAB_TOKEN env var.
 
   mcp       Start the MCP server for direct agent integration. Browser sends
             context via HTTP POST, agents read it via MCP protocol.
             In stdio mode, also starts a sidecar HTTP server for browser context.
+            Binds to 127.0.0.1 only and validates the browser Origin.
             Options:
               --port=4723   HTTP server port (default: 4723)
               --stdio       Use stdio transport instead of HTTP (for Claude Code
                             MCP config: "command": "npx svelte-grab-mcp --stdio")
+              --token[=VALUE]  Require a bearer token (auto-generated if no
+                            VALUE). Also via SVELTE_GRAB_TOKEN env var.
 
   help      Show this help message
 

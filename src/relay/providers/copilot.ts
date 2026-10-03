@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { AgentProvider, AgentProviderCallbacks } from './base.js';
+import { setBoundedSession } from './base.js';
 
 /**
  * GitHub Copilot agent provider using the copilot CLI.
@@ -34,9 +35,9 @@ export class CopilotProvider implements AgentProvider {
 
 			const fullPrompt = `${contextBlock}${context.prompt}`;
 
-			// Save prompt to session history
+			// Save prompt to session history (bounded — evicts oldest session)
 			if (!this.sessionHistory.has(sessionId)) {
-				this.sessionHistory.set(sessionId, { prompts: [], results: [] });
+				setBoundedSession(this.sessionHistory, sessionId, { prompts: [], results: [] });
 			}
 			this.sessionHistory.get(sessionId)!.prompts.push(fullPrompt);
 

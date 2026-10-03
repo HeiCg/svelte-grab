@@ -19,39 +19,100 @@ export function parseStackTrace(stack: string): ParsedStackFrame[] {
 }
 
 /**
- * Parse a single stack frame line
+ * Split a "location" (the part of a stack frame that points at a file) into its
+ * file path, line, and column. The `:(line):(col)` suffix is anchored at the END
+ * of the string, so everything before the final two `:number` groups is treated
+ * as the file path — even when the path itself contains `@`, spaces, or `:`
+ * (e.g. `https://h/a@b.js:1:2`, `webpack://./my file.js:3:4`).
+ *
+ * Falls back to a single trailing `:line` (no column) if that's all that's
+ * present, and returns null when no trailing line number can be found.
+ */
+function splitLocation(
+	location: string
+): { file: string; line: number; column: number } | null {
+	// file : line : column  (column optional)
+	const m = location.match(/^(.*?):(\d+)(?::(\d+))?$/);
+	if (!m || !m[1]) return null;
+	return {
+		file: m[1],
+		line: parseInt(m[2]),
+		column: m[3] ? parseInt(m[3]) : 0
+	};
+}
+
+/**
+ * Parse a single stack frame line.
+ * Handles Chrome/Edge `at fn (loc)` / `at loc`, and Firefox/Safari `fn@loc` /
+ * `loc` formats. The location → file/line/column split is anchored at the end of
+ * the location so paths containing `@`, spaces, or parens parse correctly.
  */
 function parseStackFrame(line: string): ParsedStackFrame | null {
-	// Chrome/Edge: "    at functionName (file:line:column)"
-	const chromeMatch = line.match(/^\s*at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?$/);
-	if (chromeMatch) {
-		return {
-			functionName: chromeMatch[1] || '(anonymous)',
-			file: chromeMatch[2],
-			line: parseInt(chromeMatch[3]),
-			column: parseInt(chromeMatch[4])
-		};
+	// Chrome/Edge: "    at functionName (file:line:column)" or "    at file:line:column"
+	if (/^\s*at\s+/.test(line)) {
+		const rest = line.replace(/^\s*at\s+/, '');
+
+		// Form with parentheses: "functionName (location)"
+		const parenIdx = rest.lastIndexOf(' (');
+		if (parenIdx !== -1 && rest.endsWith(')')) {
+			const fnName = rest.slice(0, parenIdx).trim();
+			const inside = rest.slice(parenIdx + 2, -1); // between '(' and ')'
+			const loc = splitLocation(inside);
+			if (loc) {
+				return {
+					functionName: fnName || '(anonymous)',
+					file: loc.file,
+					line: loc.line,
+					column: loc.column
+				};
+			}
+		}
+
+		// Form without parentheses: "at location" (anonymous frame)
+		const loc = splitLocation(rest.trim());
+		if (loc) {
+			return {
+				functionName: '(anonymous)',
+				file: loc.file,
+				line: loc.line,
+				column: loc.column
+			};
+		}
+		return null;
 	}
 
-	// Firefox: "functionName@file:line:column"
-	const firefoxMatch = line.match(/^(.+?)@(.+?):(\d+):(\d+)$/);
-	if (firefoxMatch) {
-		return {
-			functionName: firefoxMatch[1] || '(anonymous)',
-			file: firefoxMatch[2],
-			line: parseInt(firefoxMatch[3]),
-			column: parseInt(firefoxMatch[4])
-		};
+	// Firefox/Safari: "functionName@file:line:column" or "file:line:column".
+	// The function name (if any) never contains '@', so split on the FIRST '@'
+	// and only treat the left side as a function name when the right side parses
+	// as a valid location. This keeps the boundary correct even when the file
+	// path/URL itself contains '@' (e.g. "fn@https://h/a@b.js:1:2").
+	const atIdx = line.indexOf('@');
+	if (atIdx !== -1) {
+		const fnName = line.slice(0, atIdx);
+		const loc = splitLocation(line.slice(atIdx + 1));
+		// Treat the left side as a function name only when it looks like one (no
+		// whitespace / colons / slashes), otherwise this '@' is part of the path
+		// and the whole line is a location. An empty left side ("@file:...") is a
+		// valid anonymous Firefox frame.
+		if (loc && !/[\s:/]/.test(fnName)) {
+			return {
+				functionName: fnName || '(anonymous)',
+				file: loc.file,
+				line: loc.line,
+				column: loc.column
+			};
+		}
 	}
 
-	// Safari: "functionName@file:line:column" or "file:line:column"
-	const safariMatch = line.match(/^(?:(.+?)@)?(.+?):(\d+):(\d+)$/);
-	if (safariMatch && !line.startsWith('at ')) {
+	// Safari/anonymous: "file:line:column" with no function name (path may
+	// contain '@', so this is tried after the fn@loc split above).
+	const loc = splitLocation(line);
+	if (loc) {
 		return {
-			functionName: safariMatch[1] || '(anonymous)',
-			file: safariMatch[2],
-			line: parseInt(safariMatch[3]),
-			column: parseInt(safariMatch[4])
+			functionName: '(anonymous)',
+			file: loc.file,
+			line: loc.line,
+			column: loc.column
 		};
 	}
 

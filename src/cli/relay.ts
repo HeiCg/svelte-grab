@@ -1,7 +1,13 @@
 /**
  * Start the agent relay server from CLI.
+ *
+ * `token` controls the optional bearer token: true auto-generates one, a string
+ * uses that value. The SVELTE_GRAB_TOKEN env var also enables it. Origin checks
+ * are always on regardless.
  */
-export async function startRelay(options: { port?: number; provider?: string } = {}): Promise<void> {
+export async function startRelay(
+	options: { port?: number; provider?: string; token?: boolean | string } = {}
+): Promise<void> {
 	const port = options.port || 4722;
 	const providerName = options.provider || 'claude-code';
 
@@ -22,7 +28,7 @@ export async function startRelay(options: { port?: number; provider?: string } =
 			}
 		}
 
-		const server = await createRelayServer({ port, providers });
+		const server = await createRelayServer({ port, providers, token: options.token });
 
 		// Handle graceful shutdown
 		process.on('SIGINT', () => {

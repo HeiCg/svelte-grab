@@ -12,8 +12,19 @@ Beyond the browser components, svelte-grab includes a CLI (`svelte-grab init|rel
 
 - **Build:** `npm run build` — runs `svelte-package -i src/lib -o dist` then `tsc -p tsconfig.server.json` (for relay/cli/mcp)
 - **Type check:** `npm run check` — runs `svelte-check --tsconfig ./tsconfig.json`
+- **Unit tests:** `npm run test` (watch) / `npm run test:run` (CI) — Vitest, tests live in `tests/`
+- **E2E:** `npm run test:e2e` — Playwright against the `examples/playground` demo app (run with `npm run dev:demo`)
+- **Lint / format:** `npm run lint` (ESLint flat config) / `npm run format` (Prettier)
 
-There are no tests or lint commands configured.
+CI (`.github/workflows/ci.yml`) runs build + check + unit + e2e on every PR.
+
+### Shared UI / design system (`src/lib/ui/`)
+
+`DevToolPopup.svelte` (shared overlay/popup chrome), `DevToolButton.svelte`, `DevToolToggle.svelte`, and `tokens.ts` (spacing/radius/z-index/timing tokens). Tool components compose these instead of hand-rolling popup markup + CSS. Companion helpers in `utils/`: `resolve-theme.ts`, `copy-with-feedback.ts`, `use-devtool-mount.svelte.ts` (mount helper that fixes the within-100ms unmount race), `hide-from-third-parties.ts` (redacts the overlay from session-replay tools).
+
+### Security (relay/MCP)
+
+The relay (WS) and MCP (HTTP) servers are **dev-only, loopback-only** (bind `127.0.0.1`), validate the request `Origin` against a localhost allowlist (configurable via `SVELTE_GRAB_ALLOWED_ORIGINS`), support an optional bearer token (`SVELTE_GRAB_TOKEN`), and cap payloads/session stores. See `src/utils/security.ts` and the README Security section. Never expose these ports to a network.
 
 ## Architecture
 
@@ -62,6 +73,12 @@ These are separate TypeScript projects. `src/lib/` uses Svelte's compiler; the r
 - `profiler-tracker.ts` — MutationObserver-based render tracking, burst detection
 - `inspectable.ts` — Global registry for components to expose `$state` values. Components call `inspectable('Name', { count, name })` inside `$effect()`, and SvelteStateGrab reads from this registry.
 - `unified-export.ts` — Aggregation store: each tool registers its `formatForAgent()` output; DevKit's "Copy All Context" (Alt+Shift+C) collects them all.
+- `parse-activation-key.ts` — Parses keyboard shortcut strings (with modifier aliases like cmd/option/win) into matcher functions for `KeyboardEvent` and `MouseEvent`.
+- `history-storage.ts` — Persistent grab history in `sessionStorage`, surviving navigations within a tab; handles quota/private-browsing errors gracefully.
+- `element-selector.ts` — Generates unique CSS selectors (preferring stable test/ARIA attributes) so persisted history can reacquire elements after reload.
+- `drag-selection.ts` — Multi-element drag selection via point-sampling: finds DOM elements covered by a drag rectangle.
+- `freeze-animations.ts` — Freezes CSS/SVG/Web Animations API animations and transitions during context capture for a stable visual snapshot; returns an unfreeze cleanup.
+- `freeze-pseudo-states.ts` — Freezes `:hover`/`:focus`/`:focus-visible` by baking computed styles inline during context capture.
 
 ### SSR Support
 

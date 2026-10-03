@@ -1,13 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { SvelteErrorContextProps, CapturedError, ThemeConfig } from './types.js';
+	import type { SvelteErrorContextProps, CapturedError } from './types.js';
 	import {
-		detectDevMode,
-		copyToClipboard,
-		checkModifier,
-		modifierKeyName,
-		DARK_THEME,
-		LIGHT_THEME
+		checkModifier
 	} from './utils/shared.js';
 	import {
 		parseStackTrace,
@@ -18,10 +13,14 @@
 		errorId,
 		detectErrorPattern,
 		formatErrorsForAgent,
-		fetchSourceContext,
-		formatSourceContext
+		fetchSourceContext
 	} from './utils/error-parser.js';
 	import { registerToolOutput } from './utils/unified-export.js';
+	import DevToolPopup from './ui/DevToolPopup.svelte';
+	import DevToolButton from './ui/DevToolButton.svelte';
+	import { resolveTheme } from './utils/resolve-theme.js';
+	import { createCopyFeedback } from './utils/copy-with-feedback.js';
+	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
 
 	let {
 		modifier = 'alt',
@@ -35,8 +34,7 @@
 		filterNodeModules = true
 	}: SvelteErrorContextProps = $props();
 
-	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
-	let colors = $derived({ ...baseTheme, ...theme } as Required<ThemeConfig>);
+	let colors = $derived(resolveTheme(theme, lightTheme));
 
 	let isDev = $state(false);
 	let visible = $state(false);
@@ -44,6 +42,13 @@
 	let copyFailed = $state(false);
 	let errors = $state<CapturedError[]>([]);
 	let filterType = $state<'all' | 'error' | 'warning'>('all');
+
+	const copyFb = createCopyFeedback({
+		get copied() { return copied; },
+		set copied(v) { copied = v; },
+		get copyFailed() { return copyFailed; },
+		set copyFailed(v) { copyFailed = v; }
+	});
 
 	let filteredErrors = $derived(
 		filterType === 'all' ? errors : errors.filter(e =>
@@ -56,9 +61,17 @@
 	let errorCount = $derived(errors.filter(e => e.type === 'error' || e.type === 'unhandled-rejection').length);
 	let warningCount = $derived(errors.filter(e => e.type === 'warning').length);
 
-	// Original console functions
+	// Non-enumerable marker stamped on the wrappers we install. Lets us (a) detect
+	// if console.error/warn is already one of our wrappers (avoid double-patching)
+	// and (b) only restore the original if WE are still the outermost patcher.
+	const SG_WRAPPER_MARKER = '__sgErrorContextWrapper';
+
+	// Original console functions + the wrappers we install, so restore can be
+	// conditional (don't clobber another patcher installed after us).
 	let originalConsoleError: typeof console.error;
 	let originalConsoleWarn: typeof console.warn;
+	let ourConsoleError: typeof console.error | null = null;
+	let ourConsoleWarn: typeof console.warn | null = null;
 
 	function addError(type: CapturedError['type'], message: string, errorObj?: Error) {
 		const stack = errorObj?.stack
@@ -130,17 +143,14 @@
 		}
 	}
 
-	let cleanup: (() => void) | null = null;
 	let pruneInterval: ReturnType<typeof setInterval>;
 
-	onMount(() => {
-		setTimeout(() => {
-			isDev = detectDevMode(forceEnable);
-			if (!isDev) return;
-
-			// Intercept console.error
+	const mount = useDevtoolMount(() => forceEnable, () => {
+		// Intercept console.error — but only if it isn't already one of OUR wrappers
+		// (HMR / a second instance), so we never double-patch the same instance.
+		if (!(console.error as unknown as Record<string, unknown>)[SG_WRAPPER_MARKER]) {
 			originalConsoleError = console.error;
-			console.error = (...args: unknown[]) => {
+			const wrapped: typeof console.error = (...args: unknown[]) => {
 				originalConsoleError.apply(console, args);
 				const message = args.map(a => {
 					if (a instanceof Error) return a.message;
@@ -150,50 +160,76 @@
 				const errorObj = args.find(a => a instanceof Error) as Error | undefined;
 				addError('error', message, errorObj || new Error(message));
 			};
+			Object.defineProperty(wrapped, SG_WRAPPER_MARKER, { value: true });
+			ourConsoleError = wrapped;
+			console.error = wrapped;
+		}
 
-			// Intercept console.warn
+		// Intercept console.warn (same double-patch guard)
+		if (!(console.warn as unknown as Record<string, unknown>)[SG_WRAPPER_MARKER]) {
 			originalConsoleWarn = console.warn;
-			console.warn = (...args: unknown[]) => {
+			const wrapped: typeof console.warn = (...args: unknown[]) => {
 				originalConsoleWarn.apply(console, args);
 				const message = args.map(a => typeof a === 'string' ? a : String(a)).join(' ');
 				addError('warning', message);
 			};
+			Object.defineProperty(wrapped, SG_WRAPPER_MARKER, { value: true });
+			ourConsoleWarn = wrapped;
+			console.warn = wrapped;
+		}
 
-			// Global error handler
-			const onError = (event: ErrorEvent) => {
-				addError('error', event.message, event.error);
-			};
+		// Global error handler
+		const onError = (event: ErrorEvent) => {
+			addError('error', event.message, event.error);
+		};
 
-			// Unhandled rejection handler
-			const onRejection = (event: PromiseRejectionEvent) => {
-				const message = event.reason instanceof Error
-					? event.reason.message
-					: String(event.reason);
-				addError('unhandled-rejection', message, event.reason instanceof Error ? event.reason : undefined);
-			};
+		// Unhandled rejection handler
+		const onRejection = (event: PromiseRejectionEvent) => {
+			const message = event.reason instanceof Error
+				? event.reason.message
+				: String(event.reason);
+			addError('unhandled-rejection', message, event.reason instanceof Error ? event.reason : undefined);
+		};
 
-			window.addEventListener('error', onError);
-			window.addEventListener('unhandledrejection', onRejection);
-			document.addEventListener('keydown', handleKeyCombo);
+		window.addEventListener('error', onError);
+		window.addEventListener('unhandledrejection', onRejection);
+		document.addEventListener('keydown', handleKeyCombo);
 
-			// Periodic prune
-			pruneInterval = setInterval(pruneOldErrors, 30000);
+		// Periodic prune
+		pruneInterval = setInterval(pruneOldErrors, 30000);
 
+		return () => {
+			// Only restore the originals if WE are still the current (outermost)
+			// patcher. If another library/instance patched console AFTER us, our
+			// wrapper sits in the middle of the chain; blindly assigning the
+			// original would clobber the later patcher. In that case we leave our
+			// wrapper in place — the later patcher chains through to it.
+			if (console.error === ourConsoleError) {
+				console.error = originalConsoleError;
+			}
+			if (console.warn === ourConsoleWarn) {
+				console.warn = originalConsoleWarn;
+			}
+			ourConsoleError = null;
+			ourConsoleWarn = null;
+			window.removeEventListener('error', onError);
+			window.removeEventListener('unhandledrejection', onRejection);
+			document.removeEventListener('keydown', handleKeyCombo);
+			clearInterval(pruneInterval);
+		};
+	}, {
+		onDev: () => {
+			isDev = true;
 			const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
 			console.log(`[SvelteErrorContext] Active! Press ${modLabel}+E to view captured errors`);
-
-			cleanup = () => {
-				console.error = originalConsoleError;
-				console.warn = originalConsoleWarn;
-				window.removeEventListener('error', onError);
-				window.removeEventListener('unhandledrejection', onRejection);
-				document.removeEventListener('keydown', handleKeyCombo);
-				clearInterval(pruneInterval);
-			};
-		}, 100);
+		}
 	});
 
-	onDestroy(() => cleanup?.());
+	onMount(mount.start);
+	onDestroy(() => {
+		mount.stop();
+		copyFb.reset();
+	});
 </script>
 
 <!-- Error badge indicator -->
@@ -214,52 +250,38 @@
 	</button>
 {/if}
 
-{#if isDev && showPopup && visible}
-	<div
-		class="sg-error-overlay"
-		onclick={() => (visible = false)}
-		onkeydown={(e) => e.key === 'Escape' && (visible = false)}
-		role="presentation"
+{#if isDev && showPopup}
+	<DevToolPopup
+		title="ErrorContext"
+		bind:visible
+		{colors}
+		titleColor="#ef4444"
+		{copied}
+		{copyFailed}
+		ariaLabel="SvelteErrorContext"
+		minWidth={450}
 	>
-		<div
-			class="sg-error-popup"
-			style="
-				--sg-bg: {colors.background};
-				--sg-border: {colors.border};
-				--sg-text: {colors.text};
-				--sg-accent: {colors.accent};
-			"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-label="SvelteErrorContext"
-			tabindex="-1"
-		>
-			<div class="sg-error-header">
-				<span class="sg-error-title">ErrorContext</span>
-				<div class="sg-error-filters">
-					<button
-						class="sg-error-filter"
-						class:sg-error-filter-active={filterType === 'all'}
-						onclick={() => (filterType = 'all')}
-					>All ({errors.length})</button>
-					<button
-						class="sg-error-filter"
-						class:sg-error-filter-active={filterType === 'error'}
-						onclick={() => (filterType = 'error')}
-					>🔴 ({errorCount})</button>
-					<button
-						class="sg-error-filter"
-						class:sg-error-filter-active={filterType === 'warning'}
-						onclick={() => (filterType = 'warning')}
-					>🟡 ({warningCount})</button>
-				</div>
-				{#if copied}<span class="sg-error-copied">Copied!</span>{/if}
-				{#if copyFailed}<span class="sg-error-copied-failed" style="color: #ef4444; font-size: 11px;">Copy failed</span>{/if}
-				<button class="sg-error-close" onclick={() => (visible = false)} aria-label="Close">&times;</button>
+		{#snippet headerExtra()}
+			<div class="sg-error-filters">
+				<button
+					class="sg-error-filter"
+					class:sg-error-filter-active={filterType === 'all'}
+					onclick={() => (filterType = 'all')}
+				>All ({errors.length})</button>
+				<button
+					class="sg-error-filter"
+					class:sg-error-filter-active={filterType === 'error'}
+					onclick={() => (filterType = 'error')}
+				>🔴 ({errorCount})</button>
+				<button
+					class="sg-error-filter"
+					class:sg-error-filter-active={filterType === 'warning'}
+					onclick={() => (filterType = 'warning')}
+				>🟡 ({warningCount})</button>
 			</div>
+		{/snippet}
 
-			<div class="sg-error-content">
+		<div class="sg-error-content">
 				{#if filteredErrors.length === 0}
 					<div class="sg-error-empty">
 						{errors.length === 0 ? `No errors captured (last ${bufferMinutes}min)` : 'No errors in this filter'}
@@ -290,7 +312,7 @@
 
 							{#if error.stack.length > 0}
 								<div class="sg-error-stack">
-									{#each error.stack.slice(0, 4) as frame}
+									{#each error.stack.slice(0, 4) as frame (`${frame.file}:${frame.line}:${frame.functionName}`)}
 										<div class="sg-error-frame">
 											{frame.functionName} → {shortenFramePath(frame.file)}:{frame.line}
 										</div>
@@ -299,7 +321,7 @@
 							{/if}
 
 							{#if error.sourceContext}
-								<pre class="sg-error-source">{#each error.sourceContext.lines as line}<span class={line.isCurrent ? 'sg-error-source-current' : ''}>{line.isCurrent ? '>' : ' '} {String(line.num).padStart(4)} | {line.text}
+								<pre class="sg-error-source">{#each error.sourceContext.lines as line (line.num)}<span class={line.isCurrent ? 'sg-error-source-current' : ''}>{line.isCurrent ? '>' : ' '} {String(line.num).padStart(4)} | {line.text}
 </span>{/each}</pre>
 							{/if}
 
@@ -314,22 +336,17 @@
 				{/if}
 			</div>
 
-			<div class="sg-error-footer">
-				<button
-					class="sg-error-btn"
-					onclick={() => {
-						const formatted = formatErrorsForAgent(filteredErrors, bufferMinutes);
-						registerToolOutput('ErrorContext', formatted);
-						copyToClipboard(formatted).then(ok => {
-							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
-							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
-						});
-					}}
-				>Copy for Agent</button>
-				<button class="sg-error-btn sg-error-btn-secondary" onclick={clearErrors}>Clear All</button>
-			</div>
-		</div>
-	</div>
+		{#snippet footer()}
+			<DevToolButton
+				onclick={() => {
+					const formatted = formatErrorsForAgent(filteredErrors, bufferMinutes);
+					registerToolOutput('ErrorContext', formatted);
+					copyFb.copy(formatted);
+				}}
+			>Copy for Agent</DevToolButton>
+			<DevToolButton block={false} onclick={clearErrors}>Clear All</DevToolButton>
+		{/snippet}
+	</DevToolPopup>
 {/if}
 
 <style>
@@ -362,44 +379,6 @@
 	.sg-error-badge-error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
 	.sg-error-badge-warn { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
 
-	.sg-error-overlay {
-		position: fixed;
-		inset: 0;
-		z-index: 99999;
-		background: rgba(0, 0, 0, 0.3);
-	}
-
-	.sg-error-popup {
-		position: fixed;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		background: var(--sg-bg);
-		border: 1px solid var(--sg-border);
-		border-radius: 8px;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-		min-width: 450px;
-		max-width: 700px;
-		max-height: 550px;
-		overflow: hidden;
-		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
-		font-size: 12px;
-		color: var(--sg-text);
-		display: flex;
-		flex-direction: column;
-	}
-
-	.sg-error-header {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 8px 12px;
-		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
-		border-bottom: 1px solid var(--sg-border);
-	}
-
-	.sg-error-title { color: #ef4444; font-weight: 600; }
-
 	.sg-error-filters { display: flex; gap: 4px; flex: 1; }
 
 	.sg-error-filter {
@@ -414,15 +393,6 @@
 	}
 	.sg-error-filter:hover { color: var(--sg-text); }
 	.sg-error-filter-active { border-color: var(--sg-border); color: var(--sg-text); background: rgba(255, 255, 255, 0.05); }
-
-	.sg-error-copied { color: #4ade80; font-size: 11px; }
-	.sg-error-close {
-		background: none; border: none; color: #888; cursor: pointer;
-		padding: 2px 6px; font-size: 14px; border-radius: 4px;
-	}
-	.sg-error-close:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
-
-	.sg-error-content { flex: 1; overflow-y: auto; }
 
 	.sg-error-empty {
 		padding: 24px;
@@ -483,28 +453,6 @@
 	}
 	.sg-error-cause { color: #fbbf24; margin-bottom: 4px; }
 	.sg-error-suggestion { color: #4ade80; white-space: pre-line; }
-
-	.sg-error-footer {
-		display: flex;
-		gap: 8px;
-		padding: 8px 12px;
-		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
-		border-top: 1px solid var(--sg-border);
-	}
-
-	.sg-error-btn {
-		flex: 1;
-		padding: 6px 12px;
-		background: rgba(255, 255, 255, 0.1);
-		border: 1px solid var(--sg-border);
-		border-radius: 4px;
-		color: var(--sg-text);
-		cursor: pointer;
-		font-size: 11px;
-		font-family: inherit;
-	}
-	.sg-error-btn:hover { background: rgba(255, 255, 255, 0.15); }
-	.sg-error-btn-secondary { flex: 0; }
 
 	.sg-error-source {
 		margin: 6px 0 0 20px;

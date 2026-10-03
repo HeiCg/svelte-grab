@@ -1,22 +1,21 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { SvelteStateGrabProps, ComponentStateInfo, ThemeConfig, StateSnapshot, StateDiff } from './types.js';
+	import type { SvelteStateGrabProps, ComponentStateInfo, StateSnapshot, StateDiff } from './types.js';
 	import type { SvelteElement } from './utils/shared.js';
 	import {
-		detectDevMode,
 		findSvelteElement,
 		shortenPath,
 		extractComponentName,
-		copyToClipboard,
-		checkModifier,
-		modifierKeyName,
-		getElementPreview,
-		DARK_THEME,
-		LIGHT_THEME
+		checkModifier
 	} from './utils/shared.js';
 	import { safeSerialize, inlinePreview, getTypeDescription } from './utils/serializer.js';
 	import { getInspectableState, getInspectableIds } from './utils/inspectable.js';
 	import { registerToolOutput } from './utils/unified-export.js';
+	import DevToolPopup from './ui/DevToolPopup.svelte';
+	import DevToolButton from './ui/DevToolButton.svelte';
+	import { resolveTheme } from './utils/resolve-theme.js';
+	import { createCopyFeedback } from './utils/copy-with-feedback.js';
+	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
 
 	let {
 		modifier = 'alt',
@@ -30,8 +29,7 @@
 		maxSnapshots = 5
 	}: SvelteStateGrabProps = $props();
 
-	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
-	let colors = $derived({ ...baseTheme, ...theme } as Required<ThemeConfig>);
+	let colors = $derived(resolveTheme(theme, lightTheme));
 
 	let isDev = $state(false);
 	let visible = $state(false);
@@ -41,6 +39,13 @@
 	let expandedSections = $state<Set<string>>(new Set(['props', 'attributes']));
 	let snapshots = $state<StateSnapshot[]>([]);
 	let diffs = $state<StateDiff[]>([]);
+
+	const copyFb = createCopyFeedback({
+		get copied() { return copied; },
+		set copied(v) { copied = v; },
+		get copyFailed() { return copyFailed; },
+		set copyFailed(v) { copyFailed = v; }
+	});
 
 	function toggleSection(section: string) {
 		const next = new Set(expandedSections);
@@ -340,15 +345,7 @@
 		takeSnapshot(stateInfo);
 		const formatted = formatForAgent(stateInfo);
 		registerToolOutput('StateGrab', formatted);
-		copyToClipboard(formatted).then(ok => {
-			if (ok) {
-				copied = true;
-				setTimeout(() => (copied = false), 1500);
-			} else {
-				copyFailed = true;
-				setTimeout(() => (copyFailed = false), 3000);
-			}
-		});
+		copyFb.copy(formatted);
 
 		console.log('[SvelteStateGrab] Component state captured:\n' + formatted);
 
@@ -363,78 +360,58 @@
 		}
 	}
 
-	let cleanup: (() => void) | null = null;
+	const mount = useDevtoolMount(() => forceEnable, () => {
+		document.addEventListener('click', handleClick, true);
+		document.addEventListener('keydown', handleKeydown);
 
-	onMount(() => {
-		setTimeout(() => {
-			isDev = detectDevMode(forceEnable);
-			if (!isDev) return;
-
+		return () => {
+			document.removeEventListener('click', handleClick, true);
+			document.removeEventListener('keydown', handleKeydown);
+		};
+	}, {
+		onDev: () => {
+			isDev = true;
 			const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
 			const secLabel = secondaryModifier.charAt(0).toUpperCase() + secondaryModifier.slice(1);
 			console.log(`[SvelteStateGrab] Active! Use ${modLabel}+${secLabel}+Click to inspect state`);
-
-			document.addEventListener('click', handleClick, true);
-			document.addEventListener('keydown', handleKeydown);
-
-			cleanup = () => {
-				document.removeEventListener('click', handleClick, true);
-				document.removeEventListener('keydown', handleKeydown);
-			};
-		}, 100);
+		}
 	});
 
-	onDestroy(() => cleanup?.());
+	onMount(mount.start);
+	onDestroy(() => {
+		mount.stop();
+		copyFb.reset();
+	});
 </script>
 
-{#if isDev && showPopup && visible && stateInfo}
-	<div
-		class="sg-state-overlay"
-		onclick={() => (visible = false)}
-		onkeydown={(e) => e.key === 'Escape' && (visible = false)}
-		role="presentation"
+{#if isDev && showPopup && stateInfo}
+	<DevToolPopup
+		title="StateGrab"
+		bind:visible
+		{colors}
+		titleColor="#a78bfa"
+		{copied}
+		{copyFailed}
+		ariaLabel="SvelteStateGrab inspector"
 	>
-		<div
-			class="sg-state-popup"
-			style="
-				--sg-bg: {colors.background};
-				--sg-border: {colors.border};
-				--sg-text: {colors.text};
-				--sg-accent: {colors.accent};
-			"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-label="SvelteStateGrab inspector"
-			tabindex="-1"
-		>
-			<div class="sg-state-header">
-				<span class="sg-state-title">StateGrab</span>
-				{#if stateInfo.componentName}
-					<span class="sg-state-component">&lt;{stateInfo.componentName}&gt;</span>
-				{/if}
-				{#if copied}
-					<span class="sg-state-copied">Copied!</span>
-				{/if}
-				{#if copyFailed}
-					<span class="sg-state-copied-failed" style="color: #ef4444; font-size: 11px;">Copy failed</span>
-				{/if}
-				<button class="sg-state-close" onclick={() => (visible = false)} aria-label="Close">&times;</button>
-			</div>
+		{#snippet headerExtra()}
+			{#if stateInfo?.componentName}
+				<span class="sg-state-component">&lt;{stateInfo.componentName}&gt;</span>
+			{/if}
+		{/snippet}
 
-			<div class="sg-state-content">
-				<div class="sg-state-location">
-					{stateInfo.file}:{stateInfo.line}
-				</div>
+		<div class="sg-state-location">
+			{stateInfo.file}:{stateInfo.line}
+		</div>
 
-				{#if Object.keys(stateInfo.props).length > 0}
+		{#if Object.keys(stateInfo.props).length > 0}
 					<button class="sg-state-section" onclick={() => toggleSection('props')}>
 						<span class="sg-state-section-icon">{expandedSections.has('props') ? '▼' : '▶'}</span>
 						<span>📥 Props ({Object.keys(stateInfo.props).length})</span>
 					</button>
 					{#if expandedSections.has('props')}
 						<div class="sg-state-entries">
-							{#each Object.entries(stateInfo.props) as [key, value]}
+							{#each Object.entries(stateInfo.props) as [key, value] (key)}
 								<div class="sg-state-entry">
 									<span class="sg-state-key">{key}</span>
 									<span class="sg-state-type">{getTypeDescription(value)}</span>
@@ -452,7 +429,7 @@
 					</button>
 					{#if expandedSections.has('attributes')}
 						<div class="sg-state-entries">
-							{#each Object.entries(stateInfo.attributes) as [key, value]}
+							{#each Object.entries(stateInfo.attributes) as [key, value] (key)}
 								<div class="sg-state-entry">
 									<span class="sg-state-key">{key}</span>
 									<span class="sg-state-value">"{value}"</span>
@@ -469,7 +446,7 @@
 					</button>
 					{#if expandedSections.has('data')}
 						<div class="sg-state-entries">
-							{#each Object.entries(stateInfo.dataAttributes) as [key, value]}
+							{#each Object.entries(stateInfo.dataAttributes) as [key, value] (key)}
 								<div class="sg-state-entry">
 									<span class="sg-state-key">{key}</span>
 									<span class="sg-state-value">"{value}"</span>
@@ -486,7 +463,7 @@
 					</button>
 					{#if expandedSections.has('bound')}
 						<div class="sg-state-entries">
-							{#each Object.entries(stateInfo.boundValues) as [key, value]}
+							{#each Object.entries(stateInfo.boundValues) as [key, value] (key)}
 								<div class="sg-state-entry">
 									<span class="sg-state-key">{key}</span>
 									<span class="sg-state-type">{getTypeDescription(value)}</span>
@@ -504,7 +481,7 @@
 					</button>
 					{#if expandedSections.has('inspectable')}
 						<div class="sg-state-entries">
-							{#each Object.entries(stateInfo.inspectableState) as [key, value]}
+							{#each Object.entries(stateInfo.inspectableState) as [key, value] (key)}
 								<div class="sg-state-entry">
 									<span class="sg-state-key">{key}</span>
 									<span class="sg-state-type">{getTypeDescription(value)}</span>
@@ -522,7 +499,7 @@
 					</button>
 					{#if expandedSections.has('diffs')}
 						<div class="sg-state-entries">
-							{#each diffs as diff}
+							{#each diffs as diff (diff.key)}
 								<div class="sg-state-entry">
 									<span class="sg-state-key">{diff.key}</span>
 									<span class="sg-state-diff-old">{diff.oldValue === undefined ? '(new)' : inlinePreview(diff.oldValue)}</span>
@@ -541,7 +518,7 @@
 					</button>
 					{#if expandedSections.has('children')}
 						<div class="sg-state-entries">
-							{#each stateInfo.childComponents as child}
+							{#each stateInfo.childComponents as child (child.file)}
 								<div class="sg-state-entry">
 									<span class="sg-state-key">&lt;{child.name}&gt;</span>
 									<span class="sg-state-type">{child.count > 1 ? `x${child.count}` : ''}</span>
@@ -551,113 +528,37 @@
 						</div>
 					{/if}
 				{/if}
-			</div>
 
-			<div class="sg-state-footer">
-				<button
-					class="sg-state-btn"
-					onclick={() => {
-						if (stateInfo) copyToClipboard(formatForAgent(stateInfo)).then(ok => {
-							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
-							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
-						});
-					}}
-				>Copy for Agent</button>
-				<button
-					class="sg-state-btn"
-					onclick={() => {
-						if (stateInfo) copyToClipboard(safeSerialize({
-							component: stateInfo.componentName,
-							file: stateInfo.file,
-							line: stateInfo.line,
-							props: stateInfo.props,
-							attributes: stateInfo.attributes,
-							dataAttributes: stateInfo.dataAttributes,
-							boundValues: stateInfo.boundValues
-						})).then(ok => {
-							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
-							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
-						});
-					}}
-				>Copy JSON</button>
-			</div>
-		</div>
-	</div>
+		{#snippet footer()}
+			<DevToolButton
+				onclick={() => {
+					if (stateInfo) copyFb.copy(formatForAgent(stateInfo));
+				}}
+			>Copy for Agent</DevToolButton>
+			<DevToolButton
+				onclick={() => {
+					if (stateInfo) copyFb.copy(safeSerialize({
+						component: stateInfo.componentName,
+						file: stateInfo.file,
+						line: stateInfo.line,
+						props: stateInfo.props,
+						attributes: stateInfo.attributes,
+						dataAttributes: stateInfo.dataAttributes,
+						boundValues: stateInfo.boundValues
+					}, maxDepth, maxStringLength));
+				}}
+			>Copy JSON</DevToolButton>
+		{/snippet}
+	</DevToolPopup>
 {/if}
 
 <style>
-	.sg-state-overlay {
-		position: fixed;
-		inset: 0;
-		z-index: 99999;
-		background: rgba(0, 0, 0, 0.3);
-	}
-
-	.sg-state-popup {
-		position: fixed;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		background: var(--sg-bg);
-		border: 1px solid var(--sg-border);
-		border-radius: 8px;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-		min-width: 360px;
-		max-width: 600px;
-		max-height: 500px;
-		overflow: hidden;
-		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
-		font-size: 12px;
-		color: var(--sg-text);
-		display: flex;
-		flex-direction: column;
-	}
-
-	.sg-state-header {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 8px 12px;
-		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
-		border-bottom: 1px solid var(--sg-border);
-	}
-
-	.sg-state-title {
-		color: #a78bfa;
-		font-weight: 600;
-	}
-
 	.sg-state-component {
 		color: #60a5fa;
 		font-size: 11px;
 		padding: 2px 6px;
 		background: rgba(96, 165, 250, 0.1);
 		border-radius: 4px;
-		flex: 1;
-	}
-
-	.sg-state-copied {
-		color: #4ade80;
-		font-size: 11px;
-	}
-
-	.sg-state-close {
-		background: none;
-		border: none;
-		color: #888;
-		cursor: pointer;
-		padding: 2px 6px;
-		font-size: 14px;
-		border-radius: 4px;
-	}
-
-	.sg-state-close:hover {
-		color: #fff;
-		background: rgba(255, 255, 255, 0.1);
-	}
-
-	.sg-state-content {
-		overflow-y: auto;
 		flex: 1;
 	}
 
@@ -725,30 +626,6 @@
 		color: #fbbf24;
 		word-break: break-all;
 		flex: 1;
-	}
-
-	.sg-state-footer {
-		display: flex;
-		gap: 8px;
-		padding: 8px 12px;
-		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
-		border-top: 1px solid var(--sg-border);
-	}
-
-	.sg-state-btn {
-		flex: 1;
-		padding: 6px 12px;
-		background: rgba(255, 255, 255, 0.1);
-		border: 1px solid var(--sg-border);
-		border-radius: 4px;
-		color: var(--sg-text);
-		cursor: pointer;
-		font-size: 11px;
-		font-family: inherit;
-	}
-
-	.sg-state-btn:hover {
-		background: rgba(255, 255, 255, 0.15);
 	}
 
 	.sg-state-diff-old {

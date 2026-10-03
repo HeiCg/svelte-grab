@@ -1,9 +1,28 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { SvelteRenderProfilerProps, ComponentProfile, RenderBurst, ThemeConfig } from './types.js';
-	import { detectDevMode, copyToClipboard, checkModifier, shortenPath, DARK_THEME, LIGHT_THEME } from './utils/shared.js';
-	import { ProfilerTracker } from './utils/profiler-tracker.js';
+	import { copyToClipboard, checkModifier, shortenPath, DARK_THEME, LIGHT_THEME } from './utils/shared.js';
+	import { ProfilerTracker, type MutationInfo } from './utils/profiler-tracker.js';
 	import { registerToolOutput } from './utils/unified-export.js';
+	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
+	import { hideFromThirdParties } from './utils/hide-from-third-parties.js';
+	import { createOutlinePainter, type OutlinePainter } from './utils/outline-painter.js';
+	import { createFpsMeter, fpsColor, type FpsMeter } from './utils/fps-meter.js';
+	import { Z_INDEX } from './ui/tokens.js';
+
+	/**
+	 * Props beyond the published `SvelteRenderProfilerProps`, for the live overlay.
+	 * Declared here (not in types.ts) so the additive feature ships without
+	 * touching the shared type module.
+	 */
+	type LiveProfilerProps = SvelteRenderProfilerProps & {
+		/** Start with the live mutation-highlight overlay enabled. Default: false */
+		liveHighlight?: boolean;
+		/** Show a small FPS badge while profiling / live mode is active. Default: true */
+		showFps?: boolean;
+		/** Show the always-on docked control widget. Default: true */
+		showWidget?: boolean;
+	};
 
 	let {
 		modifier = 'alt',
@@ -14,8 +33,11 @@
 		lightTheme = false,
 		profileDuration = 10,
 		burstThreshold = 20,
-		burstWindow = 1000
-	}: SvelteRenderProfilerProps = $props();
+		burstWindow = 1000,
+		liveHighlight = false,
+		showFps = true,
+		showWidget = true
+	}: LiveProfilerProps = $props();
 
 	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
 	let colors = $derived({ ...baseTheme, ...theme } as Required<ThemeConfig>);
@@ -29,8 +51,52 @@
 	let duration = $state(0);
 	let countdown = $state(0);
 
+	// Live-overlay state. Seeded to false; the `liveHighlight` prop is read inside
+	// the mount closure (see below) so the reference is captured reactively there
+	// rather than only its initial value here.
+	let liveActive = $state(false);
+	let fpsValue = $state(60);
+	let fpsActive = $state(false);
+
 	let tracker: ProfilerTracker | null = null;
-	let countdownInterval: ReturnType<typeof setInterval>;
+	let painter: OutlinePainter | null = null;
+	let fpsMeter: FpsMeter | null = null;
+	let fpsInterval: ReturnType<typeof setInterval> | undefined;
+	let countdownInterval: ReturnType<typeof setInterval> | undefined;
+
+	// Widget host (for hideFromThirdParties)
+	let widgetEl: HTMLDivElement | undefined = $state();
+
+	/** Wire the tracker's live sink to the painter when live mode is on. */
+	function syncLiveSink() {
+		if (!tracker) return;
+		if (liveActive) {
+			if (!painter) painter = createOutlinePainter();
+			const onMut = (info: MutationInfo) => {
+				painter?.flash(info.rect, info.componentName, info.mutationCount);
+			};
+			tracker.setOnMutation(onMut);
+		} else {
+			tracker.setOnMutation(null);
+		}
+	}
+
+	function startFpsMeter() {
+		if (!showFps || fpsActive) return;
+		fpsMeter = createFpsMeter();
+		fpsActive = true;
+		fpsInterval = setInterval(() => {
+			if (fpsMeter) fpsValue = fpsMeter.current;
+		}, 250);
+	}
+
+	function stopFpsMeter() {
+		fpsActive = false;
+		fpsMeter?.stop();
+		fpsMeter = null;
+		clearInterval(fpsInterval);
+		fpsInterval = undefined;
+	}
 
 	function startProfiling() {
 		tracker = new ProfilerTracker(burstThreshold, burstWindow);
@@ -39,6 +105,9 @@
 		countdown = profileDuration;
 		profiles = [];
 		bursts = [];
+
+		syncLiveSink();
+		startFpsMeter();
 
 		countdownInterval = setInterval(() => {
 			countdown--;
@@ -51,13 +120,44 @@
 	function stopProfiling() {
 		if (!tracker) return;
 		clearInterval(countdownInterval);
+		countdownInterval = undefined;
 
 		tracker.stop();
+		tracker.setOnMutation(null);
 		profiles = tracker.getProfiles();
 		bursts = tracker.detectBursts();
 		duration = tracker.getDuration();
 		isProfiling = false;
 		registerToolOutput('RenderProfiler', tracker.formatForAgent());
+
+		// Stop the FPS meter unless live mode keeps it relevant.
+		if (!liveActive) stopFpsMeter();
+	}
+
+	/** Toggle the live mutation-highlight overlay independently of profiling. */
+	function toggleLive() {
+		liveActive = !liveActive;
+		if (liveActive) {
+			startFpsMeter();
+			// If not profiling, spin up a lightweight tracker just for live paint.
+			if (!isProfiling) {
+				if (!tracker) {
+					tracker = new ProfilerTracker(burstThreshold, burstWindow);
+					tracker.start();
+				}
+			}
+			syncLiveSink();
+		} else {
+			tracker?.setOnMutation(null);
+			painter?.destroy();
+			painter = null;
+			// If we spun up a tracker solely for live mode, tear it down.
+			if (!isProfiling && tracker) {
+				tracker.stop();
+				tracker = null;
+			}
+			if (!isProfiling) stopFpsMeter();
+		}
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -87,34 +187,112 @@
 		return '#4ade80';
 	}
 
-	let cleanup: (() => void) | null = null;
+	const mount = useDevtoolMount(() => forceEnable, () => {
+		const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
+		console.log(`[SvelteRenderProfiler] Active! Press ${modLabel}+P to start profiling`);
 
-	onMount(() => {
-		setTimeout(() => {
-			isDev = detectDevMode(forceEnable);
-			if (!isDev) return;
+		document.addEventListener('keydown', handleKeydown);
 
-			const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
-			console.log(`[SvelteRenderProfiler] Active! Press ${modLabel}+P to start profiling`);
+		// If live highlighting was requested up-front, enable it now. `liveActive`
+		// starts false; toggleLive flips it on and wires everything.
+		if (liveHighlight) {
+			toggleLive();
+		}
 
-			document.addEventListener('keydown', handleKeydown);
-			cleanup = () => {
-				document.removeEventListener('keydown', handleKeydown);
-				tracker?.stop();
-				clearInterval(countdownInterval);
-			};
-		}, 100);
-	});
+		if (widgetEl) hideFromThirdParties(widgetEl);
+
+		return () => {
+			document.removeEventListener('keydown', handleKeydown);
+			tracker?.stop();
+			tracker = null;
+			painter?.destroy();
+			painter = null;
+			stopFpsMeter();
+			clearInterval(countdownInterval);
+			countdownInterval = undefined;
+		};
+	}, { onDev: () => { isDev = true; } });
+
+	onMount(mount.start);
 
 	onDestroy(() => {
 		clearInterval(countdownInterval);
-		cleanup?.();
+		stopFpsMeter();
+		painter?.destroy();
+		painter = null;
+		tracker?.stop();
+		tracker = null;
+		mount.stop();
+	});
+
+	// Re-apply redaction once the widget element exists in dev.
+	$effect(() => {
+		if (widgetEl) hideFromThirdParties(widgetEl);
 	});
 </script>
+
+{#if isDev && showWidget}
+	<!-- Always-on docked control widget -->
+	<div
+		bind:this={widgetEl}
+		class="sg-prof-widget"
+		style="
+			--sg-bg: {colors.background};
+			--sg-border: {colors.border};
+			--sg-text: {colors.text};
+			--sg-accent: {colors.accent};
+			--sg-z: {Z_INDEX.floating};
+		"
+		role="group"
+		aria-label="Render profiler controls"
+	>
+		<span class="sg-prof-widget-title">Profiler</span>
+
+		<button
+			class="sg-prof-widget-btn"
+			class:sg-prof-widget-btn-active={isProfiling}
+			onclick={() => {
+				if (isProfiling) {
+					stopProfiling();
+				} else {
+					visible = true;
+					startProfiling();
+				}
+			}}
+			title={isProfiling ? 'Stop profiling' : 'Start profiling'}
+		>
+			{#if isProfiling}■ {countdown}s{:else}● Rec{/if}
+		</button>
+
+		<button
+			class="sg-prof-widget-btn"
+			class:sg-prof-widget-btn-active={liveActive}
+			onclick={toggleLive}
+			title="Toggle live DOM-update highlighting"
+		>
+			Live {liveActive ? 'on' : 'off'}
+		</button>
+
+		{#if showFps && fpsActive}
+			<span class="sg-prof-fps" style="color: {fpsColor(fpsValue)}" title="Frames per second">
+				{fpsValue}<span class="sg-prof-fps-unit">FPS</span>
+			</span>
+		{/if}
+
+		{#if profiles.length > 0 && !isProfiling}
+			<button
+				class="sg-prof-widget-btn"
+				onclick={() => { visible = true; }}
+				title="Show last results"
+			>Results</button>
+		{/if}
+	</div>
+{/if}
 
 {#if isDev && showPopup && visible}
 	<div
 		class="sg-prof-overlay"
+		style="z-index: {Z_INDEX.overlay};"
 		onclick={() => { if (!isProfiling) visible = false; }}
 		onkeydown={(e) => e.key === 'Escape' && !isProfiling && (visible = false)}
 		role="presentation"
@@ -126,6 +304,7 @@
 				--sg-border: {colors.border};
 				--sg-text: {colors.text};
 				--sg-accent: {colors.accent};
+				--sg-z: {Z_INDEX.popup};
 			"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
@@ -140,6 +319,11 @@
 				{:else if profiles.length > 0}
 					<span class="sg-prof-duration">{duration.toFixed(1)}s captured</span>
 				{/if}
+				{#if showFps && fpsActive}
+					<span class="sg-prof-fps sg-prof-fps-inline" style="color: {fpsColor(fpsValue)}">
+						{fpsValue}<span class="sg-prof-fps-unit">FPS</span>
+					</span>
+				{/if}
 				{#if copied}<span class="sg-prof-copied">Copied!</span>{/if}
 				<button class="sg-prof-close" onclick={() => { if (!isProfiling) visible = false; }} aria-label="Close">&times;</button>
 			</div>
@@ -150,26 +334,34 @@
 						<div class="sg-prof-pulse"></div>
 						<p>Profiling in progress...</p>
 						<p class="sg-prof-hint">Interact with the page normally. The profiler is monitoring DOM mutations.</p>
+						<label class="sg-prof-live-row">
+							<input type="checkbox" checked={liveActive} onchange={toggleLive} />
+							Live highlight mutating components
+						</label>
 						<button class="sg-prof-btn sg-prof-btn-stop" onclick={stopProfiling}>
 							Stop ({countdown}s remaining)
 						</button>
 					</div>
 				{:else if profiles.length === 0}
 					<div class="sg-prof-empty">
-						<p>Press "Start" to begin recording mutations.</p>
+						<p>Press "Start" to begin recording DOM updates.</p>
 						<p class="sg-prof-hint">The profiler monitors DOM changes and correlates them with Svelte components.</p>
+						<label class="sg-prof-live-row">
+							<input type="checkbox" checked={liveActive} onchange={toggleLive} />
+							Live highlight mutating components
+						</label>
 					</div>
 				{:else}
 					<!-- Hot components -->
 					{@const hot = profiles.filter(p => p.renderCount > 10 || p.burstCount > 0)}
 					{#if hot.length > 0}
 						<div class="sg-prof-section-title">🔴 HOT COMPONENTS</div>
-						{#each hot as profile}
+						{#each hot as profile (profile.file)}
 							<div class="sg-prof-row">
 								<div class="sg-prof-bar" style="width: {Math.min(100, (profile.renderCount / (profiles[0]?.renderCount || 1)) * 100)}%; background: {getHeatColor(profile.renderCount)};"></div>
 								<div class="sg-prof-row-info">
 									<span class="sg-prof-name">&lt;{profile.name}&gt;</span>
-									<span class="sg-prof-count" style="color: {getHeatColor(profile.renderCount)}">{profile.renderCount}</span>
+									<span class="sg-prof-count" style="color: {getHeatColor(profile.renderCount)}" title="DOM updates">{profile.renderCount} <span class="sg-prof-count-unit">DOM updates</span></span>
 									<span class="sg-prof-file">{shortenPath(profile.file)}</span>
 									{#if profile.burstCount > 0}
 										<span class="sg-prof-burst-badge">⚠️ {profile.burstCount} burst{profile.burstCount > 1 ? 's' : ''}</span>
@@ -183,11 +375,11 @@
 					{@const healthy = profiles.filter(p => p.renderCount <= 10 && p.burstCount === 0)}
 					{#if healthy.length > 0}
 						<div class="sg-prof-section-title">🟢 HEALTHY COMPONENTS</div>
-						{#each healthy as profile}
+						{#each healthy as profile (profile.file)}
 							<div class="sg-prof-row sg-prof-row-healthy">
 								<div class="sg-prof-row-info">
 									<span class="sg-prof-name">&lt;{profile.name}&gt;</span>
-									<span class="sg-prof-count" style="color: #4ade80">{profile.renderCount}</span>
+									<span class="sg-prof-count" style="color: #4ade80" title="DOM updates">{profile.renderCount} <span class="sg-prof-count-unit">DOM updates</span></span>
 									<span class="sg-prof-file">{shortenPath(profile.file)}</span>
 								</div>
 							</div>
@@ -197,10 +389,10 @@
 					<!-- Bursts -->
 					{#if bursts.length > 0}
 						<div class="sg-prof-section-title">📊 DETECTED BURSTS</div>
-						{#each bursts as burst}
+						{#each bursts as burst (`${burst.file}:${burst.startTime}`)}
 							<div class="sg-prof-burst">
 								<span class="sg-prof-burst-name">{burst.componentName}</span>
-								<span class="sg-prof-burst-info">{burst.count} renders in {burst.duration.toFixed(0)}ms</span>
+								<span class="sg-prof-burst-info">{burst.count} DOM updates in {burst.duration.toFixed(0)}ms</span>
 							</div>
 						{/each}
 					{/if}
@@ -230,11 +422,12 @@
 
 <style>
 	.sg-prof-overlay {
-		position: fixed; inset: 0; z-index: 99999; background: rgba(0, 0, 0, 0.3);
+		position: fixed; inset: 0; background: rgba(0, 0, 0, 0.3);
 	}
 
 	.sg-prof-popup {
 		position: fixed; top: 50%; left: 50%;
+		z-index: var(--sg-z);
 		transform: translate(-50%, -50%);
 		background: var(--sg-bg); border: 1px solid var(--sg-border);
 		border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -286,6 +479,12 @@
 
 	.sg-prof-empty { padding: 24px; text-align: center; color: #888; }
 
+	.sg-prof-live-row {
+		display: inline-flex; align-items: center; gap: 6px;
+		margin-top: 14px; font-size: 11px; color: var(--sg-text);
+		cursor: pointer;
+	}
+
 	.sg-prof-section-title {
 		padding: 8px 12px; font-size: 10px; font-weight: 600;
 		text-transform: uppercase; color: #888; letter-spacing: 0.5px;
@@ -310,7 +509,8 @@
 	.sg-prof-row-healthy { opacity: 0.7; }
 
 	.sg-prof-name { color: #60a5fa; font-weight: 500; min-width: 100px; }
-	.sg-prof-count { font-weight: 700; min-width: 40px; text-align: right; }
+	.sg-prof-count { font-weight: 700; min-width: 40px; text-align: right; white-space: nowrap; }
+	.sg-prof-count-unit { font-weight: 400; font-size: 9px; opacity: 0.7; }
 	.sg-prof-file { color: #888; font-size: 10px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 	.sg-prof-burst-badge {
@@ -351,4 +551,43 @@
 		margin-top: 12px;
 	}
 	.sg-prof-btn-stop:hover { background: rgba(239, 68, 68, 0.3); }
+
+	/* FPS badge */
+	.sg-prof-fps {
+		font-weight: 700; font-size: 11px;
+		display: inline-flex; align-items: baseline; gap: 3px;
+	}
+	.sg-prof-fps-inline { margin-left: auto; }
+	.sg-prof-fps-unit { font-size: 8px; opacity: 0.6; color: inherit; }
+
+	/* Docked control widget */
+	.sg-prof-widget {
+		position: fixed; bottom: 16px; right: 16px;
+		z-index: var(--sg-z);
+		display: flex; align-items: center; gap: 6px;
+		padding: 6px 8px;
+		background: var(--sg-bg); border: 1px solid var(--sg-border);
+		border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+		font-size: 11px; color: var(--sg-text);
+		user-select: none;
+	}
+
+	.sg-prof-widget-title {
+		color: #f97316; font-weight: 600; font-size: 10px;
+		text-transform: uppercase; letter-spacing: 0.5px;
+	}
+
+	.sg-prof-widget-btn {
+		padding: 3px 8px;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid var(--sg-border);
+		border-radius: 4px; color: var(--sg-text); cursor: pointer;
+		font-size: 10px; font-family: inherit; white-space: nowrap;
+	}
+	.sg-prof-widget-btn:hover { background: rgba(255, 255, 255, 0.16); }
+	.sg-prof-widget-btn-active {
+		background: rgba(249, 115, 22, 0.22);
+		border-color: #f97316; color: #f97316;
+	}
 </style>

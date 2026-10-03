@@ -15,7 +15,7 @@
 	 * - SvelteRenderProfiler (Alt+P for render profiling)
 	 */
 	import { onMount, onDestroy } from 'svelte';
-	import type { SvelteDevKitProps, DevKitTool, ThemeConfig } from './types.js';
+	import type { SvelteDevKitProps, DevKitTool } from './types.js';
 	// All tool components are imported here, but only mounted when enabled via
 	// {#if isEnabled('tool')}. Disabled tools are never mounted, so their event
 	// listeners and observers are never registered. The import/parse cost is
@@ -28,7 +28,10 @@
 	import SvelteErrorContext from './SvelteErrorContext.svelte';
 	import SvelteRenderProfiler from './SvelteRenderProfiler.svelte';
 	import { formatUnifiedExport } from './utils/unified-export.js';
-	import { copyToClipboard, detectDevMode, checkModifier, DARK_THEME, LIGHT_THEME } from './utils/shared.js';
+	import { copyToClipboard, checkModifier } from './utils/shared.js';
+	import DevToolPopup from './ui/DevToolPopup.svelte';
+	import { resolveTheme } from './utils/resolve-theme.js';
+	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
 
 	let {
 		modifier = 'alt',
@@ -79,8 +82,7 @@
 		includeSubtree = true
 	}: SvelteDevKitProps = $props();
 
-	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
-	let colors = $derived({ ...baseTheme, ...theme } as Required<ThemeConfig>);
+	let colors = $derived(resolveTheme(theme, lightTheme));
 
 	function isEnabled(tool: DevKitTool): boolean {
 		return enabledTools.includes(tool);
@@ -88,7 +90,6 @@
 
 	let isDev = $state(false);
 	let showHelp = $state(false);
-	let copyAllCleanup: (() => void) | null = null;
 
 	let modLabel = $derived(modifier.charAt(0).toUpperCase() + modifier.slice(1));
 
@@ -110,43 +111,42 @@
 		return list;
 	});
 
-	onMount(() => {
-		setTimeout(() => {
-			isDev = detectDevMode(forceEnable);
-			if (!isDev) return;
+	function handleDevKitKeys(event: KeyboardEvent) {
+		if (!checkModifier(event, modifier)) return;
 
-			function handleDevKitKeys(event: KeyboardEvent) {
-				if (!checkModifier(event, modifier)) return;
-
-				// Alt+Shift+C: Copy all context
-				if (event.shiftKey && (event.key === 'c' || event.key === 'C')) {
-					event.preventDefault();
-					const unified = formatUnifiedExport();
-					copyToClipboard(unified).then(ok => {
-						if (ok) {
-							console.log('[SvelteDevKit] All context copied to clipboard');
-						}
-					});
-					console.log('[SvelteDevKit] Unified export:\n' + unified);
-					return;
+		// Alt+Shift+C: Copy all context
+		if (event.shiftKey && (event.key === 'c' || event.key === 'C')) {
+			event.preventDefault();
+			const unified = formatUnifiedExport();
+			copyToClipboard(unified).then(ok => {
+				if (ok) {
+					console.log('[SvelteDevKit] All context copied to clipboard');
 				}
+			});
+			console.log('[SvelteDevKit] Unified export:\n' + unified);
+			return;
+		}
 
-				// Alt+? or Alt+/: Toggle help overlay
-				if (event.key === '?' || event.key === '/') {
-					event.preventDefault();
-					showHelp = !showHelp;
-					return;
-				}
-			}
+		// Alt+? or Alt+/: Toggle help overlay
+		if (event.key === '?' || event.key === '/') {
+			event.preventDefault();
+			showHelp = !showHelp;
+			return;
+		}
+	}
 
-			document.addEventListener('keydown', handleDevKitKeys);
-			copyAllCleanup = () => document.removeEventListener('keydown', handleDevKitKeys);
-
+	const mount = useDevtoolMount(() => forceEnable, () => {
+		document.addEventListener('keydown', handleDevKitKeys);
+		return () => document.removeEventListener('keydown', handleDevKitKeys);
+	}, {
+		onDev: () => {
+			isDev = true;
 			console.log(`[SvelteDevKit] ${modLabel}+Shift+C to copy all | ${modLabel}+? for help`);
-		}, 100);
+		}
 	});
 
-	onDestroy(() => copyAllCleanup?.());
+	onMount(mount.start);
+	onDestroy(mount.stop);
 </script>
 
 {#if isEnabled('grab')}
@@ -256,87 +256,40 @@
 	/>
 {/if}
 
-{#if isDev && showHelp}
-	<div
-		class="sg-help-overlay"
-		onclick={() => (showHelp = false)}
-		onkeydown={(e) => e.key === 'Escape' && (showHelp = false)}
-		role="presentation"
+{#if isDev}
+	<DevToolPopup
+		title="SvelteDevKit Shortcuts"
+		bind:visible={showHelp}
+		{colors}
+		ariaLabel="SvelteDevKit Keyboard Shortcuts"
+		minWidth={340}
 	>
-		<div
-			class="sg-help-popup"
-			style="
-				--sg-bg: {colors.background};
-				--sg-border: {colors.border};
-				--sg-text: {colors.text};
-				--sg-accent: {colors.accent};
-			"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-label="SvelteDevKit Keyboard Shortcuts"
-			tabindex="-1"
-		>
-			<div class="sg-help-header">
-				<span class="sg-help-title">SvelteDevKit Shortcuts</span>
-				<button class="sg-help-close" onclick={() => (showHelp = false)} aria-label="Close">&times;</button>
-			</div>
-			<div class="sg-help-content">
-				<table class="sg-help-table">
-					<thead>
-						<tr>
-							<th class="sg-help-th">Shortcut</th>
-							<th class="sg-help-th">Tool</th>
+		<div class="sg-help-content">
+			<table class="sg-help-table">
+				<thead>
+					<tr>
+						<th class="sg-help-th">Shortcut</th>
+						<th class="sg-help-th">Tool</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each shortcuts as shortcut (shortcut.keys)}
+						<tr class="sg-help-row">
+							<td class="sg-help-keys"><kbd>{shortcut.keys}</kbd></td>
+							<td class="sg-help-desc">{shortcut.description}</td>
 						</tr>
-					</thead>
-					<tbody>
-						{#each shortcuts as shortcut}
-							<tr class="sg-help-row">
-								<td class="sg-help-keys"><kbd>{shortcut.keys}</kbd></td>
-								<td class="sg-help-desc">{shortcut.description}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-			<div class="sg-help-footer">
-				Press {modLabel}+? to close
-			</div>
+					{/each}
+				</tbody>
+			</table>
 		</div>
-	</div>
+
+		{#snippet footer()}
+			<span class="sg-help-footer-text">Press {modLabel}+? to close</span>
+		{/snippet}
+	</DevToolPopup>
 {/if}
 
 <style>
-	.sg-help-overlay {
-		position: fixed; inset: 0; z-index: 99999; background: rgba(0, 0, 0, 0.3);
-	}
-
-	.sg-help-popup {
-		position: fixed; top: 50%; left: 50%;
-		transform: translate(-50%, -50%);
-		background: var(--sg-bg); border: 1px solid var(--sg-border);
-		border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-		min-width: 340px; max-width: 500px;
-		overflow: hidden;
-		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
-		font-size: 12px; color: var(--sg-text);
-		display: flex; flex-direction: column;
-	}
-
-	.sg-help-header {
-		display: flex; align-items: center; gap: 8px; padding: 10px 14px;
-		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
-		border-bottom: 1px solid var(--sg-border);
-	}
-
-	.sg-help-title { color: var(--sg-accent); font-weight: 600; flex: 1; }
-
-	.sg-help-close {
-		background: none; border: none; color: #888; cursor: pointer;
-		padding: 2px 6px; font-size: 14px; border-radius: 4px;
-	}
-	.sg-help-close:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
-
 	.sg-help-content { padding: 8px 14px; }
 
 	.sg-help-table { width: 100%; border-collapse: collapse; }
@@ -350,9 +303,7 @@
 	}
 	.sg-help-desc { color: #ccc; padding-left: 12px; }
 
-	.sg-help-footer {
-		padding: 8px 14px; text-align: center; color: #888; font-size: 10px;
-		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
-		border-top: 1px solid var(--sg-border);
+	.sg-help-footer-text {
+		flex: 1; text-align: center; color: #888; font-size: 10px;
 	}
 </style>

@@ -25,7 +25,7 @@ export function safeSerialize(value: unknown, maxDepth = 3, maxStringLength = 20
 		if (type === 'number' || type === 'boolean') return val;
 
 		if (type === 'function') {
-			const fn = val as Function;
+			const fn = val as (...args: unknown[]) => unknown;
 			return `[Function: ${fn.name || 'anonymous'}]`;
 		}
 
@@ -108,7 +108,7 @@ export function getTypeDescription(value: unknown): string {
 	if (value instanceof RegExp) return 'RegExp';
 	if (value instanceof Error) return 'Error';
 	if (value instanceof HTMLElement) return `Element<${value.tagName.toLowerCase()}>`;
-	if (typeof value === 'function') return `Function(${(value as Function).name || 'anonymous'})`;
+	if (typeof value === 'function') return `Function(${(value as (...args: unknown[]) => unknown).name || 'anonymous'})`;
 	if (typeof value === 'object') return `Object(${Object.keys(value as object).length} keys)`;
 	return typeof value;
 }
@@ -124,7 +124,7 @@ export function inlinePreview(value: unknown, maxLen = 60): string {
 		return `"${truncated}"`;
 	}
 	if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-	if (typeof value === 'function') return `[Function: ${(value as Function).name || 'anonymous'}]`;
+	if (typeof value === 'function') return `[Function: ${(value as (...args: unknown[]) => unknown).name || 'anonymous'}]`;
 	if (Array.isArray(value)) return `[...] (${value.length} items)`;
 	if (typeof value === 'object') {
 		const keys = Object.keys(value);

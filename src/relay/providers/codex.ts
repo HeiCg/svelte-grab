@@ -1,4 +1,5 @@
 import type { AgentProvider, AgentProviderCallbacks } from './base.js';
+import { setBoundedSession } from './base.js';
 
 /**
  * OpenAI Codex agent provider using @openai/codex-sdk.
@@ -53,9 +54,9 @@ export class CodexProvider implements AgentProvider {
 
 			const fullPrompt = `${contextBlock}${context.prompt}`;
 
-			// Save prompt to session history
+			// Save prompt to session history (bounded — evicts oldest session)
 			if (!this.sessionHistory.has(sessionId)) {
-				this.sessionHistory.set(sessionId, { prompts: [], results: [] });
+				setBoundedSession(this.sessionHistory, sessionId, { prompts: [], results: [] });
 			}
 			const history = this.sessionHistory.get(sessionId)!;
 			history.prompts.push(fullPrompt);

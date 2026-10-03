@@ -3,3 +3,13 @@ dist/
 .svelte-kit/
 *.log
 .DS_Store
+
+# Playwright e2e artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Demo playground
+examples/playground/node_modules/
+examples/playground/dist/
