@@ -821,8 +821,8 @@ async function startHttpListener(preferredPort: number): Promise<{ close: () => 
 		// stderr: stdout belongs to the stdio transport in sidecar mode.
 		console.error(
 			`[svelte-grab mcp] Port ${preferredPort} was in use, using ${port} instead. ` +
-				`The page must use mcpPort=${port} (e.g. <SvelteGrab mcpPort={${port}} />), ` +
-				`otherwise it keeps calling ${preferredPort} and may reach another server.`
+				`The page finds it by probing GET /health on ${preferredPort}-${lastPort}; ` +
+				`pass mcpPort=${port} (e.g. <SvelteGrab mcpPort={${port}} />) to skip the probe.`
 		);
 	}
 

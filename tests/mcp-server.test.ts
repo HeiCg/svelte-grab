@@ -183,7 +183,7 @@ describe('MCP port fallback', () => {
 
 			const logged = errorSpy.mock.calls.map((c) => c.join(' ')).join('\n');
 			expect(logged).toContain(`Port ${busy} was in use, using ${started.port} instead`);
-			expect(logged).toContain(`page must use mcpPort=${started.port}`);
+			expect(logged).toContain(`pass mcpPort=${started.port}`);
 
 			const r = await send(started.port, 'GET', '/health', { auth: false });
 			expect(r.json).toMatchObject({

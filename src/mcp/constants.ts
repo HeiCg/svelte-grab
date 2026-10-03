@@ -11,11 +11,11 @@ export const MCP_SERVICE_ID = 'svelte-grab-mcp';
 /**
  * Number of ports the server tries, starting at the requested one, when it is
  * busy. With the default port the server ends up somewhere in 4723-4732.
+ * The page probes `GET /health` across the same range and uses the first port
+ * whose `service` is MCP_SERVICE_ID (src/lib/runtime/server-probe.ts).
  *
- * TODO(page probe): the page still calls `mcpPort` (default 4723) directly. It
- * should probe `GET /health` across this range and use the first port whose
- * `service` is MCP_SERVICE_ID. Until then a fallback port has to be passed to
- * the page as `mcpPort`.
+ * The page's copy of these values is src/lib/runtime/mcp-constants.ts;
+ * tests/mcp-constants.test.ts keeps the two in sync.
  */
 export const MCP_PORT_RANGE_SIZE = 10;
 
