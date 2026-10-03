@@ -65,6 +65,7 @@
     "dev:demo": "npm --prefix examples/playground run dev",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "prepublishOnly": "npm run check && npm run build && npm run test:run"
   },
   "engines": {

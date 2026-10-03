@@ -35,7 +35,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
+
+      - name: Format
+        run: npm run format:check
 
   e2e:
     name: E2E (Playwright)

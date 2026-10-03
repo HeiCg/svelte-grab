@@ -5,3 +5,8 @@ package-lock.json
 CHANGELOG.md
 *.mp4
 .changeset/
+# audit fixtures: tests assert exact line/column positions
+tests/fixtures/
+# generated
+packages/sv-addon/src/skills.generated.ts
+packages/*/dist/
