@@ -13,6 +13,7 @@
 	import AsyncFixture from './components/fixtures/AsyncFixture.svelte';
 	import FadeToggle from './components/fixtures/FadeToggle.svelte';
 	import FixtureForm from './components/fixtures/FixtureForm.svelte';
+	import OverflowFixture from './components/fixtures/OverflowFixture.svelte';
 
 	const items = ['Apples', 'Bananas', 'Cherries', 'Dates'];
 
@@ -113,6 +114,8 @@
 		<Section title="Form" testid="fx-form-section">
 			<FixtureForm />
 		</Section>
+
+		<Section title="Overflow" testid="fx-overflow-section"><OverflowFixture /></Section>
 	</section>
 </main>
 
