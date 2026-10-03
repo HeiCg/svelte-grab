@@ -13,3 +13,6 @@ playwright/.cache/
 # Demo playground
 examples/playground/node_modules/
 examples/playground/dist/
+
+# Claude Code agent worktrees
+.claude/worktrees/
