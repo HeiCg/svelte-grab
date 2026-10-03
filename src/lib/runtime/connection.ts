@@ -270,7 +270,11 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 				if (stopped || !msg || msg.tabId !== tabId) return;
 				if (msg.type === 'ping' && msg.from !== instanceId) {
 					// Someone started with our id: tell them, they regenerate.
-					tabChannel?.postMessage({ type: 'pong', tabId, to: msg.from } satisfies TabChannelMessage);
+					tabChannel?.postMessage({
+						type: 'pong',
+						tabId,
+						to: msg.from
+					} satisfies TabChannelMessage);
 				} else if (msg.type === 'pong' && msg.to === instanceId) {
 					tabId = regenerateRuntimeTabId();
 					sendHello();

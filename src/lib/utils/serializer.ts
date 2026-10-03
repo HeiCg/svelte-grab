@@ -55,17 +55,17 @@ export function safeSerialize(value: unknown, maxDepth = 3, maxStringLength = 20
 		if (val instanceof Set) {
 			if (seen.has(val)) return '[Circular Set]';
 			seen.add(val);
-			return { '[Set]': [...val].map(v => serialize(v, depth + 1)) };
+			return { '[Set]': [...val].map((v) => serialize(v, depth + 1)) };
 		}
 
 		if (Array.isArray(val)) {
 			if (seen.has(val)) return '[Circular Array]';
 			seen.add(val);
 			if (val.length > 20) {
-				const first = val.slice(0, 10).map(v => serialize(v, depth + 1));
+				const first = val.slice(0, 10).map((v) => serialize(v, depth + 1));
 				return [...first, `... (${val.length - 10} more items)`];
 			}
-			return val.map(v => serialize(v, depth + 1));
+			return val.map((v) => serialize(v, depth + 1));
 		}
 
 		if (type === 'object') {
@@ -108,7 +108,8 @@ export function getTypeDescription(value: unknown): string {
 	if (value instanceof RegExp) return 'RegExp';
 	if (value instanceof Error) return 'Error';
 	if (value instanceof HTMLElement) return `Element<${value.tagName.toLowerCase()}>`;
-	if (typeof value === 'function') return `Function(${(value as (...args: unknown[]) => unknown).name || 'anonymous'})`;
+	if (typeof value === 'function')
+		return `Function(${(value as (...args: unknown[]) => unknown).name || 'anonymous'})`;
 	if (typeof value === 'object') return `Object(${Object.keys(value as object).length} keys)`;
 	return typeof value;
 }
@@ -124,7 +125,8 @@ export function inlinePreview(value: unknown, maxLen = 60): string {
 		return `"${truncated}"`;
 	}
 	if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-	if (typeof value === 'function') return `[Function: ${(value as (...args: unknown[]) => unknown).name || 'anonymous'}]`;
+	if (typeof value === 'function')
+		return `[Function: ${(value as (...args: unknown[]) => unknown).name || 'anonymous'}]`;
 	if (Array.isArray(value)) return `[...] (${value.length} items)`;
 	if (typeof value === 'object') {
 		const keys = Object.keys(value);

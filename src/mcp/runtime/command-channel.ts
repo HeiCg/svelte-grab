@@ -17,7 +17,8 @@ export const MAX_COMMAND_TIMEOUT_MS = 60_000;
 /** Cap on in-flight commands (bounds memory); new commands beyond it are rejected. */
 export const MAX_PENDING_COMMANDS = 100;
 
-export const NO_TAB_MESSAGE = 'No browser tab connected. Open the app in dev with <SvelteGrab/> mounted.';
+export const NO_TAB_MESSAGE =
+	'No browser tab connected. Open the app in dev with <SvelteGrab/> mounted.';
 
 /** SSE data of `event: runtime-command`. */
 export interface RuntimeCommandMessage {
@@ -85,7 +86,11 @@ export class CommandChannel {
 	}
 
 	/** Send a tool command to a tab (explicit `tabId` or the active tab). */
-	send(tool: string, args: Record<string, unknown>, options: SendOptions = {}): Promise<RuntimeResultData> {
+	send(
+		tool: string,
+		args: Record<string, unknown>,
+		options: SendOptions = {}
+	): Promise<RuntimeResultData> {
 		let target;
 		if (options.tabId !== undefined) {
 			target = this.registry.get(options.tabId);

@@ -25,7 +25,12 @@ function entry(
 	return e;
 }
 
-function attach(el: HTMLElement, file: string, line: number, parent: DevStackEntry | null): HTMLElement {
+function attach(
+	el: HTMLElement,
+	file: string,
+	line: number,
+	parent: DevStackEntry | null
+): HTMLElement {
 	(el as WithMeta).__svelte_meta = { loc: { file, line, column: 4 }, parent };
 	return el;
 }
@@ -135,11 +140,16 @@ describe('walkDevStack', () => {
 	it('returns [] for missing meta or null-parent root', () => {
 		expect(walkDevStack(null)).toEqual([]);
 		expect(walkDevStack(undefined)).toEqual([]);
-		expect(walkDevStack({ loc: { file: '/src/App.svelte', line: 1, column: 0 }, parent: null })).toEqual([]);
+		expect(
+			walkDevStack({ loc: { file: '/src/App.svelte', line: 1, column: 0 }, parent: null })
+		).toEqual([]);
 	});
 
 	it('tags component vs block entries, nearest first', () => {
-		const meta: SvelteMeta = { loc: { file: '/src/lib/Card.svelte', line: 8, column: 4 }, parent: buildChain() };
+		const meta: SvelteMeta = {
+			loc: { file: '/src/lib/Card.svelte', line: 8, column: 4 },
+			parent: buildChain()
+		};
 		const items = walkDevStack(meta);
 
 		expect(items.map((i) => [i.kind, i.type])).toEqual([
@@ -151,7 +161,10 @@ describe('walkDevStack', () => {
 	});
 
 	it('names components from componentTag, not from the usage-site file', () => {
-		const meta: SvelteMeta = { loc: { file: '/src/lib/Card.svelte', line: 8, column: 4 }, parent: buildChain() };
+		const meta: SvelteMeta = {
+			loc: { file: '/src/lib/Card.svelte', line: 8, column: 4 },
+			parent: buildChain()
+		};
 		const components = walkDevStack(meta).filter((i) => i.kind === 'component');
 
 		expect(components.map((c) => c.componentName)).toEqual(['Card', 'Layout']);
@@ -161,7 +174,10 @@ describe('walkDevStack', () => {
 	});
 
 	it('names blocks after the component file they live in', () => {
-		const meta: SvelteMeta = { loc: { file: '/src/lib/Card.svelte', line: 8, column: 4 }, parent: buildChain() };
+		const meta: SvelteMeta = {
+			loc: { file: '/src/lib/Card.svelte', line: 8, column: 4 },
+			parent: buildChain()
+		};
 		const blocks = walkDevStack(meta).filter((i) => i.kind === 'block');
 		expect(blocks.map((b) => b.componentName)).toEqual(['Card', 'Layout']);
 	});
@@ -199,7 +215,12 @@ describe('getComponentStack', () => {
 	});
 
 	it('builds element + parent-chain entries with correct component names', () => {
-		const button = attach(document.createElement('button'), '/src/lib/Card.svelte', 8, buildChain());
+		const button = attach(
+			document.createElement('button'),
+			'/src/lib/Card.svelte',
+			8,
+			buildChain()
+		);
 		document.body.appendChild(button);
 
 		const stack = getComponentStack(button, notExcluded);
@@ -221,12 +242,22 @@ describe('getComponentStack', () => {
 	});
 
 	it('filters excluded paths and reports accepted files once each', () => {
-		const chain = entry('component', '/node_modules/lib/Wrap.svelte', 2, entry('component', '/src/App.svelte', 3, null, 'Wrap'), 'Inner');
+		const chain = entry(
+			'component',
+			'/node_modules/lib/Wrap.svelte',
+			2,
+			entry('component', '/src/App.svelte', 3, null, 'Wrap'),
+			'Inner'
+		);
 		const el = attach(document.createElement('div'), '/src/lib/Inner.svelte', 1, chain);
 		document.body.appendChild(el);
 
 		const files: string[] = [];
-		const stack = getComponentStack(el, (f) => f.includes('node_modules/'), (f) => files.push(f));
+		const stack = getComponentStack(
+			el,
+			(f) => f.includes('node_modules/'),
+			(f) => files.push(f)
+		);
 		expect(stack.map((s) => s.file)).toEqual(['/src/lib/Inner.svelte', '/src/App.svelte']);
 		expect(files).toEqual(['/src/lib/Inner.svelte', '/src/App.svelte']);
 	});

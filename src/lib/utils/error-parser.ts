@@ -28,9 +28,7 @@ export function parseStackTrace(stack: string): ParsedStackFrame[] {
  * Falls back to a single trailing `:line` (no column) if that's all that's
  * present, and returns null when no trailing line number can be found.
  */
-function splitLocation(
-	location: string
-): { file: string; line: number; column: number } | null {
+function splitLocation(location: string): { file: string; line: number; column: number } | null {
 	// file : line : column  (column optional)
 	const m = location.match(/^(.*?):(\d+)(?::(\d+))?$/);
 	if (!m || !m[1]) return null;
@@ -122,8 +120,11 @@ function parseStackFrame(line: string): ParsedStackFrame | null {
 /**
  * Filter stack frames to remove node_modules and internal frames
  */
-export function filterFrames(frames: ParsedStackFrame[], filterNodeModules = true): ParsedStackFrame[] {
-	return frames.filter(frame => {
+export function filterFrames(
+	frames: ParsedStackFrame[],
+	filterNodeModules = true
+): ParsedStackFrame[] {
+	return frames.filter((frame) => {
 		if (filterNodeModules && frame.file.includes('node_modules/')) return false;
 		if (frame.file.includes('__vite')) return false;
 		if (frame.file.startsWith('chrome-extension://')) return false;
@@ -136,7 +137,7 @@ export function filterFrames(frames: ParsedStackFrame[], filterNodeModules = tru
  * Find the first Svelte file in the stack
  */
 export function findSvelteFrame(frames: ParsedStackFrame[]): ParsedStackFrame | null {
-	return frames.find(f => f.file.endsWith('.svelte') || f.file.includes('.svelte?')) || null;
+	return frames.find((f) => f.file.endsWith('.svelte') || f.file.includes('.svelte?')) || null;
 }
 
 /**
@@ -179,11 +180,15 @@ export function errorId(message: string, frames: ParsedStackFrame[]): string {
 /**
  * Detect common error patterns and provide suggestions
  */
-export function detectErrorPattern(error: CapturedError): { cause: string; suggestion: string } | null {
+export function detectErrorPattern(
+	error: CapturedError
+): { cause: string; suggestion: string } | null {
 	const msg = error.message;
 
 	// Cannot read properties of undefined/null
-	const undefinedProp = msg.match(/Cannot read propert(?:y|ies) of (undefined|null) \(reading '(.+?)'\)/);
+	const undefinedProp = msg.match(
+		/Cannot read propert(?:y|ies) of (undefined|null) \(reading '(.+?)'\)/
+	);
 	if (undefinedProp) {
 		const obj = undefinedProp[1];
 		const prop = undefinedProp[2];
@@ -306,9 +311,11 @@ export async function fetchSourceContext(
 /**
  * Format source context lines for agent output
  */
-export function formatSourceContext(context: { lines: { num: number; text: string; isCurrent: boolean }[] }): string {
+export function formatSourceContext(context: {
+	lines: { num: number; text: string; isCurrent: boolean }[];
+}): string {
 	return context.lines
-		.map(l => `  ${l.isCurrent ? '>' : ' '} ${String(l.num).padStart(4)} | ${l.text}`)
+		.map((l) => `  ${l.isCurrent ? '>' : ' '} ${String(l.num).padStart(4)} | ${l.text}`)
 		.join('\n');
 }
 
@@ -321,8 +328,14 @@ export function formatErrorsForAgent(errors: CapturedError[], minutesWindow: num
 	const parts: string[] = [`=== Captured Errors (last ${minutesWindow}min) ===\n`];
 
 	for (const error of errors) {
-		const icon = error.type === 'error' || error.type === 'unhandled-rejection' ? '\u{1F534}' : '\u{1F7E1}';
-		const typeLabel = error.type === 'error' ? 'ERROR' : error.type === 'warning' ? 'WARNING' : 'UNHANDLED REJECTION';
+		const icon =
+			error.type === 'error' || error.type === 'unhandled-rejection' ? '\u{1F534}' : '\u{1F7E1}';
+		const typeLabel =
+			error.type === 'error'
+				? 'ERROR'
+				: error.type === 'warning'
+					? 'WARNING'
+					: 'UNHANDLED REJECTION';
 		const time = new Date(error.timestamp).toLocaleTimeString();
 
 		parts.push(`${icon} ${typeLabel} [${time}]${error.count > 1 ? ` (${error.count}x)` : ''}\n`);
@@ -338,7 +351,9 @@ export function formatErrorsForAgent(errors: CapturedError[], minutesWindow: num
 		if (error.stack.length > 0) {
 			parts.push(`  \u{1F4DD} STACK:`);
 			for (const frame of error.stack.slice(0, 5)) {
-				parts.push(`     ${frame.functionName} \u2192 ${shortenFramePath(frame.file)}:${frame.line}`);
+				parts.push(
+					`     ${frame.functionName} \u2192 ${shortenFramePath(frame.file)}:${frame.line}`
+				);
 			}
 			parts.push('');
 		}
@@ -354,7 +369,7 @@ export function formatErrorsForAgent(errors: CapturedError[], minutesWindow: num
 			parts.push(`  \u{1F4A1} PROBABLE CAUSE:`);
 			parts.push(`     ${pattern.cause}\n`);
 			parts.push(`  \u2705 SUGGESTION:`);
-			pattern.suggestion.split('\n').forEach(s => parts.push(`     ${s}`));
+			pattern.suggestion.split('\n').forEach((s) => parts.push(`     ${s}`));
 			parts.push('');
 		}
 

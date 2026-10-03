@@ -122,15 +122,27 @@
 
 		<Section title="Overflow" testid="fx-overflow-section"><OverflowFixture /></Section>
 		<Section title="Hot updates" testid="fx-hot-section"><HotFixture /></Section>
-		<Section title="Leaks" testid="fx-leak-section"><LeakToggle id="leaky" label="Leaky"><LeakyFixture /></LeakToggle><LeakToggle id="clean" label="Clean"><CleanFixture /></LeakToggle></Section>
-		<Section title="Network leaks (fake credentials)" testid="fx-leaky-section"><LeakyRequests /></Section>
+		<Section title="Leaks" testid="fx-leak-section"
+			><LeakToggle id="leaky" label="Leaky"><LeakyFixture /></LeakToggle><LeakToggle
+				id="clean"
+				label="Clean"><CleanFixture /></LeakToggle
+			></Section
+		>
+		<Section title="Network leaks (fake credentials)" testid="fx-leaky-section"
+			><LeakyRequests /></Section
+		>
 	</section>
 </main>
 
 <style>
 	:global(body) {
 		margin: 0;
-		font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+		font-family:
+			ui-sans-serif,
+			system-ui,
+			-apple-system,
+			'Segoe UI',
+			sans-serif;
 		background: #f9fafb;
 		color: #111827;
 	}

@@ -75,19 +75,27 @@ describe('CDP URL validation', () => {
 
 	it('reads --cdp from argv (bare flag = empty value)', () => {
 		expect(cdpArgFromArgv(['--port=4723'])).toBeUndefined();
-		expect(cdpArgFromArgv(['--cdp=http://127.0.0.1:9222', '--stdio'])).toBe('http://127.0.0.1:9222');
+		expect(cdpArgFromArgv(['--cdp=http://127.0.0.1:9222', '--stdio'])).toBe(
+			'http://127.0.0.1:9222'
+		);
 		expect(cdpArgFromArgv(['--cdp'])).toBe('');
 	});
 
 	it('is off by default; the option wins over SVELTE_GRAB_CDP; invalid values throw', () => {
 		expect(resolveCdpConfig(undefined, {})).toBeNull();
 		expect(resolveCdpConfig(undefined, { [CDP_ENV]: '' })).toBeNull();
-		expect(resolveCdpConfig(undefined, { [CDP_ENV]: 'http://localhost:9333' })).toEqual({ httpUrl: 'http://localhost:9333' });
-		expect(resolveCdpConfig('http://127.0.0.1:9222', { [CDP_ENV]: 'http://localhost:9333' })).toEqual({
+		expect(resolveCdpConfig(undefined, { [CDP_ENV]: 'http://localhost:9333' })).toEqual({
+			httpUrl: 'http://localhost:9333'
+		});
+		expect(
+			resolveCdpConfig('http://127.0.0.1:9222', { [CDP_ENV]: 'http://localhost:9333' })
+		).toEqual({
 			httpUrl: 'http://127.0.0.1:9222'
 		});
 		expect(() => resolveCdpConfig('', {})).toThrow('--cdp needs a URL');
-		expect(() => resolveCdpConfig(undefined, { [CDP_ENV]: 'http://10.0.0.2:9222' })).toThrow(/host must be/);
+		expect(() => resolveCdpConfig(undefined, { [CDP_ENV]: 'http://10.0.0.2:9222' })).toThrow(
+			/host must be/
+		);
 	});
 });
 
@@ -102,28 +110,54 @@ describe('target matching', () => {
 
 	it('normalizes the hash and a trailing slash', () => {
 		expect(normalizeTargetUrl('http://localhost:5173/#top')).toBe('http://localhost:5173');
-		expect(normalizeTargetUrl('http://localhost:5173/?mcp=1#x')).toBe('http://localhost:5173?mcp=1');
+		expect(normalizeTargetUrl('http://localhost:5173/?mcp=1#x')).toBe(
+			'http://localhost:5173?mcp=1'
+		);
 		expect(normalizeTargetUrl('http://localhost:5173/a/b/')).toBe('http://localhost:5173/a/b');
-		expect(normalizeTargetUrl('http://localhost:5173/a/b?x=1')).toBe('http://localhost:5173/a/b?x=1');
+		expect(normalizeTargetUrl('http://localhost:5173/a/b?x=1')).toBe(
+			'http://localhost:5173/a/b?x=1'
+		);
 	});
 
 	it('prefers an exact match, then a loose one; skips non-page targets and pages without a debugger URL', () => {
 		const targets: CdpTarget[] = [
-			{ id: 'sw', type: 'service_worker', url: 'http://localhost:5173/', webSocketDebuggerUrl: 'ws://127.0.0.1:9222/sw' },
+			{
+				id: 'sw',
+				type: 'service_worker',
+				url: 'http://localhost:5173/',
+				webSocketDebuggerUrl: 'ws://127.0.0.1:9222/sw'
+			},
 			{ id: 'nows', type: 'page', url: 'http://localhost:5173/' },
 			page('a', 'http://localhost:5173/#section'),
 			page('b', 'http://localhost:5173/other')
 		];
-		expect(pickTarget(targets, 'http://localhost:5173/')).toEqual({ target: targets[2], ambiguous: false });
+		expect(pickTarget(targets, 'http://localhost:5173/')).toEqual({
+			target: targets[2],
+			ambiguous: false
+		});
 		expect(pickTarget(targets, 'http://localhost:5173/other/')?.target.id).toBe('b');
-		expect(pickTarget([...targets, page('c', 'http://localhost:5173/other/')], 'http://localhost:5173/other/')?.target.id).toBe('c');
+		expect(
+			pickTarget(
+				[...targets, page('c', 'http://localhost:5173/other/')],
+				'http://localhost:5173/other/'
+			)?.target.id
+		).toBe('c');
 		expect(pickTarget(targets, 'http://localhost:5173/missing')).toBeNull();
 	});
 
 	it('breaks ties by title and flags ambiguity', () => {
-		const targets = [page('a', 'http://localhost:5173/', 'One'), page('b', 'http://localhost:5173/', 'Two')];
-		expect(pickTarget(targets, 'http://localhost:5173/', 'Two')).toEqual({ target: targets[1], ambiguous: false });
-		expect(pickTarget(targets, 'http://localhost:5173/', 'Nope')).toEqual({ target: targets[0], ambiguous: true });
+		const targets = [
+			page('a', 'http://localhost:5173/', 'One'),
+			page('b', 'http://localhost:5173/', 'Two')
+		];
+		expect(pickTarget(targets, 'http://localhost:5173/', 'Two')).toEqual({
+			target: targets[1],
+			ambiguous: false
+		});
+		expect(pickTarget(targets, 'http://localhost:5173/', 'Nope')).toEqual({
+			target: targets[0],
+			ambiguous: true
+		});
 	});
 });
 
@@ -159,7 +193,9 @@ describe('CdpSession', () => {
 		vi.useFakeTimers();
 		const { session, ws } = await open(1_000);
 		const failing = session.send('HeapProfiler.collectGarbage');
-		ws.emit('message', { data: JSON.stringify({ id: 1, error: { code: -32601, message: 'not found' } }) });
+		ws.emit('message', {
+			data: JSON.stringify({ id: 1, error: { code: -32601, message: 'not found' } })
+		});
 		await expect(failing).rejects.toThrow('CDP HeapProfiler.collectGarbage failed: not found');
 
 		const slow = session.send('Performance.enable');
@@ -182,12 +218,19 @@ describe('CdpSession', () => {
 
 	it('connect rejects on error or timeout before open', async () => {
 		let ws!: FakeWebSocket;
-		const failed = CdpSession.connect('ws://127.0.0.1:1/x', { createWebSocket: (u) => (ws = new FakeWebSocket(u)) });
+		const failed = CdpSession.connect('ws://127.0.0.1:1/x', {
+			createWebSocket: (u) => (ws = new FakeWebSocket(u))
+		});
 		ws.emit('error', { message: 'ECONNREFUSED' });
-		await expect(failed).rejects.toThrow('Could not open the CDP WebSocket ws://127.0.0.1:1/x: ECONNREFUSED');
+		await expect(failed).rejects.toThrow(
+			'Could not open the CDP WebSocket ws://127.0.0.1:1/x: ECONNREFUSED'
+		);
 
 		vi.useFakeTimers();
-		const slow = CdpSession.connect('ws://127.0.0.1:1/y', { createWebSocket: (u) => new FakeWebSocket(u), timeoutMs: 500 });
+		const slow = CdpSession.connect('ws://127.0.0.1:1/y', {
+			createWebSocket: (u) => new FakeWebSocket(u),
+			timeoutMs: 500
+		});
 		vi.advanceTimersByTime(500);
 		await expect(slow).rejects.toThrow('did not open in 0.5s');
 	});
@@ -195,12 +238,15 @@ describe('CdpSession', () => {
 
 describe('listTargets / connectToTab', () => {
 	const config = { httpUrl: 'http://127.0.0.1:9222' };
-	const json = (body: unknown, ok = true): FetchLike => vi.fn(async () => ({ ok, status: ok ? 200 : 500, json: async () => body }));
+	const json = (body: unknown, ok = true): FetchLike =>
+		vi.fn(async () => ({ ok, status: ok ? 200 : 500, json: async () => body }));
 
 	it('lists /json/list and explains how to enable CDP when unreachable', async () => {
 		const fetch = json([{ id: 'a', type: 'page', url: 'x' }]);
 		expect(await listTargets(config, { fetch })).toHaveLength(1);
-		expect((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe('http://127.0.0.1:9222/json/list');
+		expect((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe(
+			'http://127.0.0.1:9222/json/list'
+		);
 
 		const down: FetchLike = async () => {
 			throw new Error('fetch failed');
@@ -209,24 +255,40 @@ describe('listTargets / connectToTab', () => {
 			/Could not reach Chrome DevTools at http:\/\/127\.0\.0\.1:9222 \(fetch failed\)\. Start Chrome with .*--remote-debugging-port=9222/
 		);
 		await expect(listTargets(config, { fetch: json({}, false) })).rejects.toThrow('HTTP 500');
-		await expect(listTargets(config, { fetch: json({ not: 'a list' }) })).rejects.toThrow('Unexpected /json/list');
+		await expect(listTargets(config, { fetch: json({ not: 'a list' }) })).rejects.toThrow(
+			'Unexpected /json/list'
+		);
 	});
 
 	it('connects to the page target matching the tab', async () => {
 		const sockets: FakeWebSocket[] = [];
 		const fetch = json([
-			{ id: 'other', type: 'page', url: 'http://localhost:5173/other', webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/other' },
-			{ id: 'app', type: 'page', url: 'http://localhost:5173/?mcp=1', webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/app' }
-		]);
-		const pending = connectToTab(config, { url: 'http://localhost:5173/?mcp=1#top' }, {
-			fetch,
-			createWebSocket: (url) => {
-				const ws = new FakeWebSocket(url);
-				sockets.push(ws);
-				queueMicrotask(() => ws.emit('open'));
-				return ws;
+			{
+				id: 'other',
+				type: 'page',
+				url: 'http://localhost:5173/other',
+				webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/other'
+			},
+			{
+				id: 'app',
+				type: 'page',
+				url: 'http://localhost:5173/?mcp=1',
+				webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/app'
 			}
-		});
+		]);
+		const pending = connectToTab(
+			config,
+			{ url: 'http://localhost:5173/?mcp=1#top' },
+			{
+				fetch,
+				createWebSocket: (url) => {
+					const ws = new FakeWebSocket(url);
+					sockets.push(ws);
+					queueMicrotask(() => ws.emit('open'));
+					return ws;
+				}
+			}
+		);
 		const conn = await pending;
 		expect(conn.target.id).toBe('app');
 		expect(sockets.map((s) => s.url)).toEqual(['ws://127.0.0.1:9222/devtools/page/app']);
@@ -235,14 +297,30 @@ describe('listTargets / connectToTab', () => {
 
 	it('refuses a non-loopback webSocketDebuggerUrl and reports a missing target', async () => {
 		const createWebSocket = vi.fn();
-		const evil = json([{ id: 'x', type: 'page', url: 'http://localhost:5173/', webSocketDebuggerUrl: 'ws://203.0.113.5:9222/devtools/page/x' }]);
-		await expect(connectToTab(config, { url: 'http://localhost:5173/' }, { fetch: evil, createWebSocket })).rejects.toThrow(
-			/Refusing CDP WebSocket "ws:\/\/203\.0\.113\.5:9222/
-		);
+		const evil = json([
+			{
+				id: 'x',
+				type: 'page',
+				url: 'http://localhost:5173/',
+				webSocketDebuggerUrl: 'ws://203.0.113.5:9222/devtools/page/x'
+			}
+		]);
+		await expect(
+			connectToTab(config, { url: 'http://localhost:5173/' }, { fetch: evil, createWebSocket })
+		).rejects.toThrow(/Refusing CDP WebSocket "ws:\/\/203\.0\.113\.5:9222/);
 		expect(createWebSocket).not.toHaveBeenCalled();
 
-		const none = json([{ id: 'y', type: 'page', url: 'http://localhost:5173/b', webSocketDebuggerUrl: 'ws://127.0.0.1:9222/p/y' }]);
-		await expect(connectToTab(config, { url: 'http://localhost:5173/a' }, { fetch: none })).rejects.toThrow(
+		const none = json([
+			{
+				id: 'y',
+				type: 'page',
+				url: 'http://localhost:5173/b',
+				webSocketDebuggerUrl: 'ws://127.0.0.1:9222/p/y'
+			}
+		]);
+		await expect(
+			connectToTab(config, { url: 'http://localhost:5173/a' }, { fetch: none })
+		).rejects.toThrow(
 			/No Chrome page target at http:\/\/127\.0\.0\.1:9222 shows the tab http:\/\/localhost:5173\/a \(page targets: http:\/\/localhost:5173\/b\)/
 		);
 	});

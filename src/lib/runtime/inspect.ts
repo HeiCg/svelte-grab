@@ -170,8 +170,12 @@ function propsSection(el: HTMLElement, lookup: InspectableLookup) {
 	delete dataAttributes[REF_ATTR];
 	const lines = [
 		...recordLines('props (class/style)', info.props, previewValue),
-		...recordLines('attributes', info.attributes, (v) => JSON.stringify(cap(String(v), ATTR_VALUE_LENGTH))),
-		...recordLines('data attributes', dataAttributes, (v) => JSON.stringify(cap(String(v), ATTR_VALUE_LENGTH))),
+		...recordLines('attributes', info.attributes, (v) =>
+			JSON.stringify(cap(String(v), ATTR_VALUE_LENGTH))
+		),
+		...recordLines('data attributes', dataAttributes, (v) =>
+			JSON.stringify(cap(String(v), ATTR_VALUE_LENGTH))
+		),
 		...recordLines('bound/observable values', info.boundValues, previewValue)
 	];
 	if (info.childComponents.length > 0) {
@@ -341,13 +345,17 @@ function layoutSection(el: HTMLElement) {
 		lines.push(`overflow: ${overflowX}/${overflowY} (not measured for display: ${display})`);
 	} else if (overflowing.x || overflowing.y) {
 		const what: string[] = [];
-		if (overflowing.x) what.push(`wider (scrollWidth ${scroll.width} > clientWidth ${client.width})`);
-		if (overflowing.y) what.push(`taller (scrollHeight ${scroll.height} > clientHeight ${client.height})`);
+		if (overflowing.x)
+			what.push(`wider (scrollWidth ${scroll.width} > clientWidth ${client.width})`);
+		if (overflowing.y)
+			what.push(`taller (scrollHeight ${scroll.height} > clientHeight ${client.height})`);
 		lines.push(
 			`OVERFLOW: content is ${what.join(' and ')}; overflow: ${overflowX}/${overflowY}${clipped ? ' -> content is CLIPPED' : ''}`
 		);
 	} else {
-		lines.push(`overflow: ${overflowX}/${overflowY}; content fits (${scroll.width}x${scroll.height} in ${client.width}x${client.height})`);
+		lines.push(
+			`overflow: ${overflowX}/${overflowY}; content fits (${scroll.width}x${scroll.height} in ${client.width}x${client.height})`
+		);
 	}
 	if (outsideParent) {
 		const dirs = (Object.entries(outsideParent) as [string, number][])
@@ -404,7 +412,8 @@ function stylesSection(el: HTMLElement) {
 		for (const r of rules.slice(0, MAX_MATCHED_RULES)) {
 			lines.push(`  ${r.rule.selectorText}${formatSourceStr(r.source)}`);
 		}
-		if (rules.length > MAX_MATCHED_RULES) lines.push(`  … ${rules.length - MAX_MATCHED_RULES} more rules`);
+		if (rules.length > MAX_MATCHED_RULES)
+			lines.push(`  … ${rules.length - MAX_MATCHED_RULES} more rules`);
 	}
 	const shownDecl = authored.slice(0, MAX_STYLE_DECLARATIONS);
 	lines.push(
@@ -412,19 +421,25 @@ function stylesSection(el: HTMLElement) {
 	);
 	if (shownDecl.length === 0) lines.push('  (none; only user-agent defaults)');
 	for (const d of shownDecl) {
-		lines.push(`  ${d.property}: ${d.value} -> ${d.source}${d.overridden ? ' (has overridden rules)' : ''}`);
+		lines.push(
+			`  ${d.property}: ${d.value} -> ${d.source}${d.overridden ? ' (has overridden rules)' : ''}`
+		);
 	}
 	if (userAgent > 0) lines.push(`(${userAgent} user-agent/default properties omitted)`);
 	if (conflicts.length > 0) {
 		lines.push(`conflicts (${conflicts.length}):`);
 		for (const c of conflicts.slice(0, MAX_CONFLICTS)) {
 			const parts = c.rules
-				.map((r) => `${r.selector} = ${r.value}${r.important ? ' !important' : ''} [${r.won ? 'WON' : 'LOST'}]`)
+				.map(
+					(r) =>
+						`${r.selector} = ${r.value}${r.important ? ' !important' : ''} [${r.won ? 'WON' : 'LOST'}]`
+				)
 				.join('; ');
 			lines.push(`  ${c.property}: ${parts}`);
 			if (c.suggestion) lines.push(`    hint: ${c.suggestion}`);
 		}
-		if (conflicts.length > MAX_CONFLICTS) lines.push(`  … ${conflicts.length - MAX_CONFLICTS} more conflicts`);
+		if (conflicts.length > MAX_CONFLICTS)
+			lines.push(`  … ${conflicts.length - MAX_CONFLICTS} more conflicts`);
 	}
 
 	return {
@@ -447,14 +462,21 @@ function stylesSection(el: HTMLElement) {
 			conflicts: conflicts.slice(0, MAX_CONFLICTS).map((c) => ({
 				property: c.property,
 				suggestion: c.suggestion ?? null,
-				rules: c.rules.map((r) => ({ selector: r.selector, value: r.value, won: r.won, important: r.important }))
+				rules: c.rules.map((r) => ({
+					selector: r.selector,
+					value: r.value,
+					won: r.won,
+					important: r.important
+				}))
 			}))
 		}
 	};
 }
 
 export function hasOwnText(el: Element): boolean {
-	return Array.from(el.childNodes).some((n) => n.nodeType === 3 && (n.textContent ?? '').trim() !== '');
+	return Array.from(el.childNodes).some(
+		(n) => n.nodeType === 3 && (n.textContent ?? '').trim() !== ''
+	);
 }
 
 export interface ContrastResult {
@@ -503,11 +525,15 @@ function a11ySection(el: HTMLElement) {
 		lines.push('contrast: n/a (no own text or indeterminate background)');
 	}
 	if (issues.length === 0) {
-		lines.push('issues: none (element checks: label, button name, img alt, contrast, tabindex, interactive role)');
+		lines.push(
+			'issues: none (element checks: label, button name, img alt, contrast, tabindex, interactive role)'
+		);
 	} else {
 		lines.push(`issues (${issues.length}):`);
 		for (const i of issues.slice(0, MAX_A11Y_ISSUES)) {
-			lines.push(`  [${i.severity}] ${i.rule}: ${i.message}. Fix: ${i.fix}${i.fixCode ? ` e.g. ${i.fixCode}` : ''}`);
+			lines.push(
+				`  [${i.severity}] ${i.rule}: ${i.message}. Fix: ${i.fix}${i.fixCode ? ` e.g. ${i.fixCode}` : ''}`
+			);
 		}
 		if (issues.length > MAX_A11Y_ISSUES) lines.push(`  … ${issues.length - MAX_A11Y_ISSUES} more`);
 	}
@@ -531,7 +557,10 @@ function a11ySection(el: HTMLElement) {
 
 function usageSection(el: Element, componentName: string | null, registry: RefRegistry) {
 	if (!componentName) {
-		return { lines: ['(element is not inside a component)'], data: { component: null, count: 0, instances: [] } };
+		return {
+			lines: ['(element is not inside a component)'],
+			data: { component: null, count: 0, instances: [] }
+		};
 	}
 	const thisEntry = getComponentInstance(el).entry;
 	const roots = allPageElements(el.ownerDocument).filter((e) => isComponentRoot(e, componentName));
@@ -573,13 +602,18 @@ function usageSection(el: Element, componentName: string | null, registry: RefRe
 
 // ------------------------------------------------------------------ handler
 
-export function uiInspect(args: Record<string, unknown>, options: InspectOptions = {}): RuntimeToolResult {
+export function uiInspect(
+	args: Record<string, unknown>,
+	options: InspectOptions = {}
+): RuntimeToolResult {
 	const registry = options.registry ?? refRegistry;
 	const lookup = options.inspectables ?? defaultInspectableLookup;
 
 	const refArg = args.ref;
 	if (typeof refArg !== 'string' || refArg.trim() === '') {
-		throw new Error('ui_inspect needs "ref": an eN ref or a ui:// stable key from ui_snapshot/ui_find');
+		throw new Error(
+			'ui_inspect needs "ref": an eN ref or a ui:// stable key from ui_snapshot/ui_find'
+		);
 	}
 	const include = parseInclude(args);
 
@@ -614,12 +648,18 @@ export function uiInspect(args: Record<string, unknown>, options: InspectOptions
 
 	const compLines: string[] = [];
 	if (componentName) {
-		compLines.push(`<${componentName}>${sourceLoc ? ` defined in ${shortenPath(sourceLoc.file)}` : ''}`);
+		compLines.push(
+			`<${componentName}>${sourceLoc ? ` defined in ${shortenPath(sourceLoc.file)}` : ''}`
+		);
 	} else {
 		compLines.push('(no Svelte component metadata)');
 	}
 	if (instanceName && usageEntry) {
-		const used = fmtLoc({ file: usageEntry.file, line: usageEntry.line, column: usageEntry.column });
+		const used = fmtLoc({
+			file: usageEntry.file,
+			line: usageEntry.line,
+			column: usageEntry.column
+		});
 		compLines.push(
 			instanceName === componentName
 				? `this instance is used at ${used}`
@@ -632,7 +672,8 @@ export function uiInspect(args: Record<string, unknown>, options: InspectOptions
 
 	const srcLines: string[] = [];
 	if (ownLoc) srcLines.push(fmtLoc(ownLoc));
-	else if (sourceLoc) srcLines.push(`${fmtLoc(sourceLoc)} (nearest ancestor with source: <${metaEl.localName}>)`);
+	else if (sourceLoc)
+		srcLines.push(`${fmtLoc(sourceLoc)} (nearest ancestor with source: <${metaEl.localName}>)`);
 	else srcLines.push('(no source location)');
 	sections.push({ title: 'SOURCE', lines: srcLines });
 
@@ -644,9 +685,13 @@ export function uiInspect(args: Record<string, unknown>, options: InspectOptions
 		component: {
 			name: componentName,
 			instance: instanceName,
-			usedAt: usageEntry ? { file: usageEntry.file, line: usageEntry.line, column: usageEntry.column } : null
+			usedAt: usageEntry
+				? { file: usageEntry.file, line: usageEntry.line, column: usageEntry.column }
+				: null
 		},
-		source: sourceLoc ? { file: sourceLoc.file, line: sourceLoc.line, column: sourceLoc.column } : null,
+		source: sourceLoc
+			? { file: sourceLoc.file, line: sourceLoc.line, column: sourceLoc.column }
+			: null,
 		include
 	};
 	if (resolved.rebound) {
@@ -655,7 +700,10 @@ export function uiInspect(args: Record<string, unknown>, options: InspectOptions
 	}
 	const errors: Record<string, string> = {};
 
-	const builders: Record<InspectSection, { title: string; run: () => { lines: string[]; data: unknown } }> = {
+	const builders: Record<
+		InspectSection,
+		{ title: string; run: () => { lines: string[]; data: unknown } }
+	> = {
 		stack: { title: 'STACK', run: () => stackSection(metaEl, el) },
 		props: { title: 'PROPS/ATTRIBUTES', run: () => propsSection(el, lookup) },
 		state: {

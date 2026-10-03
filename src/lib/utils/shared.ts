@@ -134,11 +134,16 @@ export async function copyToClipboard(text: string): Promise<boolean> {
  */
 export function checkModifier(event: MouseEvent | KeyboardEvent, modifier: string): boolean {
 	switch (modifier) {
-		case 'alt': return event.altKey;
-		case 'ctrl': return event.ctrlKey;
-		case 'meta': return event.metaKey;
-		case 'shift': return event.shiftKey;
-		default: return event.altKey;
+		case 'alt':
+			return event.altKey;
+		case 'ctrl':
+			return event.ctrlKey;
+		case 'meta':
+			return event.metaKey;
+		case 'shift':
+			return event.shiftKey;
+		default:
+			return event.altKey;
 	}
 }
 
@@ -160,9 +165,7 @@ export function modifierKeyName(modifier: string): string {
  */
 export function getElementPreview(element: HTMLElement, maxLen = 80): string {
 	const tag = element.tagName.toLowerCase();
-	const cls = element.className
-		? ` class="${String(element.className).slice(0, 40)}"`
-		: '';
+	const cls = element.className ? ` class="${String(element.className).slice(0, 40)}"` : '';
 	const id = element.id ? ` id="${element.id}"` : '';
 	const text = element.textContent?.trim().slice(0, 30) || '';
 	const inner = text ? `${text}` : '';

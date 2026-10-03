@@ -1,7 +1,18 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { SvelteRenderProfilerProps, ComponentProfile, RenderBurst, ThemeConfig } from './types.js';
-	import { copyToClipboard, checkModifier, shortenPath, DARK_THEME, LIGHT_THEME } from './utils/shared.js';
+	import type {
+		SvelteRenderProfilerProps,
+		ComponentProfile,
+		RenderBurst,
+		ThemeConfig
+	} from './types.js';
+	import {
+		copyToClipboard,
+		checkModifier,
+		shortenPath,
+		DARK_THEME,
+		LIGHT_THEME
+	} from './utils/shared.js';
 	import { ProfilerTracker, type MutationInfo } from './utils/profiler-tracker.js';
 	import { registerToolOutput } from './utils/unified-export.js';
 	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
@@ -167,7 +178,11 @@
 		}
 
 		// Alt+P to toggle profiler
-		if (enableHotkeys && checkModifier(event, modifier) && (event.key === 'p' || event.key === 'P')) {
+		if (
+			enableHotkeys &&
+			checkModifier(event, modifier) &&
+			(event.key === 'p' || event.key === 'P')
+		) {
 			event.preventDefault();
 			if (isProfiling) {
 				stopProfiling();
@@ -187,31 +202,39 @@
 		return '#4ade80';
 	}
 
-	const mount = useDevtoolMount(() => forceEnable, () => {
-		const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
-		console.log(`[SvelteRenderProfiler] Active! Press ${modLabel}+P to start profiling`);
+	const mount = useDevtoolMount(
+		() => forceEnable,
+		() => {
+			const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
+			console.log(`[SvelteRenderProfiler] Active! Press ${modLabel}+P to start profiling`);
 
-		document.addEventListener('keydown', handleKeydown);
+			document.addEventListener('keydown', handleKeydown);
 
-		// If live highlighting was requested up-front, enable it now. `liveActive`
-		// starts false; toggleLive flips it on and wires everything.
-		if (liveHighlight) {
-			toggleLive();
+			// If live highlighting was requested up-front, enable it now. `liveActive`
+			// starts false; toggleLive flips it on and wires everything.
+			if (liveHighlight) {
+				toggleLive();
+			}
+
+			if (widgetEl) hideFromThirdParties(widgetEl);
+
+			return () => {
+				document.removeEventListener('keydown', handleKeydown);
+				tracker?.stop();
+				tracker = null;
+				painter?.destroy();
+				painter = null;
+				stopFpsMeter();
+				clearInterval(countdownInterval);
+				countdownInterval = undefined;
+			};
+		},
+		{
+			onDev: () => {
+				isDev = true;
+			}
 		}
-
-		if (widgetEl) hideFromThirdParties(widgetEl);
-
-		return () => {
-			document.removeEventListener('keydown', handleKeydown);
-			tracker?.stop();
-			tracker = null;
-			painter?.destroy();
-			painter = null;
-			stopFpsMeter();
-			clearInterval(countdownInterval);
-			countdownInterval = undefined;
-		};
-	}, { onDev: () => { isDev = true; } });
+	);
 
 	onMount(mount.start);
 
@@ -282,9 +305,11 @@
 		{#if profiles.length > 0 && !isProfiling}
 			<button
 				class="sg-prof-widget-btn"
-				onclick={() => { visible = true; }}
-				title="Show last results"
-			>Results</button>
+				onclick={() => {
+					visible = true;
+				}}
+				title="Show last results">Results</button
+			>
 		{/if}
 	</div>
 {/if}
@@ -293,7 +318,9 @@
 	<div
 		class="sg-prof-overlay"
 		style="z-index: {Z_INDEX.overlay};"
-		onclick={() => { if (!isProfiling) visible = false; }}
+		onclick={() => {
+			if (!isProfiling) visible = false;
+		}}
 		onkeydown={(e) => e.key === 'Escape' && !isProfiling && (visible = false)}
 		role="presentation"
 	>
@@ -325,7 +352,13 @@
 					</span>
 				{/if}
 				{#if copied}<span class="sg-prof-copied">Copied!</span>{/if}
-				<button class="sg-prof-close" onclick={() => { if (!isProfiling) visible = false; }} aria-label="Close">&times;</button>
+				<button
+					class="sg-prof-close"
+					onclick={() => {
+						if (!isProfiling) visible = false;
+					}}
+					aria-label="Close">&times;</button
+				>
 			</div>
 
 			<div class="sg-prof-content">
@@ -333,7 +366,9 @@
 					<div class="sg-prof-recording-ui">
 						<div class="sg-prof-pulse"></div>
 						<p>Profiling in progress...</p>
-						<p class="sg-prof-hint">Interact with the page normally. The profiler is monitoring DOM mutations.</p>
+						<p class="sg-prof-hint">
+							Interact with the page normally. The profiler is monitoring DOM mutations.
+						</p>
 						<label class="sg-prof-live-row">
 							<input type="checkbox" checked={liveActive} onchange={toggleLive} />
 							Live highlight mutating components
@@ -345,7 +380,9 @@
 				{:else if profiles.length === 0}
 					<div class="sg-prof-empty">
 						<p>Press "Start" to begin recording DOM updates.</p>
-						<p class="sg-prof-hint">The profiler monitors DOM changes and correlates them with Svelte components.</p>
+						<p class="sg-prof-hint">
+							The profiler monitors DOM changes and correlates them with Svelte components.
+						</p>
 						<label class="sg-prof-live-row">
 							<input type="checkbox" checked={liveActive} onchange={toggleLive} />
 							Live highlight mutating components
@@ -353,18 +390,31 @@
 					</div>
 				{:else}
 					<!-- Hot components -->
-					{@const hot = profiles.filter(p => p.renderCount > 10 || p.burstCount > 0)}
+					{@const hot = profiles.filter((p) => p.renderCount > 10 || p.burstCount > 0)}
 					{#if hot.length > 0}
 						<div class="sg-prof-section-title">🔴 HOT COMPONENTS</div>
 						{#each hot as profile (profile.file)}
 							<div class="sg-prof-row">
-								<div class="sg-prof-bar" style="width: {Math.min(100, (profile.renderCount / (profiles[0]?.renderCount || 1)) * 100)}%; background: {getHeatColor(profile.renderCount)};"></div>
+								<div
+									class="sg-prof-bar"
+									style="width: {Math.min(
+										100,
+										(profile.renderCount / (profiles[0]?.renderCount || 1)) * 100
+									)}%; background: {getHeatColor(profile.renderCount)};"
+								></div>
 								<div class="sg-prof-row-info">
 									<span class="sg-prof-name">&lt;{profile.name}&gt;</span>
-									<span class="sg-prof-count" style="color: {getHeatColor(profile.renderCount)}" title="DOM updates">{profile.renderCount} <span class="sg-prof-count-unit">DOM updates</span></span>
+									<span
+										class="sg-prof-count"
+										style="color: {getHeatColor(profile.renderCount)}"
+										title="DOM updates"
+										>{profile.renderCount} <span class="sg-prof-count-unit">DOM updates</span></span
+									>
 									<span class="sg-prof-file">{shortenPath(profile.file)}</span>
 									{#if profile.burstCount > 0}
-										<span class="sg-prof-burst-badge">⚠️ {profile.burstCount} burst{profile.burstCount > 1 ? 's' : ''}</span>
+										<span class="sg-prof-burst-badge"
+											>⚠️ {profile.burstCount} burst{profile.burstCount > 1 ? 's' : ''}</span
+										>
 									{/if}
 								</div>
 							</div>
@@ -372,14 +422,16 @@
 					{/if}
 
 					<!-- Healthy components -->
-					{@const healthy = profiles.filter(p => p.renderCount <= 10 && p.burstCount === 0)}
+					{@const healthy = profiles.filter((p) => p.renderCount <= 10 && p.burstCount === 0)}
 					{#if healthy.length > 0}
 						<div class="sg-prof-section-title">🟢 HEALTHY COMPONENTS</div>
 						{#each healthy as profile (profile.file)}
 							<div class="sg-prof-row sg-prof-row-healthy">
 								<div class="sg-prof-row-info">
 									<span class="sg-prof-name">&lt;{profile.name}&gt;</span>
-									<span class="sg-prof-count" style="color: #4ade80" title="DOM updates">{profile.renderCount} <span class="sg-prof-count-unit">DOM updates</span></span>
+									<span class="sg-prof-count" style="color: #4ade80" title="DOM updates"
+										>{profile.renderCount} <span class="sg-prof-count-unit">DOM updates</span></span
+									>
 									<span class="sg-prof-file">{shortenPath(profile.file)}</span>
 								</div>
 							</div>
@@ -392,7 +444,9 @@
 						{#each bursts as burst (`${burst.file}:${burst.startTime}`)}
 							<div class="sg-prof-burst">
 								<span class="sg-prof-burst-name">{burst.componentName}</span>
-								<span class="sg-prof-burst-info">{burst.count} DOM updates in {burst.duration.toFixed(0)}ms</span>
+								<span class="sg-prof-burst-info"
+									>{burst.count} DOM updates in {burst.duration.toFixed(0)}ms</span
+								>
 							</div>
 						{/each}
 					{/if}
@@ -409,11 +463,15 @@
 					<button
 						class="sg-prof-btn"
 						onclick={() => {
-							if (tracker) copyToClipboard(tracker.formatForAgent()).then(ok => {
-								if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
-							});
-						}}
-					>Copy for Agent</button>
+							if (tracker)
+								copyToClipboard(tracker.formatForAgent()).then((ok) => {
+									if (ok) {
+										copied = true;
+										setTimeout(() => (copied = false), 1500);
+									}
+								});
+						}}>Copy for Agent</button
+					>
 				{/if}
 			</div>
 		</div>
@@ -422,172 +480,329 @@
 
 <style>
 	.sg-prof-overlay {
-		position: fixed; inset: 0; background: rgba(0, 0, 0, 0.3);
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.3);
 	}
 
 	.sg-prof-popup {
-		position: fixed; top: 50%; left: 50%;
+		position: fixed;
+		top: 50%;
+		left: 50%;
 		z-index: var(--sg-z);
 		transform: translate(-50%, -50%);
-		background: var(--sg-bg); border: 1px solid var(--sg-border);
-		border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-		min-width: 420px; max-width: 650px; max-height: 550px;
+		background: var(--sg-bg);
+		border: 1px solid var(--sg-border);
+		border-radius: 8px;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		min-width: 420px;
+		max-width: 650px;
+		max-height: 550px;
 		overflow: hidden;
 		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
-		font-size: 12px; color: var(--sg-text);
-		display: flex; flex-direction: column;
+		font-size: 12px;
+		color: var(--sg-text);
+		display: flex;
+		flex-direction: column;
 	}
 
 	.sg-prof-header {
-		display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 12px;
 		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
 		border-bottom: 1px solid var(--sg-border);
 	}
 
-	.sg-prof-title { color: #f97316; font-weight: 600; }
-	.sg-prof-recording { color: #ef4444; font-size: 11px; flex: 1; animation: blink 1s infinite; }
-	.sg-prof-duration { color: #888; font-size: 11px; flex: 1; }
-	.sg-prof-copied { color: #4ade80; font-size: 11px; }
+	.sg-prof-title {
+		color: #f97316;
+		font-weight: 600;
+	}
+	.sg-prof-recording {
+		color: #ef4444;
+		font-size: 11px;
+		flex: 1;
+		animation: blink 1s infinite;
+	}
+	.sg-prof-duration {
+		color: #888;
+		font-size: 11px;
+		flex: 1;
+	}
+	.sg-prof-copied {
+		color: #4ade80;
+		font-size: 11px;
+	}
 
-	@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+	@keyframes blink {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.5;
+		}
+	}
 
 	.sg-prof-close {
-		background: none; border: none; color: #888; cursor: pointer;
-		padding: 2px 6px; font-size: 14px; border-radius: 4px;
+		background: none;
+		border: none;
+		color: #888;
+		cursor: pointer;
+		padding: 2px 6px;
+		font-size: 14px;
+		border-radius: 4px;
 	}
-	.sg-prof-close:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+	.sg-prof-close:hover {
+		color: #fff;
+		background: rgba(255, 255, 255, 0.1);
+	}
 
-	.sg-prof-content { flex: 1; overflow-y: auto; }
+	.sg-prof-content {
+		flex: 1;
+		overflow-y: auto;
+	}
 
 	.sg-prof-recording-ui {
-		padding: 24px; text-align: center;
+		padding: 24px;
+		text-align: center;
 	}
 
 	.sg-prof-pulse {
-		width: 16px; height: 16px; margin: 0 auto 12px;
-		background: #ef4444; border-radius: 50%;
+		width: 16px;
+		height: 16px;
+		margin: 0 auto 12px;
+		background: #ef4444;
+		border-radius: 50%;
 		animation: pulse-anim 1.5s infinite;
 	}
 
 	@keyframes pulse-anim {
-		0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
-		70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
-		100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+		0% {
+			box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+		}
+		70% {
+			box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+		}
+		100% {
+			box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+		}
 	}
 
-	.sg-prof-hint { color: #888; font-size: 11px; margin-top: 8px; }
+	.sg-prof-hint {
+		color: #888;
+		font-size: 11px;
+		margin-top: 8px;
+	}
 
-	.sg-prof-empty { padding: 24px; text-align: center; color: #888; }
+	.sg-prof-empty {
+		padding: 24px;
+		text-align: center;
+		color: #888;
+	}
 
 	.sg-prof-live-row {
-		display: inline-flex; align-items: center; gap: 6px;
-		margin-top: 14px; font-size: 11px; color: var(--sg-text);
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 14px;
+		font-size: 11px;
+		color: var(--sg-text);
 		cursor: pointer;
 	}
 
 	.sg-prof-section-title {
-		padding: 8px 12px; font-size: 10px; font-weight: 600;
-		text-transform: uppercase; color: #888; letter-spacing: 0.5px;
+		padding: 8px 12px;
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+		color: #888;
+		letter-spacing: 0.5px;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 		margin-top: 4px;
 	}
 
 	.sg-prof-row {
-		position: relative; padding: 6px 12px;
+		position: relative;
+		padding: 6px 12px;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 	}
 
 	.sg-prof-bar {
-		position: absolute; left: 0; top: 0; bottom: 0;
-		opacity: 0.1; border-radius: 0 4px 4px 0;
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		opacity: 0.1;
+		border-radius: 0 4px 4px 0;
 	}
 
 	.sg-prof-row-info {
-		position: relative; display: flex; align-items: center; gap: 8px;
+		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 8px;
 	}
 
-	.sg-prof-row-healthy { opacity: 0.7; }
+	.sg-prof-row-healthy {
+		opacity: 0.7;
+	}
 
-	.sg-prof-name { color: #60a5fa; font-weight: 500; min-width: 100px; }
-	.sg-prof-count { font-weight: 700; min-width: 40px; text-align: right; white-space: nowrap; }
-	.sg-prof-count-unit { font-weight: 400; font-size: 9px; opacity: 0.7; }
-	.sg-prof-file { color: #888; font-size: 10px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.sg-prof-name {
+		color: #60a5fa;
+		font-weight: 500;
+		min-width: 100px;
+	}
+	.sg-prof-count {
+		font-weight: 700;
+		min-width: 40px;
+		text-align: right;
+		white-space: nowrap;
+	}
+	.sg-prof-count-unit {
+		font-weight: 400;
+		font-size: 9px;
+		opacity: 0.7;
+	}
+	.sg-prof-file {
+		color: #888;
+		font-size: 10px;
+		flex: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 
 	.sg-prof-burst-badge {
-		font-size: 9px; padding: 1px 5px;
-		background: rgba(251, 191, 36, 0.2); color: #fbbf24;
-		border-radius: 8px; flex-shrink: 0;
+		font-size: 9px;
+		padding: 1px 5px;
+		background: rgba(251, 191, 36, 0.2);
+		color: #fbbf24;
+		border-radius: 8px;
+		flex-shrink: 0;
 	}
 
 	.sg-prof-burst {
-		display: flex; align-items: center; gap: 8px;
-		padding: 6px 12px; font-size: 11px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 6px 12px;
+		font-size: 11px;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 	}
-	.sg-prof-burst-name { color: #fbbf24; font-weight: 500; }
-	.sg-prof-burst-info { color: #888; }
+	.sg-prof-burst-name {
+		color: #fbbf24;
+		font-weight: 500;
+	}
+	.sg-prof-burst-info {
+		color: #888;
+	}
 
 	.sg-prof-footer {
-		display: flex; gap: 8px; padding: 8px 12px;
+		display: flex;
+		gap: 8px;
+		padding: 8px 12px;
 		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
 		border-top: 1px solid var(--sg-border);
 	}
 
 	.sg-prof-btn {
-		flex: 1; padding: 6px 12px;
-		background: rgba(255, 255, 255, 0.1); border: 1px solid var(--sg-border);
-		border-radius: 4px; color: var(--sg-text); cursor: pointer;
-		font-size: 11px; font-family: inherit;
+		flex: 1;
+		padding: 6px 12px;
+		background: rgba(255, 255, 255, 0.1);
+		border: 1px solid var(--sg-border);
+		border-radius: 4px;
+		color: var(--sg-text);
+		cursor: pointer;
+		font-size: 11px;
+		font-family: inherit;
 	}
-	.sg-prof-btn:hover { background: rgba(255, 255, 255, 0.15); }
+	.sg-prof-btn:hover {
+		background: rgba(255, 255, 255, 0.15);
+	}
 
 	.sg-prof-btn-primary {
-		background: rgba(249, 115, 22, 0.2); border-color: #f97316; color: #f97316;
+		background: rgba(249, 115, 22, 0.2);
+		border-color: #f97316;
+		color: #f97316;
 	}
-	.sg-prof-btn-primary:hover { background: rgba(249, 115, 22, 0.3); }
+	.sg-prof-btn-primary:hover {
+		background: rgba(249, 115, 22, 0.3);
+	}
 
 	.sg-prof-btn-stop {
-		background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #ef4444;
+		background: rgba(239, 68, 68, 0.2);
+		border-color: #ef4444;
+		color: #ef4444;
 		margin-top: 12px;
 	}
-	.sg-prof-btn-stop:hover { background: rgba(239, 68, 68, 0.3); }
+	.sg-prof-btn-stop:hover {
+		background: rgba(239, 68, 68, 0.3);
+	}
 
 	/* FPS badge */
 	.sg-prof-fps {
-		font-weight: 700; font-size: 11px;
-		display: inline-flex; align-items: baseline; gap: 3px;
+		font-weight: 700;
+		font-size: 11px;
+		display: inline-flex;
+		align-items: baseline;
+		gap: 3px;
 	}
-	.sg-prof-fps-inline { margin-left: auto; }
-	.sg-prof-fps-unit { font-size: 8px; opacity: 0.6; color: inherit; }
+	.sg-prof-fps-inline {
+		margin-left: auto;
+	}
+	.sg-prof-fps-unit {
+		font-size: 8px;
+		opacity: 0.6;
+		color: inherit;
+	}
 
 	/* Docked control widget */
 	.sg-prof-widget {
-		position: fixed; bottom: 16px; right: 16px;
+		position: fixed;
+		bottom: 16px;
+		right: 16px;
 		z-index: var(--sg-z);
-		display: flex; align-items: center; gap: 6px;
+		display: flex;
+		align-items: center;
+		gap: 6px;
 		padding: 6px 8px;
-		background: var(--sg-bg); border: 1px solid var(--sg-border);
-		border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+		background: var(--sg-bg);
+		border: 1px solid var(--sg-border);
+		border-radius: 8px;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
-		font-size: 11px; color: var(--sg-text);
+		font-size: 11px;
+		color: var(--sg-text);
 		user-select: none;
 	}
 
 	.sg-prof-widget-title {
-		color: #f97316; font-weight: 600; font-size: 10px;
-		text-transform: uppercase; letter-spacing: 0.5px;
+		color: #f97316;
+		font-weight: 600;
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
 	}
 
 	.sg-prof-widget-btn {
 		padding: 3px 8px;
 		background: rgba(255, 255, 255, 0.08);
 		border: 1px solid var(--sg-border);
-		border-radius: 4px; color: var(--sg-text); cursor: pointer;
-		font-size: 10px; font-family: inherit; white-space: nowrap;
+		border-radius: 4px;
+		color: var(--sg-text);
+		cursor: pointer;
+		font-size: 10px;
+		font-family: inherit;
+		white-space: nowrap;
 	}
-	.sg-prof-widget-btn:hover { background: rgba(255, 255, 255, 0.16); }
+	.sg-prof-widget-btn:hover {
+		background: rgba(255, 255, 255, 0.16);
+	}
 	.sg-prof-widget-btn-active {
 		background: rgba(249, 115, 22, 0.22);
-		border-color: #f97316; color: #f97316;
+		border-color: #f97316;
+		color: #f97316;
 	}
 </style>

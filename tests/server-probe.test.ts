@@ -21,7 +21,8 @@ function healthFetch(responder: Responder) {
 
 const grab = (port: number) =>
 	new Response(JSON.stringify({ status: 'ok', service: MCP_SERVICE_ID, port }), { status: 200 });
-const other = () => new Response(JSON.stringify({ status: 'ok', service: 'something-else' }), { status: 200 });
+const other = () =>
+	new Response(JSON.stringify({ status: 'ok', service: 'something-else' }), { status: 200 });
 
 beforeEach(() => resetMcpPortCacheForTests());
 
@@ -29,12 +30,26 @@ describe('isSvelteGrabMcp', () => {
 	it('is true only for a 200 whose service is svelte-grab-mcp', async () => {
 		expect(await isSvelteGrabMcp('localhost', 4723, healthFetch(grab))).toBe(true);
 		expect(await isSvelteGrabMcp('localhost', 4723, healthFetch(other))).toBe(false);
-		expect(await isSvelteGrabMcp('localhost', 4723, healthFetch(() => 'refused'))).toBe(false);
 		expect(
-			await isSvelteGrabMcp('localhost', 4723, healthFetch(() => new Response('nope', { status: 500 })))
+			await isSvelteGrabMcp(
+				'localhost',
+				4723,
+				healthFetch(() => 'refused')
+			)
 		).toBe(false);
 		expect(
-			await isSvelteGrabMcp('localhost', 4723, healthFetch(() => new Response('<html>', { status: 200 })))
+			await isSvelteGrabMcp(
+				'localhost',
+				4723,
+				healthFetch(() => new Response('nope', { status: 500 }))
+			)
+		).toBe(false);
+		expect(
+			await isSvelteGrabMcp(
+				'localhost',
+				4723,
+				healthFetch(() => new Response('<html>', { status: 200 }))
+			)
 		).toBe(false);
 	});
 
@@ -84,7 +99,10 @@ describe('resolveMcpPort', () => {
 	it('caches a found port per page load and logs only once', async () => {
 		const fetch = healthFetch((p) => (p === 4725 ? grab(p) : 'refused'));
 		const log = vi.fn();
-		const [a, b] = await Promise.all([resolveMcpPort(4723, { fetch, log }), resolveMcpPort(4723, { fetch, log })]);
+		const [a, b] = await Promise.all([
+			resolveMcpPort(4723, { fetch, log }),
+			resolveMcpPort(4723, { fetch, log })
+		]);
 		expect(await resolveMcpPort(4723, { fetch, log })).toBe(4725);
 		expect([a, b]).toEqual([4725, 4725]);
 		expect(fetch).toHaveBeenCalledTimes(10);

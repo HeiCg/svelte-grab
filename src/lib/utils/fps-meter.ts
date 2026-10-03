@@ -60,16 +60,14 @@ export function createFpsMeter(seed = 60, options: FpsMeterOptions = {}): FpsMet
 	let rolling = seed;
 	let frameCount = 0;
 	let totalFrames = 0;
-	let lastTime =
-		typeof performance !== 'undefined' ? performance.now() : Date.now();
+	let lastTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
 	let rafId: number | null = null;
 	let stopped = false;
 
 	// EMA smoothing factor — higher reacts faster.
 	const SMOOTHING = 0.3;
 
-	const now = (): number =>
-		typeof performance !== 'undefined' ? performance.now() : Date.now();
+	const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 	const tick = (): void => {
 		if (stopped) return;

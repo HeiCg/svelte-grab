@@ -47,10 +47,18 @@
 	let diffs = $state<StateDiff[]>([]);
 
 	const copyFb = createCopyFeedback({
-		get copied() { return copied; },
-		set copied(v) { copied = v; },
-		get copyFailed() { return copyFailed; },
-		set copyFailed(v) { copyFailed = v; }
+		get copied() {
+			return copied;
+		},
+		set copied(v) {
+			copied = v;
+		},
+		get copyFailed() {
+			return copyFailed;
+		},
+		set copyFailed(v) {
+			copyFailed = v;
+		}
 	});
 
 	function toggleSection(section: string) {
@@ -83,7 +91,7 @@
 		};
 
 		// Compute diff against the most recent snapshot for the same component
-		const prevSnapshot = snapshots.find(s => s.file === info.file);
+		const prevSnapshot = snapshots.find((s) => s.file === info.file);
 		if (prevSnapshot) {
 			diffs = computeStateDiffs(prevSnapshot.state, state);
 		} else {
@@ -91,7 +99,10 @@
 		}
 
 		// Add to front, limit size
-		snapshots = [snapshot, ...snapshots.filter(s => s.file !== info.file || s.timestamp !== snapshot.timestamp)].slice(0, maxSnapshots);
+		snapshots = [
+			snapshot,
+			...snapshots.filter((s) => s.file !== info.file || s.timestamp !== snapshot.timestamp)
+		].slice(0, maxSnapshots);
 	}
 
 	function handleClick(event: MouseEvent) {
@@ -108,7 +119,9 @@
 		const svelteEl = findSvelteElement(target);
 		if (!svelteEl) {
 			const tag = target.tagName?.toLowerCase() || 'unknown';
-			console.log(`[SvelteStateGrab] No Svelte component found for <${tag}>. This element may be plain HTML, rendered by a third-party library, or outside Svelte's component tree. Try clicking a parent element.`);
+			console.log(
+				`[SvelteStateGrab] No Svelte component found for <${tag}>. This element may be plain HTML, rendered by a third-party library, or outside Svelte's component tree. Try clicking a parent element.`
+			);
 			return;
 		}
 
@@ -131,22 +144,26 @@
 		}
 	}
 
-	const mount = useDevtoolMount(() => forceEnable, () => {
-		document.addEventListener('click', handleClick, true);
-		document.addEventListener('keydown', handleKeydown);
+	const mount = useDevtoolMount(
+		() => forceEnable,
+		() => {
+			document.addEventListener('click', handleClick, true);
+			document.addEventListener('keydown', handleKeydown);
 
-		return () => {
-			document.removeEventListener('click', handleClick, true);
-			document.removeEventListener('keydown', handleKeydown);
-		};
-	}, {
-		onDev: () => {
-			isDev = true;
-			const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
-			const secLabel = secondaryModifier.charAt(0).toUpperCase() + secondaryModifier.slice(1);
-			console.log(`[SvelteStateGrab] Active! Use ${modLabel}+${secLabel}+Click to inspect state`);
+			return () => {
+				document.removeEventListener('click', handleClick, true);
+				document.removeEventListener('keydown', handleKeydown);
+			};
+		},
+		{
+			onDev: () => {
+				isDev = true;
+				const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
+				const secLabel = secondaryModifier.charAt(0).toUpperCase() + secondaryModifier.slice(1);
+				console.log(`[SvelteStateGrab] Active! Use ${modLabel}+${secLabel}+Click to inspect state`);
+			}
 		}
-	});
+	);
 
 	onMount(mount.start);
 	onDestroy(() => {
@@ -176,155 +193,172 @@
 		</div>
 
 		{#if Object.keys(stateInfo.props).length > 0}
-					<button class="sg-state-section" onclick={() => toggleSection('props')}>
-						<span class="sg-state-section-icon">{expandedSections.has('props') ? '▼' : '▶'}</span>
-						<span>📥 Props ({Object.keys(stateInfo.props).length})</span>
-					</button>
-					{#if expandedSections.has('props')}
-						<div class="sg-state-entries">
-							{#each Object.entries(stateInfo.props) as [key, value] (key)}
-								<div class="sg-state-entry">
-									<span class="sg-state-key">{key}</span>
-									<span class="sg-state-type">{getTypeDescription(value)}</span>
-									<span class="sg-state-value">{inlinePreview(value)}</span>
-								</div>
-							{/each}
+			<button class="sg-state-section" onclick={() => toggleSection('props')}>
+				<span class="sg-state-section-icon">{expandedSections.has('props') ? '▼' : '▶'}</span>
+				<span>📥 Props ({Object.keys(stateInfo.props).length})</span>
+			</button>
+			{#if expandedSections.has('props')}
+				<div class="sg-state-entries">
+					{#each Object.entries(stateInfo.props) as [key, value] (key)}
+						<div class="sg-state-entry">
+							<span class="sg-state-key">{key}</span>
+							<span class="sg-state-type">{getTypeDescription(value)}</span>
+							<span class="sg-state-value">{inlinePreview(value)}</span>
 						</div>
-					{/if}
-				{/if}
+					{/each}
+				</div>
+			{/if}
+		{/if}
 
-				{#if Object.keys(stateInfo.attributes).length > 0}
-					<button class="sg-state-section" onclick={() => toggleSection('attributes')}>
-						<span class="sg-state-section-icon">{expandedSections.has('attributes') ? '▼' : '▶'}</span>
-						<span>🏷️ Attributes ({Object.keys(stateInfo.attributes).length})</span>
-					</button>
-					{#if expandedSections.has('attributes')}
-						<div class="sg-state-entries">
-							{#each Object.entries(stateInfo.attributes) as [key, value] (key)}
-								<div class="sg-state-entry">
-									<span class="sg-state-key">{key}</span>
-									<span class="sg-state-value">"{value}"</span>
-								</div>
-							{/each}
+		{#if Object.keys(stateInfo.attributes).length > 0}
+			<button class="sg-state-section" onclick={() => toggleSection('attributes')}>
+				<span class="sg-state-section-icon">{expandedSections.has('attributes') ? '▼' : '▶'}</span>
+				<span>🏷️ Attributes ({Object.keys(stateInfo.attributes).length})</span>
+			</button>
+			{#if expandedSections.has('attributes')}
+				<div class="sg-state-entries">
+					{#each Object.entries(stateInfo.attributes) as [key, value] (key)}
+						<div class="sg-state-entry">
+							<span class="sg-state-key">{key}</span>
+							<span class="sg-state-value">"{value}"</span>
 						</div>
-					{/if}
-				{/if}
+					{/each}
+				</div>
+			{/if}
+		{/if}
 
-				{#if Object.keys(stateInfo.dataAttributes).length > 0}
-					<button class="sg-state-section" onclick={() => toggleSection('data')}>
-						<span class="sg-state-section-icon">{expandedSections.has('data') ? '▼' : '▶'}</span>
-						<span>📊 Data Attributes ({Object.keys(stateInfo.dataAttributes).length})</span>
-					</button>
-					{#if expandedSections.has('data')}
-						<div class="sg-state-entries">
-							{#each Object.entries(stateInfo.dataAttributes) as [key, value] (key)}
-								<div class="sg-state-entry">
-									<span class="sg-state-key">{key}</span>
-									<span class="sg-state-value">"{value}"</span>
-								</div>
-							{/each}
+		{#if Object.keys(stateInfo.dataAttributes).length > 0}
+			<button class="sg-state-section" onclick={() => toggleSection('data')}>
+				<span class="sg-state-section-icon">{expandedSections.has('data') ? '▼' : '▶'}</span>
+				<span>📊 Data Attributes ({Object.keys(stateInfo.dataAttributes).length})</span>
+			</button>
+			{#if expandedSections.has('data')}
+				<div class="sg-state-entries">
+					{#each Object.entries(stateInfo.dataAttributes) as [key, value] (key)}
+						<div class="sg-state-entry">
+							<span class="sg-state-key">{key}</span>
+							<span class="sg-state-value">"{value}"</span>
 						</div>
-					{/if}
-				{/if}
+					{/each}
+				</div>
+			{/if}
+		{/if}
 
-				{#if Object.keys(stateInfo.boundValues).length > 0}
-					<button class="sg-state-section" onclick={() => toggleSection('bound')}>
-						<span class="sg-state-section-icon">{expandedSections.has('bound') ? '▼' : '▶'}</span>
-						<span>🔗 Bound Values ({Object.keys(stateInfo.boundValues).length})</span>
-					</button>
-					{#if expandedSections.has('bound')}
-						<div class="sg-state-entries">
-							{#each Object.entries(stateInfo.boundValues) as [key, value] (key)}
-								<div class="sg-state-entry">
-									<span class="sg-state-key">{key}</span>
-									<span class="sg-state-type">{getTypeDescription(value)}</span>
-									<span class="sg-state-value">{inlinePreview(value)}</span>
-								</div>
-							{/each}
+		{#if Object.keys(stateInfo.boundValues).length > 0}
+			<button class="sg-state-section" onclick={() => toggleSection('bound')}>
+				<span class="sg-state-section-icon">{expandedSections.has('bound') ? '▼' : '▶'}</span>
+				<span>🔗 Bound Values ({Object.keys(stateInfo.boundValues).length})</span>
+			</button>
+			{#if expandedSections.has('bound')}
+				<div class="sg-state-entries">
+					{#each Object.entries(stateInfo.boundValues) as [key, value] (key)}
+						<div class="sg-state-entry">
+							<span class="sg-state-key">{key}</span>
+							<span class="sg-state-type">{getTypeDescription(value)}</span>
+							<span class="sg-state-value">{inlinePreview(value)}</span>
 						</div>
-					{/if}
-				{/if}
+					{/each}
+				</div>
+			{/if}
+		{/if}
 
-				{#if stateInfo.inspectableInstances && stateInfo.inspectableInstances.length > 0}
-					{@const instances = stateInfo.inspectableInstances}
-					<button class="sg-state-section" onclick={() => toggleSection('inspectable')}>
-						<span class="sg-state-section-icon">{expandedSections.has('inspectable') ? '▼' : '▶'}</span>
-						<span>🔍 Inspectable State ({instances.length > 1 ? `${instances.length} instances` : Object.keys(instances[0].values).length})</span>
-					</button>
-					{#if expandedSections.has('inspectable')}
-						<div class="sg-state-entries">
-							{#each instances as inst (inst.instance)}
-								{#if instances.length > 1}
-									<div class="sg-state-instance">{inst.label}</div>
-								{/if}
-								{#each Object.entries(inst.values) as [key, value] (key)}
-									<div class="sg-state-entry">
-										<span class="sg-state-key">{key}</span>
-										<span class="sg-state-type">{getTypeDescription(value)}</span>
-										<span class="sg-state-value">{inlinePreview(value)}</span>
-									</div>
-								{/each}
-							{/each}
-						</div>
-					{/if}
-				{/if}
+		{#if stateInfo.inspectableInstances && stateInfo.inspectableInstances.length > 0}
+			{@const instances = stateInfo.inspectableInstances}
+			<button class="sg-state-section" onclick={() => toggleSection('inspectable')}>
+				<span class="sg-state-section-icon">{expandedSections.has('inspectable') ? '▼' : '▶'}</span>
+				<span
+					>🔍 Inspectable State ({instances.length > 1
+						? `${instances.length} instances`
+						: Object.keys(instances[0].values).length})</span
+				>
+			</button>
+			{#if expandedSections.has('inspectable')}
+				<div class="sg-state-entries">
+					{#each instances as inst (inst.instance)}
+						{#if instances.length > 1}
+							<div class="sg-state-instance">{inst.label}</div>
+						{/if}
+						{#each Object.entries(inst.values) as [key, value] (key)}
+							<div class="sg-state-entry">
+								<span class="sg-state-key">{key}</span>
+								<span class="sg-state-type">{getTypeDescription(value)}</span>
+								<span class="sg-state-value">{inlinePreview(value)}</span>
+							</div>
+						{/each}
+					{/each}
+				</div>
+			{/if}
+		{/if}
 
-				{#if diffs.length > 0}
-					<button class="sg-state-section" onclick={() => toggleSection('diffs')}>
-						<span class="sg-state-section-icon">{expandedSections.has('diffs') ? '▼' : '▶'}</span>
-						<span>🔄 State Changes ({diffs.length})</span>
-					</button>
-					{#if expandedSections.has('diffs')}
-						<div class="sg-state-entries">
-							{#each diffs as diff (diff.key)}
-								<div class="sg-state-entry">
-									<span class="sg-state-key">{diff.key}</span>
-									<span class="sg-state-diff-old">{diff.oldValue === undefined ? '(new)' : inlinePreview(diff.oldValue)}</span>
-									<span class="sg-state-diff-arrow">&rarr;</span>
-									<span class="sg-state-diff-new">{diff.newValue === undefined ? '(removed)' : inlinePreview(diff.newValue)}</span>
-								</div>
-							{/each}
+		{#if diffs.length > 0}
+			<button class="sg-state-section" onclick={() => toggleSection('diffs')}>
+				<span class="sg-state-section-icon">{expandedSections.has('diffs') ? '▼' : '▶'}</span>
+				<span>🔄 State Changes ({diffs.length})</span>
+			</button>
+			{#if expandedSections.has('diffs')}
+				<div class="sg-state-entries">
+					{#each diffs as diff (diff.key)}
+						<div class="sg-state-entry">
+							<span class="sg-state-key">{diff.key}</span>
+							<span class="sg-state-diff-old"
+								>{diff.oldValue === undefined ? '(new)' : inlinePreview(diff.oldValue)}</span
+							>
+							<span class="sg-state-diff-arrow">&rarr;</span>
+							<span class="sg-state-diff-new"
+								>{diff.newValue === undefined ? '(removed)' : inlinePreview(diff.newValue)}</span
+							>
 						</div>
-					{/if}
-				{/if}
+					{/each}
+				</div>
+			{/if}
+		{/if}
 
-				{#if stateInfo.childComponents.length > 0}
-					<button class="sg-state-section" onclick={() => toggleSection('children')}>
-						<span class="sg-state-section-icon">{expandedSections.has('children') ? '▼' : '▶'}</span>
-						<span>🌳 Children ({stateInfo.childComponents.length} unique, {stateInfo.childComponentCount} total)</span>
-					</button>
-					{#if expandedSections.has('children')}
-						<div class="sg-state-entries">
-							{#each stateInfo.childComponents as child (child.file)}
-								<div class="sg-state-entry">
-									<span class="sg-state-key">&lt;{child.name}&gt;</span>
-									<span class="sg-state-type">{child.count > 1 ? `x${child.count}` : ''}</span>
-									<span class="sg-state-value">{child.file}</span>
-								</div>
-							{/each}
+		{#if stateInfo.childComponents.length > 0}
+			<button class="sg-state-section" onclick={() => toggleSection('children')}>
+				<span class="sg-state-section-icon">{expandedSections.has('children') ? '▼' : '▶'}</span>
+				<span
+					>🌳 Children ({stateInfo.childComponents.length} unique, {stateInfo.childComponentCount} total)</span
+				>
+			</button>
+			{#if expandedSections.has('children')}
+				<div class="sg-state-entries">
+					{#each stateInfo.childComponents as child (child.file)}
+						<div class="sg-state-entry">
+							<span class="sg-state-key">&lt;{child.name}&gt;</span>
+							<span class="sg-state-type">{child.count > 1 ? `x${child.count}` : ''}</span>
+							<span class="sg-state-value">{child.file}</span>
 						</div>
-					{/if}
-				{/if}
+					{/each}
+				</div>
+			{/if}
+		{/if}
 
 		{#snippet footer()}
 			<DevToolButton
 				onclick={() => {
 					if (stateInfo) copyFb.copy(formatForAgent(stateInfo));
-				}}
-			>Copy for Agent</DevToolButton>
+				}}>Copy for Agent</DevToolButton
+			>
 			<DevToolButton
 				onclick={() => {
-					if (stateInfo) copyFb.copy(safeSerialize({
-						component: stateInfo.componentName,
-						file: stateInfo.file,
-						line: stateInfo.line,
-						props: stateInfo.props,
-						attributes: stateInfo.attributes,
-						dataAttributes: stateInfo.dataAttributes,
-						boundValues: stateInfo.boundValues
-					}, maxDepth, maxStringLength));
-				}}
-			>Copy JSON</DevToolButton>
+					if (stateInfo)
+						copyFb.copy(
+							safeSerialize(
+								{
+									component: stateInfo.componentName,
+									file: stateInfo.file,
+									line: stateInfo.line,
+									props: stateInfo.props,
+									attributes: stateInfo.attributes,
+									dataAttributes: stateInfo.dataAttributes,
+									boundValues: stateInfo.boundValues
+								},
+								maxDepth,
+								maxStringLength
+							)
+						);
+				}}>Copy JSON</DevToolButton
+			>
 		{/snippet}
 	</DevToolPopup>
 {/if}

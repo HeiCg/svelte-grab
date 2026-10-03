@@ -75,9 +75,11 @@ export default {
 export default { plugins: [sveltekit()] };
 `;
 		const result = injectVitePlugin(input);
-		expect(result.content.startsWith(
-			"import {\n\tsveltekit\n} from '@sveltejs/kit/vite';\nimport { svelteGrab } from 'svelte-grab/vite';\n"
-		)).toBe(true);
+		expect(
+			result.content.startsWith(
+				"import {\n\tsveltekit\n} from '@sveltejs/kit/vite';\nimport { svelteGrab } from 'svelte-grab/vite';\n"
+			)
+		).toBe(true);
 		expect(result.content).toContain('plugins: [sveltekit(), svelteGrab()]');
 	});
 
@@ -117,7 +119,11 @@ describe('mergeMcpJson', () => {
 		const data = JSON.parse(result.content);
 		expect(data.mcpServers['svelte-grab']).toEqual(MCP_SERVERS['svelte-grab']);
 		expect(data.mcpServers['svelte-grab'].args).toEqual(['svelte-grab-mcp', '--stdio']);
-		expect(data.mcpServers.svelte).toEqual({ type: 'stdio', command: 'npx', args: ['-y', '@sveltejs/mcp'] });
+		expect(data.mcpServers.svelte).toEqual({
+			type: 'stdio',
+			command: 'npx',
+			args: ['-y', '@sveltejs/mcp']
+		});
 		expect(data.mcpServers.playwright).toBeUndefined();
 		expect(result.content.endsWith('\n')).toBe(true);
 	});
@@ -132,7 +138,13 @@ describe('mergeMcpJson', () => {
 
 	it('never clobbers existing entries and keeps unrelated keys and indentation', () => {
 		const existing = JSON.stringify(
-			{ $schema: 'x', mcpServers: { svelte: { type: 'http', url: 'https://mcp.svelte.dev/mcp' }, other: { command: 'o' } } },
+			{
+				$schema: 'x',
+				mcpServers: {
+					svelte: { type: 'http', url: 'https://mcp.svelte.dev/mcp' },
+					other: { command: 'o' }
+				}
+			},
 			null,
 			'\t'
 		);
@@ -156,8 +168,12 @@ describe('mergeMcpJson', () => {
 	});
 
 	it('refuses to touch invalid JSON or a non-object mcpServers', () => {
-		expect(mergeMcpJson('{ nope', { svelteMcp: true, playwrightMcp: false }).error).toMatch(/not valid JSON/);
-		expect(mergeMcpJson('[]', { svelteMcp: true, playwrightMcp: false }).error).toMatch(/JSON object/);
+		expect(mergeMcpJson('{ nope', { svelteMcp: true, playwrightMcp: false }).error).toMatch(
+			/not valid JSON/
+		);
+		expect(mergeMcpJson('[]', { svelteMcp: true, playwrightMcp: false }).error).toMatch(
+			/JSON object/
+		);
 		const bad = mergeMcpJson('{"mcpServers": []}', { svelteMcp: true, playwrightMcp: false });
 		expect(bad.error).toMatch(/mcpServers/);
 		expect(bad.changed).toBe(false);
@@ -221,14 +237,20 @@ describe('injectKitLayout', () => {
 
 describe('injectAppSvelte', () => {
 	it('adds the import and the component at the end', () => {
-		const result = injectAppSvelte('<script>\n\tlet x = 1;\n</script>\n\n<main>{x}</main>\n', { enableMcp: true });
-		expect(result.content).toContain("<script>\n\timport { SvelteDevKit } from 'svelte-grab';\n\tlet x = 1;");
+		const result = injectAppSvelte('<script>\n\tlet x = 1;\n</script>\n\n<main>{x}</main>\n', {
+			enableMcp: true
+		});
+		expect(result.content).toContain(
+			"<script>\n\timport { SvelteDevKit } from 'svelte-grab';\n\tlet x = 1;"
+		);
 		expect(result.content.endsWith('<main>{x}</main>\n\n<SvelteDevKit enableMcp />\n')).toBe(true);
 	});
 
 	it('creates a script block when missing and is idempotent', () => {
 		const once = injectAppSvelte('<h1>hi</h1>\n');
-		expect(once.content.startsWith("<script>\n\timport { SvelteDevKit } from 'svelte-grab';\n</script>")).toBe(true);
+		expect(
+			once.content.startsWith("<script>\n\timport { SvelteDevKit } from 'svelte-grab';\n</script>")
+		).toBe(true);
 		expect(injectAppSvelte(once.content).changed).toBe(false);
 	});
 });

@@ -118,8 +118,7 @@ export function walkDevStack(meta: SvelteMeta | null | undefined): DevStackItem[
 			items.push({
 				kind: isComponent ? 'component' : 'block',
 				type: entry.type,
-				componentName:
-					(isComponent && entry.componentTag) || extractComponentName(file),
+				componentName: (isComponent && entry.componentTag) || extractComponentName(file),
 				usageSite: { file, line, column: entry.column || 0 },
 				entry
 			});

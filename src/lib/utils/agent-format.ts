@@ -47,9 +47,8 @@ export function formatForAgent(
 		const tagName = element.tagName.toLowerCase();
 		const role = element.getAttribute('role');
 		const elementText = element.textContent?.trim();
-		const truncatedText = elementText && elementText.length > 60
-			? elementText.slice(0, 57) + '...'
-			: elementText;
+		const truncatedText =
+			elementText && elementText.length > 60 ? elementText.slice(0, 57) + '...' : elementText;
 
 		if (includeHtml) {
 			parts.push(getHTMLPreview(element));
@@ -95,14 +94,11 @@ export function formatForAgent(
  * @param shortenPath - Shorten an absolute source path for display.
  * @returns The formatted paths text.
  */
-export function formatPaths(
-	entries: StackEntry[],
-	shortenPath: (file: string) => string
-): string {
+export function formatPaths(entries: StackEntry[], shortenPath: (file: string) => string): string {
 	if (entries.length === 0) return 'No Svelte component found';
 
 	const definedIn = entries[0];
-	const usedIn = entries.find(e => e.file !== definedIn.file);
+	const usedIn = entries.find((e) => e.file !== definedIn.file);
 
 	const lines: string[] = [];
 	if (usedIn) {
@@ -132,10 +128,12 @@ export function formatMultipleForAgent(
 		return formatForAgent(elementStack, elements[0], deps);
 	}
 
-	return elements.map((element, index) => {
-		const elementStack = getStack(element);
-		return `--- Element ${index + 1} ---\n${formatForAgent(elementStack, element, deps)}`;
-	}).join('\n\n');
+	return elements
+		.map((element, index) => {
+			const elementStack = getStack(element);
+			return `--- Element ${index + 1} ---\n${formatForAgent(elementStack, element, deps)}`;
+		})
+		.join('\n\n');
 }
 
 /** `{#each}`-style label for Svelte block stack entries, or `null` for components/elements. */

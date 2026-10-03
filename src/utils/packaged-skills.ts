@@ -27,7 +27,9 @@ export function packagedSkillsDir(): string | null {
  */
 export function packageVersion(): string | null {
 	try {
-		const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf-8'));
+		const pkg = JSON.parse(
+			readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf-8')
+		);
 		return pkg?.name === 'svelte-grab' && typeof pkg.version === 'string' ? pkg.version : null;
 	} catch {
 		return null;
@@ -41,7 +43,9 @@ export function packageVersion(): string | null {
 export function readSkillFiles(dir: string): SkillFile[] {
 	const out: SkillFile[] = [];
 	const skills = readdirSync(dir)
-		.filter((name) => statSync(join(dir, name)).isDirectory() && existsSync(join(dir, name, 'SKILL.md')))
+		.filter(
+			(name) => statSync(join(dir, name)).isDirectory() && existsSync(join(dir, name, 'SKILL.md'))
+		)
 		.sort();
 	for (const skill of skills) {
 		const walk = (rel: string) => {
@@ -49,7 +53,8 @@ export function readSkillFiles(dir: string): SkillFile[] {
 				if (name.startsWith('.')) continue;
 				const childRel = `${rel}/${name}`;
 				if (statSync(join(dir, childRel)).isDirectory()) walk(childRel);
-				else out.push({ skill, path: childRel, content: readFileSync(join(dir, childRel), 'utf-8') });
+				else
+					out.push({ skill, path: childRel, content: readFileSync(join(dir, childRel), 'utf-8') });
 			}
 		};
 		walk(skill);

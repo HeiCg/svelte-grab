@@ -47,22 +47,14 @@
 			"minimum": 0
 		},
 		"minSeverity": {
-			"enum": [
-				"high",
-				"medium",
-				"low"
-			]
+			"enum": ["high", "medium", "low"]
 		},
 		"failed": {
 			"type": "boolean"
 		},
 		"summary": {
 			"type": "object",
-			"required": [
-				"total",
-				"bySeverity",
-				"byVerdict"
-			],
+			"required": ["total", "bySeverity", "byVerdict"],
 			"additionalProperties": false,
 			"properties": {
 				"total": {
@@ -71,12 +63,7 @@
 				},
 				"bySeverity": {
 					"type": "object",
-					"required": [
-						"high",
-						"medium",
-						"low",
-						"info"
-					],
+					"required": ["high", "medium", "low", "info"],
 					"additionalProperties": false,
 					"properties": {
 						"high": {
@@ -99,10 +86,7 @@
 				},
 				"byVerdict": {
 					"type": "object",
-					"required": [
-						"confirmed",
-						"needs_validation"
-					],
+					"required": ["confirmed", "needs_validation"],
 					"additionalProperties": false,
 					"properties": {
 						"confirmed": {
@@ -172,18 +156,10 @@
 					]
 				},
 				"severity": {
-					"enum": [
-						"high",
-						"medium",
-						"low",
-						"info"
-					]
+					"enum": ["high", "medium", "low", "info"]
 				},
 				"verdict": {
-					"enum": [
-						"confirmed",
-						"needs_validation"
-					]
+					"enum": ["confirmed", "needs_validation"]
 				},
 				"title": {
 					"type": "string",

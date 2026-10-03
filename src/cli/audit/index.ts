@@ -33,7 +33,15 @@ import {
 } from './types.js';
 import { DEFAULT_MAX_FILE_SIZE, walkFiles } from './walker.js';
 
-export type { AuditFinding, AuditOptions, AuditResult, AuditSummary, Severity, Verdict, RuleId } from './types.js';
+export type {
+	AuditFinding,
+	AuditOptions,
+	AuditResult,
+	AuditSummary,
+	Severity,
+	Verdict,
+	RuleId
+} from './types.js';
 export { RULE_IDS, SEVERITIES } from './types.js';
 export { FINDING_SCHEMA, validateAuditReport, validateAgainstSchema } from './schema.js';
 
@@ -125,13 +133,19 @@ export function audit(options: AuditOptions = {}): AuditResult {
 		}
 	}
 	if (walk.skipped.length > 0) {
-		notes.push(`Skipped ${walk.skipped.length} file(s) over the size limit: ${walk.skipped.slice(0, 5).join(', ')}${walk.skipped.length > 5 ? ', …' : ''}`);
+		notes.push(
+			`Skipped ${walk.skipped.length} file(s) over the size limit: ${walk.skipped.slice(0, 5).join(', ')}${walk.skipped.length > 5 ? ', …' : ''}`
+		);
 	}
 
-	const parseSvelte = [...files.keys()].some((f) => f.endsWith('.svelte')) ? loadSvelteParse(root) : null;
+	const parseSvelte = [...files.keys()].some((f) => f.endsWith('.svelte'))
+		? loadSvelteParse(root)
+		: null;
 	const ctx: RuleContext = { files, notes, parseSvelte };
 	if (!parseSvelte && [...files.keys()].some((f) => f.endsWith('.svelte'))) {
-		notes.push('Svelte compiler not found: .svelte templates checked with a regex fallback ({@html} only).');
+		notes.push(
+			'Svelte compiler not found: .svelte templates checked with a regex fallback ({@html} only).'
+		);
 	}
 
 	const raw: RawFinding[] = [];

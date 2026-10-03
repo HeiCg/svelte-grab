@@ -17,7 +17,12 @@ import { shortenPath } from '../utils/shared.js';
 import { getVitePluginInfo, type VitePluginInfo } from '../utils/vite-plugin-info.js';
 import { computeName, computeRole } from './aria.js';
 import { isComponentRoot } from './find.js';
-import { allPageElements, getClasses, getComponentInstance, getElementSource } from './node-info.js';
+import {
+	allPageElements,
+	getClasses,
+	getComponentInstance,
+	getElementSource
+} from './node-info.js';
 import { computeStableKeys, refRegistry, type RefRegistry } from './refs.js';
 import { roleOrTag } from './snapshot.js';
 import type { RuntimeToolResult } from './types.js';
@@ -109,7 +114,10 @@ function groupByUsage(instances: Instance[]): UsageFile[] {
 }
 
 /** Instances grouped by root classes, biggest group first, top {@link MAX_VARIANT_GROUPS}. */
-export function groupVariants(instances: { root: Element; ref: string }[]): { groups: VariantGroup[]; total: number } {
+export function groupVariants(instances: { root: Element; ref: string }[]): {
+	groups: VariantGroup[];
+	total: number;
+} {
 	const groups = new Map<string, VariantGroup>();
 	for (const i of instances) {
 		const classes = getClasses(i.root, 100).sort().join(' ');
@@ -136,7 +144,8 @@ async function fetchImporters(file: string, options: ImpactOptions): Promise<Imp
 	const timer = setTimeout(() => controller?.abort(), IMPORTERS_TIMEOUT_MS);
 	try {
 		const res = await doFetch(url, { signal: controller?.signal });
-		if (!res.ok) return { status: 'error', files: [], truncated: false, error: `HTTP ${res.status}` };
+		if (!res.ok)
+			return { status: 'error', files: [], truncated: false, error: `HTTP ${res.status}` };
 		const body = (await res.json()) as {
 			found?: unknown;
 			importers?: unknown;
@@ -145,12 +154,21 @@ async function fetchImporters(file: string, options: ImpactOptions): Promise<Imp
 		if (body.found === false) return { status: 'not-found', files: [], truncated: false };
 		const files = Array.isArray(body.importers)
 			? body.importers
-					.map((i) => (i && typeof i === 'object' && typeof (i as { file?: unknown }).file === 'string' ? (i as { file: string }).file : null))
+					.map((i) =>
+						i && typeof i === 'object' && typeof (i as { file?: unknown }).file === 'string'
+							? (i as { file: string }).file
+							: null
+					)
 					.filter((f): f is string => f !== null)
 			: [];
 		return { status: 'ok', files, truncated: body.truncated === true };
 	} catch (err) {
-		return { status: 'error', files: [], truncated: false, error: err instanceof Error ? err.message : String(err) };
+		return {
+			status: 'error',
+			files: [],
+			truncated: false,
+			error: err instanceof Error ? err.message : String(err)
+		};
 	} finally {
 		clearTimeout(timer);
 	}
@@ -171,7 +189,9 @@ export function recommend(
 	const shared = instanceCount > 1 || (importerCount !== null && importerCount > 1);
 	if (!shared) {
 		const caveat =
-			importerCount === null ? ' (importers unknown: other pages may use it too; install svelte-grab/vite to check)' : '';
+			importerCount === null
+				? ' (importers unknown: other pages may use it too; install svelte-grab/vite to check)'
+				: '';
 		return `Single usage; editing the component is safe${caveat}.`;
 	}
 	const imp =
@@ -189,7 +209,9 @@ export async function uiComponentImpact(
 	const registry = options.registry ?? refRegistry;
 	const refArg = args.ref;
 	if (typeof refArg !== 'string' || refArg.trim() === '') {
-		throw new Error('ui_component_impact needs "ref": an eN ref or a ui:// stable key from ui_snapshot/ui_find');
+		throw new Error(
+			'ui_component_impact needs "ref": an eN ref or a ui:// stable key from ui_snapshot/ui_find'
+		);
 	}
 	const resolved = registry.resolve(refArg);
 	if (!resolved) {
@@ -251,7 +273,10 @@ export async function uiComponentImpact(
 	lines.push('', `INSTANCES on this page: ${instances.length}`);
 	for (const f of byFile) {
 		const where = f.lines
-			.map((l) => `${l.line ? `line ${l.line}` : 'root'}${l.count > 1 ? ` x${l.count}` : ''} -> ${showRefs(l.refs)}`)
+			.map(
+				(l) =>
+					`${l.line ? `line ${l.line}` : 'root'}${l.count > 1 ? ` x${l.count}` : ''} -> ${showRefs(l.refs)}`
+			)
 			.join('; ');
 		lines.push(`  ${shortenPath(f.file)} (${f.count}): ${where}`);
 	}
@@ -267,7 +292,9 @@ export async function uiComponentImpact(
 	lines.push('');
 	switch (importers.status) {
 		case 'ok':
-			lines.push(`IMPORTERS (Vite module graph): ${importers.files.length}${importers.truncated ? '+ (truncated)' : ''}`);
+			lines.push(
+				`IMPORTERS (Vite module graph): ${importers.files.length}${importers.truncated ? '+ (truncated)' : ''}`
+			);
 			for (const f of importers.files.slice(0, MAX_IMPORTERS_LISTED)) lines.push(`  ${f}`);
 			if (importers.files.length > MAX_IMPORTERS_LISTED) {
 				lines.push(`  … ${importers.files.length - MAX_IMPORTERS_LISTED} more`);
@@ -292,7 +319,9 @@ export async function uiComponentImpact(
 			stableKey: resolved.stableKey,
 			component: componentName,
 			definitionFile,
-			usedAt: thisEntry ? { file: thisEntry.file, line: thisEntry.line, column: thisEntry.column } : null,
+			usedAt: thisEntry
+				? { file: thisEntry.file, line: thisEntry.line, column: thisEntry.column }
+				: null,
 			instances: {
 				count: instances.length,
 				refs: instances.slice(0, MAX_INSTANCE_REFS).map((i) => i.ref),

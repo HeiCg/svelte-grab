@@ -52,7 +52,10 @@ export interface McpToolConfig {
 	outputSchema?: Record<string, unknown>;
 }
 
-export type McpToolHandler = (args: Record<string, unknown>, extra: unknown) => Promise<McpToolResult>;
+export type McpToolHandler = (
+	args: Record<string, unknown>,
+	extra: unknown
+) => Promise<McpToolResult>;
 
 /** Structural subset of `McpServer` used to register tools. */
 export interface McpToolServer {
@@ -125,7 +128,9 @@ function formatAge(ms: number): string {
 export function formatTabs(tabs: TabSummary[], now: number): string {
 	if (tabs.length === 0) return NO_TAB_MESSAGE;
 	const lines = tabs.map((tab) => {
-		const flags = [tab.active ? 'active' : '', tab.focused ? 'focused' : ''].filter(Boolean).join(', ');
+		const flags = [tab.active ? 'active' : '', tab.focused ? 'focused' : '']
+			.filter(Boolean)
+			.join(', ');
 		const title = tab.title ? ` "${tab.title}"` : '';
 		return `- ${tab.tabId}${flags ? ` [${flags}]` : ''}${title} ${tab.url} (seen ${formatAge(now - tab.lastSeen)})`;
 	});
@@ -142,13 +147,25 @@ export function uiTabs(registry: TabRegistry, now: number): McpToolResult {
 }
 
 /** Sections `ui_inspect` can return (besides the always-on COMPONENT and SOURCE). */
-export const UI_INSPECT_SECTIONS = ['stack', 'props', 'state', 'styles', 'layout', 'a11y', 'usage'] as const;
+export const UI_INSPECT_SECTIONS = [
+	'stack',
+	'props',
+	'state',
+	'styles',
+	'layout',
+	'a11y',
+	'usage'
+] as const;
 
 /** Checks `ui_verify` can run (default all). Must match `VERIFY_CHECKS` in src/lib/runtime/verify.ts. */
 export const UI_VERIFY_CHECKS = ['visible', 'overflow', 'console', 'a11y', 'contrast'] as const;
 
 /** Register `ui_tabs`, `ui_snapshot`, `ui_find` and `ui_inspect`. */
-export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, deps: RuntimeToolDeps): void {
+export function registerRuntimeTools(
+	server: McpToolServer,
+	z: ZodNamespace,
+	deps: RuntimeToolDeps
+): void {
 	const now = deps.now ?? (() => Date.now());
 
 	server.registerTool(
@@ -188,9 +205,19 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 				scope: z
 					.string()
 					.optional()
-					.describe('"viewport", "page", or a ref (eN or ui:// key) to snapshot only that subtree.'),
-				detail: z.enum(['minimal', 'normal']).optional().describe('"minimal" (default) or "normal" (adds box + classes).'),
-				maxNodes: z.number().int().positive().optional().describe('Maximum nodes in the tree (default 200).'),
+					.describe(
+						'"viewport", "page", or a ref (eN or ui:// key) to snapshot only that subtree.'
+					),
+				detail: z
+					.enum(['minimal', 'normal'])
+					.optional()
+					.describe('"minimal" (default) or "normal" (adds box + classes).'),
+				maxNodes: z
+					.number()
+					.int()
+					.positive()
+					.optional()
+					.describe('Maximum nodes in the tree (default 200).'),
 				tabId: z.string().optional().describe(TAB_ID_HINT)
 			}
 		},
@@ -210,7 +237,10 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 				role: z.string().optional().describe('ARIA role (explicit or implicit), e.g. "button".'),
 				name: z.string().optional().describe('Accessible name.'),
 				component: z.string().optional().describe('Svelte component name, e.g. "Card".'),
-				file: z.string().optional().describe('Source file (path or suffix), e.g. "src/lib/Card.svelte".'),
+				file: z
+					.string()
+					.optional()
+					.describe('Source file (path or suffix), e.g. "src/lib/Card.svelte".'),
 				selector: z.string().optional().describe('CSS selector.'),
 				limit: z.number().int().positive().optional().describe('Maximum number of matches.'),
 				tabId: z.string().optional().describe(TAB_ID_HINT)
@@ -234,7 +264,9 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 				'its stable key and reported as rebound at the top. ' +
 				REF_RECIPE,
 			inputSchema: {
-				ref: z.string().describe('Element ref (eN) or ui:// stable key from ui_snapshot / ui_find.'),
+				ref: z
+					.string()
+					.describe('Element ref (eN) or ui:// stable key from ui_snapshot / ui_find.'),
 				include: z
 					.array(z.enum(UI_INSPECT_SECTIONS))
 					.optional()
@@ -263,7 +295,9 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 				clear: z
 					.boolean()
 					.optional()
-					.describe('Mark the returned annotations as consumed (default false: they stay pending).'),
+					.describe(
+						'Mark the returned annotations as consumed (default false: they stay pending).'
+					),
 				tabId: z.string().optional().describe(TAB_ID_HINT)
 			}
 		},
@@ -288,7 +322,9 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 				'ref is re-resolved by its stable key. ' +
 				REF_RECIPE,
 			inputSchema: {
-				ref: z.string().describe('Element ref (eN) or ui:// stable key from ui_snapshot / ui_find.'),
+				ref: z
+					.string()
+					.describe('Element ref (eN) or ui:// stable key from ui_snapshot / ui_find.'),
 				checks: z
 					.array(z.enum(UI_VERIFY_CHECKS))
 					.optional()
@@ -296,7 +332,9 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 				since: z
 					.number()
 					.optional()
-					.describe('Epoch ms for the console check (default: the last HMR update, else runtime start).'),
+					.describe(
+						'Epoch ms for the console check (default: the last HMR update, else runtime start).'
+					),
 				tabId: z.string().optional().describe(TAB_ID_HINT)
 			}
 		},
@@ -316,7 +354,9 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 				'one-off change. ' +
 				REF_RECIPE,
 			inputSchema: {
-				ref: z.string().describe('Ref (eN) or ui:// stable key of an element rendered by the component.'),
+				ref: z
+					.string()
+					.describe('Ref (eN) or ui:// stable key of an element rendered by the component.'),
 				tabId: z.string().optional().describe(TAB_ID_HINT)
 			}
 		},
@@ -332,6 +372,10 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 		cdp: deps.cdp ?? (() => null),
 		tabIdHint: TAB_ID_HINT
 	});
-	registerNetworkTool(server, z, { channel: deps.channel, registry: deps.registry, tabIdHint: TAB_ID_HINT });
+	registerNetworkTool(server, z, {
+		channel: deps.channel,
+		registry: deps.registry,
+		tabIdHint: TAB_ID_HINT
+	});
 	registerSecurityScanTool(server, z, { channel: deps.channel, tabIdHint: TAB_ID_HINT });
 }

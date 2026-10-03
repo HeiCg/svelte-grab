@@ -50,6 +50,12 @@ export default defineConfig({
 	// (html-to-image, ws, etc.). They are never reached on the dev happy-path,
 	// but tell Vite not to try to pre-bundle them.
 	optimizeDeps: {
-		exclude: ['html-to-image', 'ws', '@anthropic-ai/claude-agent-sdk', '@modelcontextprotocol/sdk', '@openai/codex-sdk']
+		exclude: [
+			'html-to-image',
+			'ws',
+			'@anthropic-ai/claude-agent-sdk',
+			'@modelcontextprotocol/sdk',
+			'@openai/codex-sdk'
+		]
 	}
 });

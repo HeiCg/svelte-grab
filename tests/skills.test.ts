@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync, statSync } from 'fs';
+import {
+	mkdtempSync,
+	mkdirSync,
+	writeFileSync,
+	readFileSync,
+	existsSync,
+	rmSync,
+	readdirSync,
+	statSync
+} from 'fs';
 import { tmpdir } from 'os';
 import { join, relative } from 'path';
 import { fileURLToPath } from 'url';
@@ -19,7 +28,12 @@ import {
 import { createHash } from 'crypto';
 
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
-import { installSkills, listSkills, parseSkillsFlags, runSkillsCommand } from '../src/cli/skills.js';
+import {
+	installSkills,
+	listSkills,
+	parseSkillsFlags,
+	runSkillsCommand
+} from '../src/cli/skills.js';
 import { init, parseInitArgs } from '../src/cli/init.js';
 import { packagedSkillsDir, readSkillFiles } from '../src/utils/packaged-skills.js';
 import { UI_INSPECT_SECTIONS, UI_VERIFY_CHECKS } from '../src/mcp/runtime/tools.js';
@@ -32,10 +46,12 @@ const SKILLS_DIR = join(ROOT, 'skills');
 function registeredToolNames(): Set<string> {
 	const files = [join(ROOT, 'src/mcp/server.ts')];
 	const runtimeDir = join(ROOT, 'src/mcp/runtime');
-	for (const name of readdirSync(runtimeDir)) if (name.endsWith('.ts')) files.push(join(runtimeDir, name));
+	for (const name of readdirSync(runtimeDir))
+		if (name.endsWith('.ts')) files.push(join(runtimeDir, name));
 	const names = new Set<string>();
 	for (const file of files) {
-		for (const match of readFileSync(file, 'utf-8').matchAll(/registerTool\(\s*'([a-z_]+)'/g)) names.add(match[1]);
+		for (const match of readFileSync(file, 'utf-8').matchAll(/registerTool\(\s*'([a-z_]+)'/g))
+			names.add(match[1]);
 	}
 	return names;
 }
@@ -46,7 +62,13 @@ const read = (rel: string) => readFileSync(join(SKILLS_DIR, rel), 'utf-8');
 
 describe('packaged skills content', () => {
 	it('finds the registered tools (sanity)', () => {
-		for (const tool of ['ui_snapshot', 'ui_network', 'ui_security_scan', 'ui_leak_check', 'watch_for_grab']) {
+		for (const tool of [
+			'ui_snapshot',
+			'ui_network',
+			'ui_security_scan',
+			'ui_leak_check',
+			'watch_for_grab'
+		]) {
 			expect(TOOLS.has(tool)).toBe(true);
 		}
 	});
@@ -62,22 +84,32 @@ describe('packaged skills content', () => {
 		expect(packagedSkillsDir()).toBe(join(ROOT, 'skills/'));
 	});
 
-	it.each(['svelte-grab', 'svelte-grab-audit'])('%s/SKILL.md has valid frontmatter (name = folder, description)', (skill) => {
-		const fm = parseSkillFrontmatter(read(`${skill}/SKILL.md`));
-		expect(fm).not.toBeNull();
-		expect(fm!.data.name).toBe(skill);
-		expect(fm!.data.name).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
-		expect(fm!.data.name.length).toBeLessThanOrEqual(64);
-		expect(fm!.data.description.length).toBeGreaterThan(50);
-		expect(fm!.data.description.length).toBeLessThanOrEqual(1024);
-		expect(fm!.data.description).toMatch(/Use when/);
-		expect(fm!.body.trim().length).toBeGreaterThan(0);
-	});
+	it.each(['svelte-grab', 'svelte-grab-audit'])(
+		'%s/SKILL.md has valid frontmatter (name = folder, description)',
+		(skill) => {
+			const fm = parseSkillFrontmatter(read(`${skill}/SKILL.md`));
+			expect(fm).not.toBeNull();
+			expect(fm!.data.name).toBe(skill);
+			expect(fm!.data.name).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+			expect(fm!.data.name.length).toBeLessThanOrEqual(64);
+			expect(fm!.data.description.length).toBeGreaterThan(50);
+			expect(fm!.data.description.length).toBeLessThanOrEqual(1024);
+			expect(fm!.data.description).toMatch(/Use when/);
+			expect(fm!.body.trim().length).toBeGreaterThan(0);
+		}
+	);
 
 	it('the audit SKILL.md triggers on the audit questions and links its supporting files', () => {
 		const skill = read('svelte-grab-audit/SKILL.md');
 		const { description } = parseSkillFrontmatter(skill)!.data;
-		for (const trigger of ['security audit', 'performance audit', 'what does screen X load', 'credential', 'why is this page slow', 'memory leak']) {
+		for (const trigger of [
+			'security audit',
+			'performance audit',
+			'what does screen X load',
+			'credential',
+			'why is this page slow',
+			'memory leak'
+		]) {
 			expect(description).toContain(trigger);
 		}
 		for (const link of ['CHECKLIST.md', 'REPORT-TEMPLATE.md', 'finding-schema.json']) {
@@ -106,18 +138,27 @@ describe('packaged skills content', () => {
 		it.each([
 			['Security checklist', 'S', 14],
 			['Performance checklist', 'P', 13]
-		] as const)('%s: every item maps to a tool or audit rule and has pass criteria', (heading, prefix, min) => {
-			const items = rows(heading);
-			expect(items.length).toBeGreaterThanOrEqual(min);
-			items.forEach((row, i) => {
-				const cells = row.split('|').map((c) => c.trim()).filter(Boolean);
-				expect(cells[0]).toBe(`${prefix}${i + 1}`);
-				expect(cells).toHaveLength(4);
-				const how = cells[2];
-				expect(/`ui_[a-z_]+`/.test(how) || how.includes('npx svelte-grab audit'), `${cells[0]} has no tool`).toBe(true);
-				expect(cells[3].length, `${cells[0]} has no pass criteria`).toBeGreaterThan(5);
-			});
-		});
+		] as const)(
+			'%s: every item maps to a tool or audit rule and has pass criteria',
+			(heading, prefix, min) => {
+				const items = rows(heading);
+				expect(items.length).toBeGreaterThanOrEqual(min);
+				items.forEach((row, i) => {
+					const cells = row
+						.split('|')
+						.map((c) => c.trim())
+						.filter(Boolean);
+					expect(cells[0]).toBe(`${prefix}${i + 1}`);
+					expect(cells).toHaveLength(4);
+					const how = cells[2];
+					expect(
+						/`ui_[a-z_]+`/.test(how) || how.includes('npx svelte-grab audit'),
+						`${cells[0]} has no tool`
+					).toBe(true);
+					expect(cells[3].length, `${cells[0]} has no pass criteria`).toBeGreaterThan(5);
+				});
+			}
+		);
 
 		it('bracketed checks exist on their tool', () => {
 			const valid: Record<string, readonly string[]> = {
@@ -153,8 +194,18 @@ describe('packaged skills content', () => {
 
 	it('the report template has the per-screen table, findings and methodology', () => {
 		const template = read('svelte-grab-audit/REPORT-TEMPLATE.md');
-		for (const heading of ['## Screens', '## Findings', '## Rejected candidates', '## Methodology']) expect(template).toContain(heading);
-		for (const column of ['Requests', 'Bytes', '3rd-party', 'Duplicates', 'Failed', 'credential', 'Hot components', 'Memory']) {
+		for (const heading of ['## Screens', '## Findings', '## Rejected candidates', '## Methodology'])
+			expect(template).toContain(heading);
+		for (const column of [
+			'Requests',
+			'Bytes',
+			'3rd-party',
+			'Duplicates',
+			'Failed',
+			'credential',
+			'Hot components',
+			'Memory'
+		]) {
 			expect(template).toContain(column);
 		}
 	});
@@ -204,8 +255,13 @@ describe('planSkillsInstall', () => {
 	});
 
 	it('is idempotent and never overwrites a modified file (writes <file>.new once)', () => {
-		const fs: Record<string, string> = { '.agents/skills/a/SKILL.md': 'A1', '.agents/skills/a/extra.md': 'mine' };
-		const plan = planSkillsInstall(SAMPLE, (p) => fs[p] ?? null, { skillsDir: './.agents/skills/' });
+		const fs: Record<string, string> = {
+			'.agents/skills/a/SKILL.md': 'A1',
+			'.agents/skills/a/extra.md': 'mine'
+		};
+		const plan = planSkillsInstall(SAMPLE, (p) => fs[p] ?? null, {
+			skillsDir: './.agents/skills/'
+		});
 		expect(plan.files.map((f) => f.action)).toEqual(['unchanged', 'conflict', 'create']);
 		expect(plan.writes.slice(0, 2)).toEqual([
 			{ path: '.agents/skills/a/extra.md.new', content: 'A2' },
@@ -221,8 +277,13 @@ describe('planSkillsInstall', () => {
 	});
 
 	it('overwrites with force', () => {
-		const plan = planSkillsInstall(SAMPLE, (p) => (p.endsWith('extra.md') ? 'mine' : null), { force: true });
-		expect(plan.files[1]).toMatchObject({ action: 'overwrite', writePath: '.claude/skills/a/extra.md' });
+		const plan = planSkillsInstall(SAMPLE, (p) => (p.endsWith('extra.md') ? 'mine' : null), {
+			force: true
+		});
+		expect(plan.files[1]).toMatchObject({
+			action: 'overwrite',
+			writePath: '.claude/skills/a/extra.md'
+		});
 		expect(plan.writes).toContainEqual({ path: '.claude/skills/a/extra.md', content: 'A2' });
 	});
 
@@ -284,8 +345,15 @@ describe('planSkillsInstall: upgrades with the install manifest', () => {
 		const project = installedV1();
 		project.fs[`${D}/svelte-grab/SKILL.md`] = 'core v1 + my notes';
 		const plan = planSkillsInstall(V2, project.read, { version: '2.0.0' });
-		expect(plan.files[0]).toEqual({ path: `${D}/svelte-grab/SKILL.md`, action: 'conflict', writePath: `${D}/svelte-grab/SKILL.md.new` });
-		expect(plan.writes).toContainEqual({ path: `${D}/svelte-grab/SKILL.md.new`, content: 'core v2' });
+		expect(plan.files[0]).toEqual({
+			path: `${D}/svelte-grab/SKILL.md`,
+			action: 'conflict',
+			writePath: `${D}/svelte-grab/SKILL.md.new`
+		});
+		expect(plan.writes).toContainEqual({
+			path: `${D}/svelte-grab/SKILL.md.new`,
+			content: 'core v2'
+		});
 		expect(plan.writes.some((w) => w.path === `${D}/svelte-grab/SKILL.md`)).toBe(false);
 		expect(plan.manifest.files['svelte-grab/SKILL.md']).toBe(sha256('core v1'));
 		project.apply(plan);
@@ -306,7 +374,10 @@ describe('planSkillsInstall: upgrades with the install manifest', () => {
 		const project = installedV1();
 		project.fs[`${D}/svelte-grab/SKILL.md`] = 'mine';
 		const plan = planSkillsInstall(V2, project.read, { version: '2.0.0', force: true });
-		expect(plan.files[0]).toMatchObject({ action: 'overwrite', writePath: `${D}/svelte-grab/SKILL.md` });
+		expect(plan.files[0]).toMatchObject({
+			action: 'overwrite',
+			writePath: `${D}/svelte-grab/SKILL.md`
+		});
 		expect(plan.writes).toContainEqual({ path: `${D}/svelte-grab/SKILL.md`, content: 'core v2' });
 		expect(plan.manifest.files['svelte-grab/SKILL.md']).toBe(sha256('core v2'));
 		// An unedited file is still reported as `updated` under force.
@@ -341,7 +412,9 @@ describe('planSkillsInstall: upgrades with the install manifest', () => {
 		expect(plan.removes).toEqual([]);
 		expect(plan.manifest.files['svelte-grab/old.md']).toBe(sha256('old v1'));
 		project.apply(plan);
-		expect(planSkillsInstall(V2, project.read, { version: '2.0.0', removeObsolete: false }).writes).toEqual([]);
+		expect(
+			planSkillsInstall(V2, project.read, { version: '2.0.0', removeObsolete: false }).writes
+		).toEqual([]);
 		// A later run that can delete removes them.
 		expect(planSkillsInstall(V2, project.read, { version: '2.0.0' }).removes).toHaveLength(2);
 	});
@@ -349,7 +422,9 @@ describe('planSkillsInstall: upgrades with the install manifest', () => {
 	it('a shipped file the user deleted is created again', () => {
 		const project = installedV1();
 		delete project.fs[`${D}/svelte-grab/SKILL.md`];
-		expect(planSkillsInstall(V1, project.read, { version: '1.0.0' }).files[0].action).toBe('create');
+		expect(planSkillsInstall(V1, project.read, { version: '1.0.0' }).files[0].action).toBe(
+			'create'
+		);
 	});
 
 	it('a manifest entry whose file is gone is dropped silently', () => {
@@ -369,9 +444,19 @@ describe('planSkillsInstall: upgrades with the install manifest', () => {
 
 	it('never reads or removes manifest paths outside the svelte-grab skill folders', () => {
 		const hash = sha256('x');
-		const outside = ['../../src/app.ts', '/etc/passwd', 'other/notes.md', 'svelte-grab/../../x', 'svelte-grab\\x', 'svelte-grab'];
+		const outside = [
+			'../../src/app.ts',
+			'/etc/passwd',
+			'other/notes.md',
+			'svelte-grab/../../x',
+			'svelte-grab\\x',
+			'svelte-grab'
+		];
 		const project = memoryProject({
-			[MANIFEST]: JSON.stringify({ version: '1.0.0', files: Object.fromEntries(outside.map((p) => [p, hash])) }),
+			[MANIFEST]: JSON.stringify({
+				version: '1.0.0',
+				files: Object.fromEntries(outside.map((p) => [p, hash]))
+			}),
 			// Each one "exists" with the recorded content, so only the path guard keeps it.
 			...Object.fromEntries(outside.map((p) => [`${D}/${p}`, 'x']))
 		});
@@ -384,7 +469,10 @@ describe('planSkillsInstall: upgrades with the install manifest', () => {
 		expect(plan.files.some((f) => f.action === 'orphaned' || f.action === 'removed')).toBe(false);
 		expect(plan.files.map((f) => f.action)).toEqual(['create', 'create']);
 		for (const p of outside) expect(reads).not.toContain(`${D}/${p}`);
-		expect(Object.keys(plan.manifest.files)).toEqual(['svelte-grab/SKILL.md', 'svelte-grab/new.md']);
+		expect(Object.keys(plan.manifest.files)).toEqual([
+			'svelte-grab/SKILL.md',
+			'svelte-grab/new.md'
+		]);
 	});
 
 	it('a malformed manifest is treated as missing (content compare only) and rewritten', () => {
@@ -394,7 +482,11 @@ describe('planSkillsInstall: upgrades with the install manifest', () => {
 			expect(plan.files[0].action).toBe('conflict');
 			expect(plan.writes.at(-1)?.path).toBe(MANIFEST);
 		}
-		expect(parseSkillsManifest('{"version": 1, "files": {"a/b.md": "zz", "a/c.md": "' + sha256('c') + '"}}')).toEqual({
+		expect(
+			parseSkillsManifest(
+				'{"version": 1, "files": {"a/b.md": "zz", "a/c.md": "' + sha256('c') + '"}}'
+			)
+		).toEqual({
 			version: 'unknown',
 			files: { 'a/c.md': sha256('c') }
 		});
@@ -404,16 +496,30 @@ describe('planSkillsInstall: upgrades with the install manifest', () => {
 
 describe('sha256Hex', () => {
 	it('matches node:crypto (ASCII, UTF-8, block boundaries, large input)', () => {
-		const inputs = ['', 'abc', 'héllo wörld ✓ 🚀', 'a'.repeat(55), 'a'.repeat(56), 'a'.repeat(63), 'a'.repeat(64), 'a'.repeat(65)];
+		const inputs = [
+			'',
+			'abc',
+			'héllo wörld ✓ 🚀',
+			'a'.repeat(55),
+			'a'.repeat(56),
+			'a'.repeat(63),
+			'a'.repeat(64),
+			'a'.repeat(65)
+		];
 		inputs.push(read('svelte-grab-audit/CHECKLIST.md'), 'x'.repeat(200_000));
 		for (const input of inputs) expect(sha256Hex(input)).toBe(sha256(input));
-		expect(sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+		expect(sha256Hex('abc')).toBe(
+			'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+		);
 	});
 });
 
 describe('appendAgentsMdPointer', () => {
 	it('appends once, with the marker, the dir and every skill', () => {
-		const first = appendAgentsMdPointer('# Agents\n\nRules.\n', '.agents/skills', ['svelte-grab', 'svelte-grab-audit']);
+		const first = appendAgentsMdPointer('# Agents\n\nRules.\n', '.agents/skills', [
+			'svelte-grab',
+			'svelte-grab-audit'
+		]);
 		expect(first.changed).toBe(true);
 		expect(first.content.startsWith('# Agents\n\nRules.\n\n' + AGENTS_MD_MARKER)).toBe(true);
 		expect(first.content).toContain('`.agents/skills/svelte-grab/SKILL.md`');
@@ -425,7 +531,9 @@ describe('appendAgentsMdPointer', () => {
 	});
 
 	it('separates from content without a trailing newline', () => {
-		expect(appendAgentsMdPointer('x', undefined, ['a']).content.startsWith(`x\n\n${AGENTS_MD_MARKER}`)).toBe(true);
+		expect(
+			appendAgentsMdPointer('x', undefined, ['a']).content.startsWith(`x\n\n${AGENTS_MD_MARKER}`)
+		).toBe(true);
 	});
 });
 
@@ -455,8 +563,14 @@ function tree(): Record<string, string> {
 }
 
 function kitProject() {
-	write('package.json', JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.20.0', svelte: '^5.40.0' } }));
-	write('vite.config.ts', "import { sveltekit } from '@sveltejs/kit/vite';\nexport default { plugins: [sveltekit()] };\n");
+	write(
+		'package.json',
+		JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.20.0', svelte: '^5.40.0' } })
+	);
+	write(
+		'vite.config.ts',
+		"import { sveltekit } from '@sveltejs/kit/vite';\nexport default { plugins: [sveltekit()] };\n"
+	);
 }
 
 const EXPECTED = files.map((f) => `.claude/skills/${f.path}`);
@@ -482,10 +596,15 @@ describe('installSkills (file system)', () => {
 		expect(result.ok).toBe(true);
 		expect(result.skills?.written).toEqual([...EXPECTED, MANIFEST]);
 		for (const rel of EXPECTED) expect(result.written).toContain(rel);
-		for (const f of files) expect(readFileSync(join(dir, '.claude/skills', f.path), 'utf-8')).toBe(f.content);
+		for (const f of files)
+			expect(readFileSync(join(dir, '.claude/skills', f.path), 'utf-8')).toBe(f.content);
 		const manifest = JSON.parse(readFileSync(join(dir, MANIFEST), 'utf-8'));
-		expect(manifest.version).toBe(JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8')).version);
-		expect(manifest.files).toEqual(Object.fromEntries(files.map((f) => [f.path, sha256(f.content)])));
+		expect(manifest.version).toBe(
+			JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8')).version
+		);
+		expect(manifest.files).toEqual(
+			Object.fromEntries(files.map((f) => [f.path, sha256(f.content)]))
+		);
 		expect(result.skills?.agentsMd).toBe('absent');
 		expect(existsSync(join(dir, 'AGENTS.md'))).toBe(false);
 	});
@@ -507,7 +626,9 @@ describe('installSkills (file system)', () => {
 		const second = installSkills(dir);
 		expect(second.written).toEqual([`${rel}.new`]);
 		expect(readFileSync(join(dir, rel), 'utf-8')).toBe('# my checklist\n');
-		expect(readFileSync(join(dir, `${rel}.new`), 'utf-8')).toBe(read('svelte-grab-audit/CHECKLIST.md'));
+		expect(readFileSync(join(dir, `${rel}.new`), 'utf-8')).toBe(
+			read('svelte-grab-audit/CHECKLIST.md')
+		);
 		const logged = logSpy.mock.calls.map((c) => c.join(' ')).join('\n');
 		expect(logged).toContain(`wrote ${rel}.new`);
 		expect(logged).toContain('--force-skills');
@@ -551,7 +672,10 @@ describe('installSkills (file system)', () => {
 			expect(existsSync(join(dir, '.claude/skills/svelte-grab-old'))).toBe(false);
 			expect(JSON.parse(readFileSync(join(dir, MANIFEST), 'utf-8'))).toEqual({
 				version: '2.0.0',
-				files: { 'svelte-grab/SKILL.md': sha256('core v2\n'), 'svelte-grab/notes.md': sha256('notes v1\n') }
+				files: {
+					'svelte-grab/SKILL.md': sha256('core v2\n'),
+					'svelte-grab/notes.md': sha256('notes v1\n')
+				}
 			});
 			const logged = logSpy.mock.calls.map((c) => c.join(' ')).join('\n');
 			expect(logged).toContain(`Updated ${core} (not edited since the last install)`);
@@ -582,7 +706,9 @@ describe('installSkills (file system)', () => {
 			const result = installSkills(dir, { files: V2, version: '2.0.0', force: true });
 			expect(result.files.map((f) => f.action)).toEqual(['updated', 'overwrite', 'removed']);
 			expect(readFileSync(join(dir, notes), 'utf-8')).toBe('notes v2\n');
-			expect(JSON.parse(readFileSync(join(dir, MANIFEST), 'utf-8')).files['svelte-grab/notes.md']).toBe(sha256('notes v2\n'));
+			expect(
+				JSON.parse(readFileSync(join(dir, MANIFEST), 'utf-8')).files['svelte-grab/notes.md']
+			).toBe(sha256('notes v2\n'));
 		});
 
 		it('dry run reports the update and removal but writes and deletes nothing', () => {
@@ -606,7 +732,9 @@ describe('installSkills (file system)', () => {
 			write(core, 'core v2\n');
 			const again = installSkills(dir, { files: V2, version: '2.0.0' });
 			expect(again.files.map((f) => f.action)).toEqual(['unchanged', 'conflict']);
-			expect(Object.keys(JSON.parse(readFileSync(join(dir, MANIFEST), 'utf-8')).files)).toEqual(['svelte-grab/SKILL.md']);
+			expect(Object.keys(JSON.parse(readFileSync(join(dir, MANIFEST), 'utf-8')).files)).toEqual([
+				'svelte-grab/SKILL.md'
+			]);
 		});
 	});
 
@@ -659,8 +787,14 @@ describe('installSkills (file system)', () => {
 	});
 
 	it('parses the skill flags', () => {
-		expect(parseSkillsFlags([])).toEqual({ skills: true, skillsDir: '.claude/skills', forceSkills: false });
-		expect(parseSkillsFlags(['--no-skills', '--skills-dir=.agents/skills/', '--force-skills'])).toEqual({
+		expect(parseSkillsFlags([])).toEqual({
+			skills: true,
+			skillsDir: '.claude/skills',
+			forceSkills: false
+		});
+		expect(
+			parseSkillsFlags(['--no-skills', '--skills-dir=.agents/skills/', '--force-skills'])
+		).toEqual({
 			skills: false,
 			skillsDir: '.agents/skills',
 			forceSkills: true
@@ -669,7 +803,9 @@ describe('installSkills (file system)', () => {
 
 	describe('svelte-grab skills <sub>', () => {
 		it('install (with --skills-dir and --dry-run)', () => {
-			expect(runSkillsCommand(['skills', 'install', '--skills-dir', 'x/skills', '--dry-run'], dir)).toBe(0);
+			expect(
+				runSkillsCommand(['skills', 'install', '--skills-dir', 'x/skills', '--dry-run'], dir)
+			).toBe(0);
 			expect(tree()).toEqual({});
 			expect(runSkillsCommand(['skills', 'install', '--skills-dir', 'x/skills'], dir)).toBe(0);
 			expect(Object.keys(tree()).sort()).toEqual(
@@ -684,7 +820,10 @@ describe('installSkills (file system)', () => {
 			expect(logged).toContain('svelte-grab (1 file)');
 			expect(logged).toContain('svelte-grab-audit (4 files)');
 			expect(logged).toContain(join(ROOT, 'skills/'));
-			expect(listSkills(files).filter((l) => !l.startsWith('  '))).toEqual(['svelte-grab (1 file)', 'svelte-grab-audit (4 files)']);
+			expect(listSkills(files).filter((l) => !l.startsWith('  '))).toEqual([
+				'svelte-grab (1 file)',
+				'svelte-grab-audit (4 files)'
+			]);
 		});
 
 		it('list shows each file: new / up to date / will update / edited by you', () => {
@@ -705,7 +844,9 @@ describe('installSkills (file system)', () => {
 			logSpy.mockClear();
 			expect(runSkillsCommand(['skills', 'list'], dir)).toBe(0);
 			const listed = lines();
-			expect(listed[0]).toMatch(/^\[svelte-grab\] Packaged skills \(svelte-grab \S+\) vs \.claude\/skills\/:$/);
+			expect(listed[0]).toMatch(
+				/^\[svelte-grab\] Packaged skills \(svelte-grab \S+\) vs \.claude\/skills\/:$/
+			);
 			const core = listed.indexOf('svelte-grab (1 file)');
 			expect(listed.slice(core + 2, core + 3)).toEqual(['  - SKILL.md: will update']);
 			expect(listed).toContain('  - CHECKLIST.md: edited by you');
@@ -721,9 +862,16 @@ describe('installSkills (file system)', () => {
 
 		it('listSkills groups files no longer shipped at the end', () => {
 			const plan = planSkillsInstall(files, () => null);
-			plan.files.push({ path: '.claude/skills/svelte-grab-gone/SKILL.md', action: 'orphaned', writePath: null });
+			plan.files.push({
+				path: '.claude/skills/svelte-grab-gone/SKILL.md',
+				action: 'orphaned',
+				writePath: null
+			});
 			const out = listSkills(files, plan);
-			expect(out.slice(-2)).toEqual(['No longer shipped', '  - svelte-grab-gone/SKILL.md: no longer shipped, edited by you']);
+			expect(out.slice(-2)).toEqual([
+				'No longer shipped',
+				'  - svelte-grab-gone/SKILL.md: no longer shipped, edited by you'
+			]);
 		});
 
 		it('unknown subcommand fails', () => {

@@ -39,7 +39,13 @@
  * /context, /runtime/*, /mcp; same-origin /__svelte-grab/* and
  * /__open-in-editor) is never recorded.
  */
-import { extractComponentFromFrame, filterFrames, findSvelteFrame, parseStackTrace, shortenFramePath } from '../utils/error-parser.js';
+import {
+	extractComponentFromFrame,
+	filterFrames,
+	findSvelteFrame,
+	parseStackTrace,
+	shortenFramePath
+} from '../utils/error-parser.js';
 import {
 	detectSecret,
 	isMeaningfulSecretValue,
@@ -164,12 +170,14 @@ const MCP_PATHS = new Set(['/health', '/events', '/context', '/mcp']);
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
 function nowMs(target: Window | null): number {
-	const perf = (target as { performance?: Performance } | null)?.performance ?? globalThis.performance;
+	const perf =
+		(target as { performance?: Performance } | null)?.performance ?? globalThis.performance;
 	return perf && typeof perf.now === 'function' ? perf.now() : Date.now();
 }
 
 function timeOrigin(target: Window | null): number {
-	const perf = (target as { performance?: Performance } | null)?.performance ?? globalThis.performance;
+	const perf =
+		(target as { performance?: Performance } | null)?.performance ?? globalThis.performance;
 	return perf && typeof perf.timeOrigin === 'number' ? perf.timeOrigin : 0;
 }
 
@@ -199,8 +207,10 @@ export function urlTags(url: string): string[] {
 		path = url.replace(/[?#].*$/, '');
 	}
 	const tags: string[] = [];
-	if (path.endsWith('/__data.json') || path.endsWith('.html__data.json')) tags.push('sveltekit-data');
-	if (path.endsWith('/__route.js') || path.endsWith('.html__route.js')) tags.push('sveltekit-route');
+	if (path.endsWith('/__data.json') || path.endsWith('.html__data.json'))
+		tags.push('sveltekit-data');
+	if (path.endsWith('/__route.js') || path.endsWith('.html__route.js'))
+		tags.push('sveltekit-route');
 	// Kit 3 remote functions: `${base}/${appDir}/remote/<id>[/<payload>]`, appDir `_app` by default.
 	if (/\/_app\/remote\//.test(path)) tags.push('remote-function');
 	if (/^\/(?:@vite\/|@fs\/|@id\/|node_modules\/\.vite\/)/.test(path)) tags.push('vite-dev');
@@ -288,9 +298,12 @@ function headersToRecord(headers: unknown): Record<string, string> {
 			});
 			return out;
 		}
-		const pairs = Array.isArray(headers) ? headers : Object.entries(headers as Record<string, unknown>);
+		const pairs = Array.isArray(headers)
+			? headers
+			: Object.entries(headers as Record<string, unknown>);
 		for (const pair of pairs as [unknown, unknown][]) {
-			if (Array.isArray(pair) && pair.length >= 2) out[String(pair[0]).toLowerCase()] = String(pair[1]);
+			if (Array.isArray(pair) && pair.length >= 2)
+				out[String(pair[0]).toLowerCase()] = String(pair[1]);
 		}
 	} catch {
 		// unreadable headers: record none
@@ -302,7 +315,8 @@ function headersToRecord(headers: unknown): Record<string, string> {
 function describeBody(body: unknown): { size: number | null; text: string | null } {
 	if (body === undefined || body === null) return { size: null, text: null };
 	try {
-		if (typeof body === 'string') return { size: utf8Length(body), text: body.slice(0, MAX_REQUEST_BODY_KEPT) };
+		if (typeof body === 'string')
+			return { size: utf8Length(body), text: body.slice(0, MAX_REQUEST_BODY_KEPT) };
 		if (typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams) {
 			const s = body.toString();
 			return { size: utf8Length(s), text: s.slice(0, MAX_REQUEST_BODY_KEPT) };
@@ -424,7 +438,8 @@ export class NetworkCapture {
 	 */
 	ownFetch(input: string, init?: RequestInit): Promise<Response> {
 		const target = this.target;
-		const f = this.original.fetch ?? (target as { fetch?: FetchFn } | null)?.fetch ?? globalThis.fetch;
+		const f =
+			this.original.fetch ?? (target as { fetch?: FetchFn } | null)?.fetch ?? globalThis.fetch;
 		const url = absoluteUrl(input, pageHref(target));
 		this.ownUrls.set(url, (this.ownUrls.get(url) ?? 0) + 1);
 		return f.call(target ?? globalThis, input, init);
@@ -526,7 +541,8 @@ export class NetworkCapture {
 		const perf = (this.target as { performance?: Performance } | null)?.performance;
 		if (!perf || typeof perf.getEntriesByType !== 'function') return;
 		try {
-			for (const e of perf.getEntriesByType('resource') as PerformanceResourceTiming[]) this.ingestResource(e);
+			for (const e of perf.getEntriesByType('resource') as PerformanceResourceTiming[])
+				this.ingestResource(e);
 		} catch {
 			// best effort
 		}
@@ -581,7 +597,8 @@ export class NetworkCapture {
 	}
 
 	private observeResources(target: Window): void {
-		const PO = (target as unknown as { PerformanceObserver?: typeof PerformanceObserver }).PerformanceObserver;
+		const PO = (target as unknown as { PerformanceObserver?: typeof PerformanceObserver })
+			.PerformanceObserver;
 		this.flushResources();
 		if (typeof PO !== 'function') return;
 		try {
@@ -647,13 +664,27 @@ export class NetworkCapture {
 		});
 	}
 
-	private startFetch(input: unknown, init: RequestInit | undefined, stack: string | undefined): NetworkEntry | null {
+	private startFetch(
+		input: unknown,
+		init: RequestInit | undefined,
+		stack: string | undefined
+	): NetworkEntry | null {
 		const page = pageHref(this.target);
 		const isRequest = typeof Request !== 'undefined' && input instanceof Request;
-		const url = absoluteUrl(isRequest ? (input as Request).url : input instanceof URL ? input.href : input, page);
+		const url = absoluteUrl(
+			isRequest ? (input as Request).url : input instanceof URL ? input.href : input,
+			page
+		);
 		if (this.shouldSkip(url)) return null;
-		const method = String(init?.method ?? (isRequest ? (input as Request).method : 'GET')).toUpperCase();
-		const headers = init?.headers !== undefined ? headersToRecord(init.headers) : isRequest ? headersToRecord((input as Request).headers) : {};
+		const method = String(
+			init?.method ?? (isRequest ? (input as Request).method : 'GET')
+		).toUpperCase();
+		const headers =
+			init?.headers !== undefined
+				? headersToRecord(init.headers)
+				: isRequest
+					? headersToRecord((input as Request).headers)
+					: {};
 		const body = describeBody(init?.body);
 		return this.record({
 			type: 'fetch',
@@ -672,7 +703,12 @@ export class NetworkCapture {
 		const ct = res.headers?.get?.('content-type') ?? null;
 		entry.contentType = ct;
 		const len = Number(res.headers?.get?.('content-length'));
-		if (entry.bodySize === null && Number.isFinite(len) && len >= 0 && res.headers?.get?.('content-length') !== null) {
+		if (
+			entry.bodySize === null &&
+			Number.isFinite(len) &&
+			len >= 0 &&
+			res.headers?.get?.('content-length') !== null
+		) {
 			entry.bodySize = len;
 		}
 		if (
@@ -702,7 +738,10 @@ export class NetworkCapture {
 		if (!proto || typeof proto.open !== 'function' || typeof proto.send !== 'function') return;
 		// eslint-disable-next-line @typescript-eslint/no-this-alias
 		const capture = this;
-		const state = new WeakMap<XMLHttpRequest, { method: string; url: string; headers: Record<string, string> }>();
+		const state = new WeakMap<
+			XMLHttpRequest,
+			{ method: string; url: string; headers: Record<string, string> }
+		>();
 		let enabled = true;
 		const origOpen = proto.open as AnyFn;
 		const origSend = proto.send as AnyFn;
@@ -781,7 +820,11 @@ export class NetworkCapture {
 				const ct = xhr.getResponseHeader('content-type');
 				entry.contentType = ct;
 				const len = Number(xhr.getResponseHeader('content-length'));
-				if (entry.bodySize === null && Number.isFinite(len) && xhr.getResponseHeader('content-length') !== null) {
+				if (
+					entry.bodySize === null &&
+					Number.isFinite(len) &&
+					xhr.getResponseHeader('content-length') !== null
+				) {
 					entry.bodySize = len;
 				}
 				if (
@@ -835,14 +878,23 @@ export class NetworkCapture {
 			return queued;
 		};
 		try {
-			Object.defineProperty(nav, 'sendBeacon', { value: wrapped, configurable: true, writable: true });
+			Object.defineProperty(nav, 'sendBeacon', {
+				value: wrapped,
+				configurable: true,
+				writable: true
+			});
 		} catch {
 			return;
 		}
 		this.cleanup.push(() => {
 			enabled = false;
 			if ((nav as unknown as { sendBeacon: unknown }).sendBeacon !== wrapped) return;
-			if (hadOwn) Object.defineProperty(nav, 'sendBeacon', { value: original, configurable: true, writable: true });
+			if (hadOwn)
+				Object.defineProperty(nav, 'sendBeacon', {
+					value: original,
+					configurable: true,
+					writable: true
+				});
 			else delete (nav as unknown as { sendBeacon?: unknown }).sendBeacon;
 		});
 	}
@@ -857,7 +909,11 @@ export class NetworkCapture {
 		const type: NetworkType = name === 'WebSocket' ? 'websocket' : 'eventsource';
 		const proxy: typeof Original = new Proxy(Original, {
 			construct(ctor, args, newTarget) {
-				const instance = Reflect.construct(ctor, args, newTarget === proxy ? ctor : newTarget) as EventTarget;
+				const instance = Reflect.construct(
+					ctor,
+					args,
+					newTarget === proxy ? ctor : newTarget
+				) as EventTarget;
 				if (enabled) {
 					try {
 						capture.trackSocket(instance, type, args[0], new Error().stack);
@@ -900,7 +956,12 @@ export class NetworkCapture {
 
 	private sockets = new WeakMap<object, NetworkEntry>();
 
-	private trackSocket(instance: EventTarget, type: NetworkType, url: unknown, stack: string | undefined): void {
+	private trackSocket(
+		instance: EventTarget,
+		type: NetworkType,
+		url: unknown,
+		stack: string | undefined
+	): void {
 		const abs = absoluteUrl(url, pageHref(this.target));
 		if (this.shouldSkip(abs)) return;
 		const entry = this.record({
@@ -970,7 +1031,9 @@ export function isViteDev(): boolean {
  * Vite dev server (`import.meta.hot` present) unless `dev` says otherwise.
  * Idempotent; undo with {@link releaseEarlyNetworkCapture}.
  */
-export function installNetworkCapture(options: { capture?: NetworkCapture; dev?: boolean } = {}): void {
+export function installNetworkCapture(
+	options: { capture?: NetworkCapture; dev?: boolean } = {}
+): void {
 	if (typeof window === 'undefined') return;
 	if (!(options.dev ?? isViteDev())) return;
 	try {
@@ -1017,7 +1080,8 @@ function parseSinceArg(args: Record<string, unknown>): number | 'navigation' | u
 function parseFilter(args: Record<string, unknown>): NetworkFilter {
 	const f = args.filter;
 	if (f === undefined || f === null) return {};
-	if (typeof f !== 'object' || Array.isArray(f)) throw new Error('"filter" must be an object { origin?, type?, status? }');
+	if (typeof f !== 'object' || Array.isArray(f))
+		throw new Error('"filter" must be an object { origin?, type?, status? }');
 	const raw = f as Record<string, unknown>;
 	const out: NetworkFilter = {};
 	if (raw.origin !== undefined) {
@@ -1028,7 +1092,9 @@ function parseFilter(args: Record<string, unknown>): NetworkFilter {
 		const types = Array.isArray(raw.type) ? raw.type : [raw.type];
 		for (const t of types) {
 			if (typeof t !== 'string' || !(NETWORK_TYPES as readonly string[]).includes(t)) {
-				throw new Error(`Unknown filter.type ${JSON.stringify(t)}: use any of ${NETWORK_TYPES.join(', ')}`);
+				throw new Error(
+					`Unknown filter.type ${JSON.stringify(t)}: use any of ${NETWORK_TYPES.join(', ')}`
+				);
 			}
 		}
 		out.type = types as NetworkType[];
@@ -1069,7 +1135,12 @@ function matchesFilter(e: NetworkEntry, f: NetworkFilter, pageUrl: string): bool
 		const third = isThirdParty(e.url, pageUrl);
 		if (f.origin === 'first-party' && third) return false;
 		else if (f.origin === 'third-party' && !third) return false;
-		else if (f.origin !== 'first-party' && f.origin !== 'third-party' && !originOf(e.url).includes(f.origin)) return false;
+		else if (
+			f.origin !== 'first-party' &&
+			f.origin !== 'third-party' &&
+			!originOf(e.url).includes(f.origin)
+		)
+			return false;
 	}
 	if (f.status !== undefined) {
 		const s = f.status;
@@ -1104,13 +1175,16 @@ function bytesOf(e: NetworkEntry): number {
 
 /** Sequential chains of fetch/XHR: B started within 50ms after A finished. */
 export function longestChain(entries: NetworkEntry[]): NetworkEntry[] {
-	const calls = entries.filter((e) => (e.type === 'fetch' || e.type === 'xhr') && e.end !== null).sort((a, b) => a.start - b.start);
+	const calls = entries
+		.filter((e) => (e.type === 'fetch' || e.type === 'xhr') && e.end !== null)
+		.sort((a, b) => a.start - b.start);
 	const best: { len: number; prev: number }[] = calls.map(() => ({ len: 1, prev: -1 }));
 	let top = -1;
 	for (let i = 0; i < calls.length; i++) {
 		for (let j = 0; j < i; j++) {
 			const gap = calls[i].start - (calls[j].end as number);
-			if (gap >= 0 && gap <= CHAIN_GAP_MS && best[j].len + 1 > best[i].len) best[i] = { len: best[j].len + 1, prev: j };
+			if (gap >= 0 && gap <= CHAIN_GAP_MS && best[j].len + 1 > best[i].len)
+				best[i] = { len: best[j].len + 1, prev: j };
 		}
 		if (top === -1 || best[i].len > best[top].len) top = i;
 	}
@@ -1137,7 +1211,8 @@ export function redactedBodyExcerpt(body: string): string {
 			if (depth > 20 || !v || typeof v !== 'object') return v;
 			if (Array.isArray(v)) return v.map((x) => replace(x, key, depth + 1));
 			const out: Record<string, unknown> = {};
-			for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = replace(x, k, depth + 1);
+			for (const [k, x] of Object.entries(v as Record<string, unknown>))
+				out[k] = replace(x, k, depth + 1);
 			return out;
 		};
 		text = JSON.stringify(replace(JSON.parse(body), null, 0));
@@ -1220,7 +1295,12 @@ export function summarizeNetwork(
 	}
 	const duplicates = [...groups.entries()]
 		.filter(([, list]) => list.length > 1)
-		.map(([key, list]) => ({ request: key, count: list.length, ids: list.map((v) => v.id), initiators: [...new Set(list.map((v) => initiatorText(v.initiator)).filter(Boolean))] }))
+		.map(([key, list]) => ({
+			request: key,
+			count: list.length,
+			ids: list.map((v) => v.id),
+			initiators: [...new Set(list.map((v) => initiatorText(v.initiator)).filter(Boolean))]
+		}))
 		.sort((a, b) => b.count - a.count);
 
 	const slowest = views
@@ -1244,13 +1324,17 @@ export function summarizeNetwork(
 	if (origins.length > 0) {
 		lines.push('ORIGINS');
 		for (const [o, s] of origins.slice(0, 10)) {
-			lines.push(`  ${s.thirdParty ? 'third-party' : 'first-party'} ${o} ${s.count} req ${formatBytes(s.bytes)}`);
+			lines.push(
+				`  ${s.thirdParty ? 'third-party' : 'first-party'} ${o} ${s.count} req ${formatBytes(s.bytes)}`
+			);
 		}
 	}
 	if (duplicates.length > 0) {
 		lines.push(`DUPLICATES ${duplicates.length}`);
 		for (const d of duplicates.slice(0, 10)) {
-			lines.push(`  x${d.count} ${d.request}${d.initiators.length ? ` <- ${d.initiators.join(', ')}` : ''}`);
+			lines.push(
+				`  x${d.count} ${d.request}${d.initiators.length ? ` <- ${d.initiators.join(', ')}` : ''}`
+			);
 		}
 	}
 	if (slowest.length > 0) {
@@ -1258,13 +1342,17 @@ export function summarizeNetwork(
 		for (const v of slowest) lines.push(`  #${v.id} ${v.durationMs}ms ${v.method} ${v.url}`);
 	}
 	if (chain.length > 1) {
-		lines.push(`WATERFALL sequential chain of ${chain.length} (each started right after the previous finished)`);
+		lines.push(
+			`WATERFALL sequential chain of ${chain.length} (each started right after the previous finished)`
+		);
 		for (const e of chain) lines.push(`  #${e.id} ${e.method} ${redactUrl(e.url).redacted}`);
 	}
 	if (failed.length > 0) {
 		lines.push(`FAILED ${failed.length}`);
 		for (const v of failed.slice(0, 20)) {
-			lines.push(`  #${v.id} ${v.status ?? '-'} ${v.method} ${v.url}${v.error ? ` (${v.error})` : ''}`);
+			lines.push(
+				`  #${v.id} ${v.status ?? '-'} ${v.method} ${v.url}${v.error ? ` (${v.error})` : ''}`
+			);
 		}
 	}
 	lines.push('REQUESTS (#id method status type size duration url <- initiator [tags])');
@@ -1287,7 +1375,8 @@ export function summarizeNetwork(
 		lines.push(line);
 		if (v.body) lines.push(`    body: ${v.body}`);
 	}
-	if (views.length > MAX_TEXT_REQUESTS) lines.push(`  (${views.length - MAX_TEXT_REQUESTS} older requests omitted; use filter)`);
+	if (views.length > MAX_TEXT_REQUESTS)
+		lines.push(`  (${views.length - MAX_TEXT_REQUESTS} older requests omitted; use filter)`);
 	if (options.includeBodies && !options.bodiesCaptured) {
 		lines.push(
 			'# Bodies are captured from now on (same-origin JSON, <= 64KB). For the page load, call ui_network({ reload: true, includeBodies: true }).'
@@ -1297,7 +1386,12 @@ export function summarizeNetwork(
 	return {
 		text: lines.join('\n'),
 		data: {
-			totals: { count: entries.length, bytes, firstParty: entries.length - third, thirdParty: third },
+			totals: {
+				count: entries.length,
+				bytes,
+				firstParty: entries.length - third,
+				thirdParty: third
+			},
 			byType,
 			byOrigin,
 			duplicates,
@@ -1316,10 +1410,15 @@ const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
  * orchestrated by the MCP server (`ui_network_reload` + re-hello + this call
  * with `since: 'navigation'`), so the page refuses it here.
  */
-export async function uiNetwork(args: Record<string, unknown>, options: NetworkOptions = {}): Promise<RuntimeToolResult> {
+export async function uiNetwork(
+	args: Record<string, unknown>,
+	options: NetworkOptions = {}
+): Promise<RuntimeToolResult> {
 	const capture = options.capture ?? networkCapture;
 	if (args.reload === true) {
-		throw new Error('reload is orchestrated by the MCP server: call the ui_network MCP tool with reload: true');
+		throw new Error(
+			'reload is orchestrated by the MCP server: call the ui_network MCP tool with reload: true'
+		);
 	}
 	const since = parseSinceArg(args);
 	const filter = parseFilter(args);
@@ -1333,7 +1432,8 @@ export async function uiNetwork(args: Record<string, unknown>, options: NetworkO
 	if (includeBodies) capture.bodies = true;
 	if (waitMs > 0) await (options.sleep ?? defaultSleep)(waitMs);
 
-	const pageUrl = options.pageUrl ?? (typeof location !== 'undefined' ? location.href : 'http://localhost/');
+	const pageUrl =
+		options.pageUrl ?? (typeof location !== 'undefined' ? location.href : 'http://localhost/');
 	const origin = capture.timeOrigin;
 	let entries = capture.entries();
 	if (typeof since === 'number') entries = entries.filter((e) => origin + e.start >= since);

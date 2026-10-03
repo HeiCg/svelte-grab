@@ -35,7 +35,12 @@ beforeEach(() => {
 function buildCard(): HTMLElement {
 	const inst = component('Card', '/src/App.svelte', 3);
 	const card = meta(
-		h('div', { class: 'card svelte-abc123', id: 'c1', 'data-testid': 'card', style: 'color: red;' }),
+		h('div', {
+			class: 'card svelte-abc123',
+			id: 'c1',
+			'data-testid': 'card',
+			style: 'color: red;'
+		}),
 		'/src/lib/Card.svelte',
 		5,
 		1,
@@ -124,7 +129,10 @@ describe('formatStateForAgent (SvelteStateGrab output)', () => {
 	it('lists every inspectable instance, diffs and snapshot history', () => {
 		const card = buildCard();
 		const info = extractComponentState(card, lookup({ Card: [{ n: 1 }, { n: 2 }] }));
-		const diffs = computeStateDiffs({ 'props.a': 1, 'props.gone': 1 }, { 'props.a': 2, 'props.new': 3 });
+		const diffs = computeStateDiffs(
+			{ 'props.a': 1, 'props.gone': 1 },
+			{ 'props.a': 2, 'props.new': 3 }
+		);
 		expect(diffs).toEqual([
 			{ key: 'props.a', oldValue: 1, newValue: 2 },
 			{ key: 'props.gone', oldValue: 1, newValue: undefined },
@@ -138,9 +146,13 @@ describe('formatStateForAgent (SvelteStateGrab output)', () => {
 		});
 		const text = formatStateForAgent(info, diffs, [snap(0), snap(1)]);
 		expect(text).toContain(
-			['\u{1F50D} INSPECTABLE STATE ($state, 2 instances):', '  [Card #1]', '    n: 1', '  [Card #2]', '    n: 2'].join(
-				'\n'
-			)
+			[
+				'\u{1F50D} INSPECTABLE STATE ($state, 2 instances):',
+				'  [Card #1]',
+				'    n: 1',
+				'  [Card #2]',
+				'    n: 2'
+			].join('\n')
 		);
 		expect(text).toContain(
 			[
@@ -150,7 +162,9 @@ describe('formatStateForAgent (SvelteStateGrab output)', () => {
 				'  props.new: (new) → 3'
 			].join('\n')
 		);
-		expect(text).toMatch(/\u{1F4F8} SNAPSHOT HISTORY \(2 captures for this component\):\n {2}\[.+\] 2 values/u);
+		expect(text).toMatch(
+			/\u{1F4F8} SNAPSHOT HISTORY \(2 captures for this component\):\n {2}\[.+\] 2 values/u
+		);
 	});
 
 	it('collectStateValues prefixes props, bound values and per-instance state', () => {

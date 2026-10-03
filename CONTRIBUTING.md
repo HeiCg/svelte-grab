@@ -21,7 +21,7 @@ code and vice versa.
 
 ## Prerequisites
 
-- Node.js **>= 18**
+- Node.js **>= 22.12**
 - npm (the repo uses `package-lock.json`)
 
 Install dependencies:
@@ -32,14 +32,14 @@ npm ci
 
 ## Scripts
 
-| Command            | What it does                                                      |
-| ------------------ | ---------------------------------------------------------------- |
-| `npm run build`    | Build both targets (`svelte-package` + server `tsc`)             |
-| `npm run check`    | Type-check the Svelte sources with `svelte-check`                |
-| `npm test`         | Run the Vitest unit tests in watch mode                          |
-| `npm run test:run` | Run the Vitest unit tests once (used in CI)                      |
-| `npm run lint`     | Lint with ESLint (flat config, TS + Svelte)                      |
-| `npm run format`   | Format the codebase with Prettier                                |
+| Command            | What it does                                         |
+| ------------------ | ---------------------------------------------------- |
+| `npm run build`    | Build both targets (`svelte-package` + server `tsc`) |
+| `npm run check`    | Type-check the Svelte sources with `svelte-check`    |
+| `npm test`         | Run the Vitest unit tests in watch mode              |
+| `npm run test:run` | Run the Vitest unit tests once (used in CI)          |
+| `npm run lint`     | Lint with ESLint (flat config, TS + Svelte)          |
+| `npm run format`   | Format the codebase with Prettier                    |
 
 ## Tests
 

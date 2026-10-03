@@ -22,12 +22,7 @@
 		onchange?: (checked: boolean) => void;
 	}
 
-	let {
-		checked = $bindable(false),
-		label,
-		disabled = false,
-		onchange
-	}: Props = $props();
+	let { checked = $bindable(false), label, disabled = false, onchange }: Props = $props();
 
 	function toggle() {
 		if (disabled) return;

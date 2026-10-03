@@ -111,8 +111,7 @@ if (typeof window !== 'undefined') {
 `;
 }
 
-const IMPORTS_SVELTE_GRAB =
-	/(?:\bfrom\s*|\bimport\s*\(?\s*)["']svelte-grab(?:\/[\w./-]*)?["']/;
+const IMPORTS_SVELTE_GRAB = /(?:\bfrom\s*|\bimport\s*\(?\s*)["']svelte-grab(?:\/[\w./-]*)?["']/;
 
 /**
  * Prepend the client import to a module that imports `svelte-grab`. Returns
@@ -199,7 +198,11 @@ function normalizeQuery(file: string): string {
  * module graph. Importers in the same file (e.g. a component and its CSS
  * module) are left out.
  */
-export function findImporters(graph: ModuleGraphLike, root: string, fileParam: string): ImportersResult {
+export function findImporters(
+	graph: ModuleGraphLike,
+	root: string,
+	fileParam: string
+): ImportersResult {
 	const rootPosix = toPosix(root).replace(/\/+$/, '');
 	const query = normalizeQuery(fileParam);
 	const result: ImportersResult = { file: fileParam, found: false, matches: [], importers: [] };
@@ -241,7 +244,11 @@ export function findImporters(graph: ModuleGraphLike, root: string, fileParam: s
 	return result;
 }
 
-type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void;
+type Middleware = (
+	req: IncomingMessage,
+	res: ServerResponse,
+	next: (err?: unknown) => void
+) => void;
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
 	res.statusCode = status;
@@ -251,7 +258,10 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 }
 
 /** Handler for {@link IMPORTERS_PATH} (mounted on that path, so `req.url` is `/?file=...`). */
-export function createImportersMiddleware(getGraph: () => ModuleGraphLike | undefined, getRoot: () => string): Middleware {
+export function createImportersMiddleware(
+	getGraph: () => ModuleGraphLike | undefined,
+	getRoot: () => string
+): Middleware {
 	return (req, res) => {
 		if (req.method !== 'GET' && req.method !== 'HEAD') {
 			res.setHeader('Allow', 'GET, HEAD');
@@ -333,7 +343,10 @@ export function svelteGrab(options: SvelteGrabViteOptions = {}): Plugin {
 			return [
 				{
 					tag: 'script',
-					attrs: { type: 'module', src: `${base.replace(/\/?$/, '/')}@id/__x00__${VIRTUAL_CLIENT_ID}` },
+					attrs: {
+						type: 'module',
+						src: `${base.replace(/\/?$/, '/')}@id/__x00__${VIRTUAL_CLIENT_ID}`
+					},
 					injectTo: 'head'
 				}
 			];

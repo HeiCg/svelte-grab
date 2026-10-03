@@ -76,8 +76,7 @@ export const TRANSITION = {
 } as const;
 
 /** Monospace font stack used across all dev-tool popups. */
-export const FONT_FAMILY_MONO =
-	"ui-monospace, 'SF Mono', Menlo, Monaco, monospace";
+export const FONT_FAMILY_MONO = "ui-monospace, 'SF Mono', Menlo, Monaco, monospace";
 
 /**
  * Aggregated token object for convenient single-import access, e.g.

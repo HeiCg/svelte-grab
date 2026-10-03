@@ -31,7 +31,10 @@ export interface McpPromptServer {
 	registerPrompt(
 		name: string,
 		config: McpPromptConfig,
-		cb: (args: Record<string, unknown>, extra: unknown) => McpPromptResult | Promise<McpPromptResult>
+		cb: (
+			args: Record<string, unknown>,
+			extra: unknown
+		) => McpPromptResult | Promise<McpPromptResult>
 	): unknown;
 }
 
@@ -66,7 +69,9 @@ function skillBody(skill: string, fallback: string): string {
  */
 export function markdownSection(markdown: string, heading: string): string | null {
 	const lines = markdown.split(/\r?\n/);
-	const start = lines.findIndex((line) => /^##\s/.test(line) && line.slice(2).trim().startsWith(heading));
+	const start = lines.findIndex(
+		(line) => /^##\s/.test(line) && line.slice(2).trim().startsWith(heading)
+	);
 	if (start === -1) return null;
 	let end = lines.length;
 	for (let i = start + 1; i < lines.length; i++) {
@@ -80,7 +85,10 @@ export function markdownSection(markdown: string, heading: string): string | nul
 
 function checklistSection(heading: string): string {
 	const checklist = readPackagedSkillFile('svelte-grab-audit/CHECKLIST.md');
-	return (checklist && markdownSection(checklist, heading)) ?? `## ${heading}\n\n(CHECKLIST.md not found in the package.)`;
+	return (
+		(checklist && markdownSection(checklist, heading)) ??
+		`## ${heading}\n\n(CHECKLIST.md not found in the package.)`
+	);
 }
 
 function userMessage(description: string, text: string): McpPromptResult {
@@ -158,7 +166,10 @@ export function registerSkillPrompts(server: McpPromptServer, z: ZodNamespace): 
 				'Per-screen security audit of the Svelte app: credentials in transit and at rest, SvelteKit data ' +
 				'exposure, headers, DOM, static scan; verified findings. Inlines the workflow and the security checklist.',
 			argsSchema: {
-				screen: z.string().optional().describe('Route or name of the screen to audit (default: pick the main screens).'),
+				screen: z
+					.string()
+					.optional()
+					.describe('Route or name of the screen to audit (default: pick the main screens).'),
 				url: z.string().optional().describe('URL of the screen in the dev server.')
 			}
 		},
@@ -174,7 +185,10 @@ export function registerSkillPrompts(server: McpPromptServer, z: ZodNamespace): 
 				'waterfalls, hot components, long frames and memory leaks against budgets. Inlines the workflow and ' +
 				'the performance checklist.',
 			argsSchema: {
-				screen: z.string().optional().describe('Route or name of the screen to audit (default: pick the main screens).')
+				screen: z
+					.string()
+					.optional()
+					.describe('Route or name of the screen to audit (default: pick the main screens).')
 			}
 		},
 		async (args) => performanceAuditPrompt(args)

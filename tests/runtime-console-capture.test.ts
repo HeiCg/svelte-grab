@@ -41,7 +41,11 @@ const CHROME_STACK = [
 
 describe('sourceFromStack', () => {
 	it('skips own frames and node_modules, prefers a .svelte frame, strips host and query', () => {
-		expect(sourceFromStack(CHROME_STACK)).toEqual({ file: 'src/components/Card.svelte', line: 22, column: 14 });
+		expect(sourceFromStack(CHROME_STACK)).toEqual({
+			file: 'src/components/Card.svelte',
+			line: 22,
+			column: 14
+		});
 	});
 
 	it('falls back to the first useful frame, null without one', () => {
@@ -53,7 +57,9 @@ describe('sourceFromStack', () => {
 		expect(sourceFromStack(undefined)).toBeNull();
 		// Code evaluated by devtools / Playwright has no file.
 		expect(
-			sourceFromStack('Error\n    at eval (eval at evaluate (:303:30), <anonymous>:3:44)\n    at <anonymous>:1:2')
+			sourceFromStack(
+				'Error\n    at eval (eval at evaluate (:303:30), <anonymous>:3:44)\n    at <anonymous>:1:2'
+			)
 		).toBeNull();
 		expect(sourceFromStack('Error: no frames')).toBeNull();
 	});
@@ -63,7 +69,9 @@ describe('formatConsoleArgs', () => {
 	it('joins args, formats errors and objects, drops %c styles', () => {
 		expect(formatConsoleArgs(['a', 1, { b: 2 }])).toBe('a 1 {"b":2}');
 		expect(formatConsoleArgs([new TypeError('bad')])).toBe('TypeError: bad');
-		expect(formatConsoleArgs(['%cstyled%c text', 'color:red', 'color:blue', 'tail'])).toBe('styled text tail');
+		expect(formatConsoleArgs(['%cstyled%c text', 'color:red', 'color:blue', 'tail'])).toBe(
+			'styled text tail'
+		);
 		const cyclic: Record<string, unknown> = {};
 		cyclic.self = cyclic;
 		expect(formatConsoleArgs([cyclic])).toBe('[object Object]');
@@ -119,7 +127,12 @@ describe('ConsoleCapture', () => {
 		err.stack = CHROME_STACK;
 		window.dispatchEvent(new ErrorEvent('error', { error: err, message: 'kaput' }));
 		window.dispatchEvent(
-			new ErrorEvent('error', { message: 'Script error', filename: 'http://localhost:5173/src/App.svelte?t=1', lineno: 7, colno: 3 })
+			new ErrorEvent('error', {
+				message: 'Script error',
+				filename: 'http://localhost:5173/src/App.svelte?t=1',
+				lineno: 7,
+				colno: 3
+			})
 		);
 		const rejection = new Event('unhandledrejection') as Event & { reason?: unknown };
 		rejection.reason = new Error('nope');
@@ -127,9 +140,21 @@ describe('ConsoleCapture', () => {
 
 		const entries = capture.entries();
 		expect(entries).toHaveLength(3);
-		expect(entries[0]).toMatchObject({ level: 'error', origin: 'uncaught', message: 'Uncaught Error: kaput', source: { file: 'src/components/Card.svelte', line: 22 } });
-		expect(entries[1]).toMatchObject({ origin: 'uncaught', message: 'Uncaught Script error', source: { file: 'src/App.svelte', line: 7, column: 3 } });
-		expect(entries[2]).toMatchObject({ origin: 'unhandledrejection', message: 'Unhandled rejection: Error: nope' });
+		expect(entries[0]).toMatchObject({
+			level: 'error',
+			origin: 'uncaught',
+			message: 'Uncaught Error: kaput',
+			source: { file: 'src/components/Card.svelte', line: 22 }
+		});
+		expect(entries[1]).toMatchObject({
+			origin: 'uncaught',
+			message: 'Uncaught Script error',
+			source: { file: 'src/App.svelte', line: 7, column: 3 }
+		});
+		expect(entries[2]).toMatchObject({
+			origin: 'unhandledrejection',
+			message: 'Unhandled rejection: Error: nope'
+		});
 
 		capture.release();
 		window.dispatchEvent(new ErrorEvent('error', { message: 'after release' }));

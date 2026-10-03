@@ -2,10 +2,7 @@
 	import Button from './Button.svelte';
 	import type { Snippet } from 'svelte';
 
-	let {
-		title = 'Card',
-		children
-	}: { title?: string; children?: Snippet } = $props();
+	let { title = 'Card', children }: { title?: string; children?: Snippet } = $props();
 
 	let clicks = $state(0);
 </script>

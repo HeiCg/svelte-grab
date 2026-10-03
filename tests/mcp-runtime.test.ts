@@ -11,7 +11,11 @@ import {
 	resolveTimeoutMs,
 	type RuntimeCommandMessage
 } from '../src/mcp/runtime/command-channel.js';
-import { parseHelloPayload, parseResultPayload, MAX_ID_LENGTH } from '../src/mcp/runtime/validate.js';
+import {
+	parseHelloPayload,
+	parseResultPayload,
+	MAX_ID_LENGTH
+} from '../src/mcp/runtime/validate.js';
 import {
 	forwardToPage,
 	registerRuntimeTools,
@@ -123,7 +127,11 @@ describe('TabRegistry', () => {
 		reg.hello(hello('b'));
 		const summaries = reg.summaries();
 		expect(summaries).toHaveLength(2);
-		expect(summaries.find((t) => t.tabId === 'a')).toMatchObject({ active: true, focused: true, title: 'Tab a' });
+		expect(summaries.find((t) => t.tabId === 'a')).toMatchObject({
+			active: true,
+			focused: true,
+			title: 'Tab a'
+		});
 		expect(summaries.find((t) => t.tabId === 'b')).toMatchObject({ active: false, focused: false });
 	});
 
@@ -133,7 +141,12 @@ describe('TabRegistry', () => {
 		reg.hello(hello('b'));
 		reg.hello(hello('a'));
 		reg.hello(hello('c'));
-		expect(reg.list().map((t) => t.tabId).sort()).toEqual(['a', 'c']);
+		expect(
+			reg
+				.list()
+				.map((t) => t.tabId)
+				.sort()
+		).toEqual(['a', 'c']);
 	});
 });
 
@@ -142,8 +155,17 @@ describe('TabRegistry', () => {
 // ============================================================
 describe('parseHelloPayload', () => {
 	it('accepts the contract shape', () => {
-		const r = parseHelloPayload({ tabId: 't1', url: 'http://localhost:5173/', title: 'App', focused: true, extra: 1 });
-		expect(r).toEqual({ ok: true, value: { tabId: 't1', url: 'http://localhost:5173/', title: 'App', focused: true } });
+		const r = parseHelloPayload({
+			tabId: 't1',
+			url: 'http://localhost:5173/',
+			title: 'App',
+			focused: true,
+			extra: 1
+		});
+		expect(r).toEqual({
+			ok: true,
+			value: { tabId: 't1', url: 'http://localhost:5173/', title: 'App', focused: true }
+		});
 	});
 
 	it.each([
@@ -163,7 +185,12 @@ describe('parseHelloPayload', () => {
 	});
 
 	it('truncates very long url/title instead of rejecting', () => {
-		const r = parseHelloPayload({ tabId: 't', url: 'u'.repeat(10_000), title: 't'.repeat(10_000), focused: false });
+		const r = parseHelloPayload({
+			tabId: 't',
+			url: 'u'.repeat(10_000),
+			title: 't'.repeat(10_000),
+			focused: false
+		});
 		expect(r.ok).toBe(true);
 		if (r.ok) {
 			expect(r.value.url.length).toBeLessThan(10_000);
@@ -178,7 +205,12 @@ describe('parseResultPayload', () => {
 			ok: true,
 			value: { id: 'c1', tabId: 't', ok: true, result: { text: 'hi' } }
 		});
-		const withData = parseResultPayload({ id: 'c1', tabId: 't', ok: true, result: { text: 'hi', data: { n: 1 } } });
+		const withData = parseResultPayload({
+			id: 'c1',
+			tabId: 't',
+			ok: true,
+			result: { text: 'hi', data: { n: 1 } }
+		});
 		expect(withData.ok && withData.value.ok && withData.value.result.data).toEqual({ n: 1 });
 	});
 
@@ -254,11 +286,18 @@ describe('CommandChannel', () => {
 		registry.hello(hello('a', true));
 		registry.hello(hello('b'));
 		const p = channel.send('ui_find', { text: 'Save' });
-		expect(sent).toEqual([{ id: 'cmd-1', targetTabId: 'a', tool: 'ui_find', args: { text: 'Save' } }]);
+		expect(sent).toEqual([
+			{ id: 'cmd-1', targetTabId: 'a', tool: 'ui_find', args: { text: 'Save' } }
+		]);
 		expect(channel.pendingCount).toBe(1);
-		expect(channel.settle({ id: 'cmd-1', tabId: 'a', ok: true, result: { text: 'e1 button', data: { n: 1 } } })).toBe(
-			'resolved'
-		);
+		expect(
+			channel.settle({
+				id: 'cmd-1',
+				tabId: 'a',
+				ok: true,
+				result: { text: 'e1 button', data: { n: 1 } }
+			})
+		).toBe('resolved');
 		await expect(p).resolves.toEqual({ text: 'e1 button', data: { n: 1 } });
 		expect(channel.pendingCount).toBe(0);
 	});
@@ -285,13 +324,19 @@ describe('CommandChannel', () => {
 		const { channel, registry, sent } = setup();
 		registry.hello(hello('a'));
 		const p = channel.send('ui_find', {});
-		expect(channel.settle({ id: 'nope', tabId: 'a', ok: true, result: { text: '' } })).toBe('unknown-id');
-		expect(channel.settle({ id: sent[0].id, tabId: 'other', ok: true, result: { text: '' } })).toBe('tab-mismatch');
+		expect(channel.settle({ id: 'nope', tabId: 'a', ok: true, result: { text: '' } })).toBe(
+			'unknown-id'
+		);
+		expect(channel.settle({ id: sent[0].id, tabId: 'other', ok: true, result: { text: '' } })).toBe(
+			'tab-mismatch'
+		);
 		expect(channel.has(sent[0].id)).toBe(true);
 		channel.settle({ id: sent[0].id, tabId: 'a', ok: true, result: { text: 'done' } });
 		await expect(p).resolves.toEqual({ text: 'done' });
 		// settled ids are gone
-		expect(channel.settle({ id: sent[0].id, tabId: 'a', ok: true, result: { text: '' } })).toBe('unknown-id');
+		expect(channel.settle({ id: sent[0].id, tabId: 'a', ok: true, result: { text: '' } })).toBe(
+			'unknown-id'
+		);
 	});
 
 	it('times out after 10s by default and forgets the id', async () => {
@@ -304,7 +349,9 @@ describe('CommandChannel', () => {
 		expect(channel.has(sent[0].id)).toBe(true);
 		await vi.advanceTimersByTimeAsync(1);
 		await assertion;
-		expect(channel.settle({ id: sent[0].id, tabId: 'a', ok: true, result: { text: '' } })).toBe('unknown-id');
+		expect(channel.settle({ id: sent[0].id, tabId: 'a', ok: true, result: { text: '' } })).toBe(
+			'unknown-id'
+		);
 	});
 
 	it('caps timeoutMs at 60s', async () => {
@@ -382,14 +429,26 @@ describe('runtime MCP tools', () => {
 			broadcast: (msg) => {
 				sent.push(msg);
 				queueMicrotask(() =>
-					channel.settle({ id: msg.id, tabId: msg.targetTabId, ok: true, result: { text: 'e1', data: { matches: [] } } })
+					channel.settle({
+						id: msg.id,
+						tabId: msg.targetTabId,
+						ok: true,
+						result: { text: 'e1', data: { matches: [] } }
+					})
 				);
 				return 1;
 			}
 		});
 		const out = await forwardToPage(channel, 'ui_find', { component: 'Card', tabId: 'a' });
-		expect(sent[0]).toMatchObject({ targetTabId: 'a', tool: 'ui_find', args: { component: 'Card' } });
-		expect(out).toEqual({ content: [{ type: 'text', text: 'e1' }], structuredContent: { matches: [] } });
+		expect(sent[0]).toMatchObject({
+			targetTabId: 'a',
+			tool: 'ui_find',
+			args: { component: 'Card' }
+		});
+		expect(out).toEqual({
+			content: [{ type: 'text', text: 'e1' }],
+			structuredContent: { matches: [] }
+		});
 	});
 
 	it('ui_tabs lists tabs with structuredContent', () => {
@@ -402,7 +461,13 @@ describe('runtime MCP tools', () => {
 		registry.hello(hello('a', true));
 		const out = uiTabs(registry, Date.now());
 		const tabs = (out.structuredContent as { tabs: Record<string, unknown>[] }).tabs;
-		expect(tabs[0]).toMatchObject({ tabId: 'a', url: 'http://localhost:5173/a', title: 'Tab a', focused: true, active: true });
+		expect(tabs[0]).toMatchObject({
+			tabId: 'a',
+			url: 'http://localhost:5173/a',
+			title: 'Tab a',
+			focused: true,
+			active: true
+		});
 		expect(typeof tabs[0].lastSeen).toBe('number');
 		expect(out.content[0].text).toContain('a [active, focused]');
 	});
@@ -414,7 +479,10 @@ describe('runtime MCP tools', () => {
 		registerRuntimeTools(
 			{ registerTool: (name, config, handler) => tools.set(name, { config, handler }) },
 			fakeZ,
-			{ registry: new TabRegistry(), channel: new CommandChannel({ registry: new TabRegistry(), broadcast: () => 1 }) }
+			{
+				registry: new TabRegistry(),
+				channel: new CommandChannel({ registry: new TabRegistry(), broadcast: () => 1 })
+			}
 		);
 		expect([...tools.keys()]).toEqual([
 			'ui_tabs',
@@ -437,7 +505,12 @@ describe('runtime MCP tools', () => {
 			expect(config.description).toContain('[data-sg-ref="e12"]');
 			expect(Object.keys(config.inputSchema ?? {})).toContain('tabId');
 		}
-		expect(Object.keys(tools.get('ui_snapshot')!.config.inputSchema!)).toEqual(['scope', 'detail', 'maxNodes', 'tabId']);
+		expect(Object.keys(tools.get('ui_snapshot')!.config.inputSchema!)).toEqual([
+			'scope',
+			'detail',
+			'maxNodes',
+			'tabId'
+		]);
 		expect(Object.keys(tools.get('ui_find')!.config.inputSchema!)).toEqual([
 			'text',
 			'role',
@@ -448,7 +521,11 @@ describe('runtime MCP tools', () => {
 			'limit',
 			'tabId'
 		]);
-		expect(Object.keys(tools.get('ui_inspect')!.config.inputSchema!)).toEqual(['ref', 'include', 'tabId']);
+		expect(Object.keys(tools.get('ui_inspect')!.config.inputSchema!)).toEqual([
+			'ref',
+			'include',
+			'tabId'
+		]);
 		expect(tools.get('ui_inspect')!.config.description).toMatch(/ui_snapshot \/ ui_find first/);
 		expect(tools.get('ui_tabs')!.config.outputSchema).toHaveProperty('tabs');
 	});
@@ -476,11 +553,18 @@ describe('runtime MCP tools', () => {
 		const chain: any = new Proxy(() => chain, { get: () => () => chain, apply: () => chain });
 		const fakeZ: any = new Proxy({}, { get: () => () => chain });
 		const tools = new Map<string, McpToolHandler>();
-		registerRuntimeTools({ registerTool: (name, _config, handler) => tools.set(name, handler) }, fakeZ, {
-			registry,
-			channel
-		});
-		const out = await tools.get('ui_inspect')!({ ref: 'e3', include: ['stack', 'layout'], tabId: 'b' }, {});
+		registerRuntimeTools(
+			{ registerTool: (name, _config, handler) => tools.set(name, handler) },
+			fakeZ,
+			{
+				registry,
+				channel
+			}
+		);
+		const out = await tools.get('ui_inspect')!(
+			{ ref: 'e3', include: ['stack', 'layout'], tabId: 'b' },
+			{}
+		);
 		expect(sent).toHaveLength(1);
 		expect(sent[0]).toMatchObject({
 			targetTabId: 'b',
@@ -517,10 +601,14 @@ describe('runtime MCP tools', () => {
 		const chain: any = new Proxy(() => chain, { get: () => () => chain, apply: () => chain });
 		const fakeZ: any = new Proxy({}, { get: () => () => chain });
 		const tools = new Map<string, { config: McpToolConfig; handler: McpToolHandler }>();
-		registerRuntimeTools({ registerTool: (name, config, handler) => tools.set(name, { config, handler }) }, fakeZ, {
-			registry,
-			channel
-		});
+		registerRuntimeTools(
+			{ registerTool: (name, config, handler) => tools.set(name, { config, handler }) },
+			fakeZ,
+			{
+				registry,
+				channel
+			}
+		);
 		const tool = tools.get('ui_annotations')!;
 		expect(tool.config.title).toBeTruthy();
 		expect(Object.keys(tool.config.inputSchema!)).toEqual(['clear', 'tabId']);
@@ -529,7 +617,11 @@ describe('runtime MCP tools', () => {
 
 		const out = await tool.handler({ clear: true, tabId: 'b' }, {});
 		expect(sent).toHaveLength(1);
-		expect(sent[0]).toMatchObject({ targetTabId: 'b', tool: 'ui_annotations', args: { clear: true } });
+		expect(sent[0]).toMatchObject({
+			targetTabId: 'b',
+			tool: 'ui_annotations',
+			args: { clear: true }
+		});
 		expect(sent[0].args).not.toHaveProperty('tabId');
 		expect(out).toEqual({
 			content: [{ type: 'text', text: 'UI annotations: 1' }],
@@ -564,30 +656,43 @@ describe('runtime MCP tools', () => {
 		const chain: any = new Proxy(() => chain, { get: () => () => chain, apply: () => chain });
 		const fakeZ: any = new Proxy({}, { get: () => () => chain });
 		const tools = new Map<string, { config: McpToolConfig; handler: McpToolHandler }>();
-		registerRuntimeTools({ registerTool: (name, config, handler) => tools.set(name, { config, handler }) }, fakeZ, {
-			registry,
-			channel
-		});
+		registerRuntimeTools(
+			{ registerTool: (name, config, handler) => tools.set(name, { config, handler }) },
+			fakeZ,
+			{
+				registry,
+				channel
+			}
+		);
 
 		const verify = tools.get('ui_verify')!;
 		expect(verify.config.title).toBeTruthy();
 		expect(Object.keys(verify.config.inputSchema!)).toEqual(['ref', 'checks', 'since', 'tabId']);
 		expect(verify.config.description).toContain('after ui_wait_for_hmr');
 		expect(verify.config.description).toContain('[data-sg-ref="e12"]');
-		const out = await verify.handler({ ref: 'e4', checks: ['overflow', 'console'], since: 123, tabId: 'b' }, {});
+		const out = await verify.handler(
+			{ ref: 'e4', checks: ['overflow', 'console'], since: 123, tabId: 'b' },
+			{}
+		);
 		expect(sent[0]).toMatchObject({
 			targetTabId: 'b',
 			tool: 'ui_verify',
 			args: { ref: 'e4', checks: ['overflow', 'console'], since: 123 }
 		});
 		expect(sent[0].args).not.toHaveProperty('tabId');
-		expect(out).toEqual({ content: [{ type: 'text', text: 'ui_verify ok' }], structuredContent: { tool: 'ui_verify' } });
+		expect(out).toEqual({
+			content: [{ type: 'text', text: 'ui_verify ok' }],
+			structuredContent: { tool: 'ui_verify' }
+		});
 
 		const impact = tools.get('ui_component_impact')!;
 		expect(impact.config.title).toBeTruthy();
 		expect(Object.keys(impact.config.inputSchema!)).toEqual(['ref', 'tabId']);
 		expect(impact.config.description).toMatch(/BEFORE editing a component/);
-		const out2 = await impact.handler({ ref: 'ui://src/lib/Button.svelte:2:1#Button[role=button,name=a][0]' }, {});
+		const out2 = await impact.handler(
+			{ ref: 'ui://src/lib/Button.svelte:2:1#Button[role=button,name=a][0]' },
+			{}
+		);
 		expect(sent[1]).toMatchObject({
 			targetTabId: 'a',
 			tool: 'ui_component_impact',
@@ -626,12 +731,20 @@ function send(
 	path: string,
 	opts: { origin?: string | null; token?: string | null; body?: string | object } = {}
 ): Promise<HttpResult> {
-	const headers: Record<string, string> = { 'content-type': 'application/json', connection: 'close' };
+	const headers: Record<string, string> = {
+		'content-type': 'application/json',
+		connection: 'close'
+	};
 	const origin = opts.origin === undefined ? GOOD_ORIGIN : opts.origin;
 	const token = opts.token === undefined ? TOKEN : opts.token;
 	if (origin) headers.origin = origin;
 	if (token) headers['x-svelte-grab-token'] = token;
-	const body = opts.body === undefined ? undefined : typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body);
+	const body =
+		opts.body === undefined
+			? undefined
+			: typeof opts.body === 'string'
+				? opts.body
+				: JSON.stringify(opts.body);
 	return new Promise((resolve, reject) => {
 		const req = httpRequest({ host: HOST, port, method, path, headers }, (res) => {
 			const chunks: Buffer[] = [];
@@ -665,7 +778,13 @@ function openSse(port: number): Promise<SseConnection> {
 		const waiters: { event: string; resolve: (data: any) => void }[] = [];
 		let buffer = '';
 		const req = httpRequest(
-			{ host: HOST, port, method: 'GET', path: `/events?token=${TOKEN}`, headers: { origin: GOOD_ORIGIN } },
+			{
+				host: HOST,
+				port,
+				method: 'GET',
+				path: `/events?token=${TOKEN}`,
+				headers: { origin: GOOD_ORIGIN }
+			},
 			(res: IncomingMessage) => {
 				res.setEncoding('utf8');
 				res.on('data', (chunk: string) => {
@@ -746,7 +865,11 @@ describe('runtime HTTP endpoints', () => {
 		});
 
 		it('rejects a disallowed Origin even with a valid token', async () => {
-			const r = await send(port, 'POST', path, { origin: 'https://evil.example', token: TOKEN, body: {} });
+			const r = await send(port, 'POST', path, {
+				origin: 'https://evil.example',
+				token: TOKEN,
+				body: {}
+			});
 			expect(r.status).toBe(403);
 		});
 
@@ -780,7 +903,9 @@ describe('runtime HTTP endpoints', () => {
 	it('POST /runtime/hello accepts the contract shape and rejects wrong types', async () => {
 		const ok = await send(port, 'POST', '/runtime/hello', { body: hello('http-hello', true) });
 		expect(ok).toEqual({ status: 200, json: { ok: true } });
-		const bad = await send(port, 'POST', '/runtime/hello', { body: { ...hello('x'), focused: 'yes' } });
+		const bad = await send(port, 'POST', '/runtime/hello', {
+			body: { ...hello('x'), focused: 'yes' }
+		});
 		expect(bad.status).toBe(400);
 	});
 
@@ -789,13 +914,17 @@ describe('runtime HTTP endpoints', () => {
 			body: { id: 'does-not-exist', tabId: 't', ok: true, result: { text: '' } }
 		});
 		expect(unknown.status).toBe(404);
-		const bad = await send(port, 'POST', '/runtime/result', { body: { id: 'x', tabId: 't', ok: 1 } });
+		const bad = await send(port, 'POST', '/runtime/result', {
+			body: { id: 'x', tabId: 't', ok: 1 }
+		});
 		expect(bad.status).toBe(400);
 	});
 
 	it('sendRuntimeCommand rejects when the tab has no open SSE stream', async () => {
 		await send(port, 'POST', '/runtime/hello', { body: hello('no-sse') });
-		await expect(sendRuntimeCommand('ui_find', {}, { tabId: 'no-sse' })).rejects.toThrow(NO_TAB_MESSAGE);
+		await expect(sendRuntimeCommand('ui_find', {}, { tabId: 'no-sse' })).rejects.toThrow(
+			NO_TAB_MESSAGE
+		);
 	});
 
 	it('round trip: SSE runtime-command -> POST /runtime/result resolves; replay -> 404', async () => {
@@ -806,7 +935,12 @@ describe('runtime HTTP endpoints', () => {
 
 		const pending = sendRuntimeCommand('ui_find', { component: 'Card' }, { tabId: 'rt-tab' });
 		const cmd = await sse.next('runtime-command');
-		expect(cmd).toEqual({ id: expect.any(String), targetTabId: 'rt-tab', tool: 'ui_find', args: { component: 'Card' } });
+		expect(cmd).toEqual({
+			id: expect.any(String),
+			targetTabId: 'rt-tab',
+			tool: 'ui_find',
+			args: { component: 'Card' }
+		});
 
 		const wrongTab = await send(port, 'POST', '/runtime/result', {
 			body: { id: cmd.id, tabId: 'other-tab', ok: true, result: { text: 'x' } }
@@ -814,7 +948,12 @@ describe('runtime HTTP endpoints', () => {
 		expect(wrongTab.status).toBe(404);
 
 		const r = await send(port, 'POST', '/runtime/result', {
-			body: { id: cmd.id, tabId: 'rt-tab', ok: true, result: { text: 'e1 Card', data: { matches: [{ ref: 'e1' }] } } }
+			body: {
+				id: cmd.id,
+				tabId: 'rt-tab',
+				ok: true,
+				result: { text: 'e1 Card', data: { matches: [{ ref: 'e1' }] } }
+			}
 		});
 		expect(r).toEqual({ status: 200, json: { ok: true } });
 		await expect(pending).resolves.toEqual({ text: 'e1 Card', data: { matches: [{ ref: 'e1' }] } });
@@ -846,8 +985,8 @@ describe('runtime HTTP endpoints', () => {
 		connections.push(sse);
 		await waitForSseClients(port, 1);
 		await send(port, 'POST', '/runtime/hello', { body: hello('slow-tab') });
-		await expect(sendRuntimeCommand('ui_find', {}, { tabId: 'slow-tab', timeoutMs: 50 })).rejects.toThrow(
-			'Browser tab did not respond in 0.05s'
-		);
+		await expect(
+			sendRuntimeCommand('ui_find', {}, { tabId: 'slow-tab', timeoutMs: 50 })
+		).rejects.toThrow('Browser tab did not respond in 0.05s');
 	});
 });

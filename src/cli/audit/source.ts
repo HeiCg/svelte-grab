@@ -41,7 +41,9 @@ export function lineAt(text: string, offset: number, radius = 300): string {
 	let end = Math.min(lineEnd, offset + radius);
 	while (start > lineStart && TOKEN_CHAR.test(text[start - 1])) start--;
 	while (end < lineEnd && TOKEN_CHAR.test(text[end])) end++;
-	return (start > lineStart ? '…' : '') + text.slice(start, end).trim() + (end < lineEnd ? '…' : '');
+	return (
+		(start > lineStart ? '…' : '') + text.slice(start, end).trim() + (end < lineEnd ? '…' : '')
+	);
 }
 
 /** Collapse whitespace and cap the length of a code excerpt. */
@@ -213,7 +215,10 @@ export function statementEnd(text: string, start: number): number {
  * the first `{...}` after its parameter list / `=>`, or, for an arrow with an
  * expression body, the expression. Expects comment-masked text.
  */
-export function functionBodyAfter(text: string, from: number): { start: number; end: number; expression: boolean } | null {
+export function functionBodyAfter(
+	text: string,
+	from: number
+): { start: number; end: number; expression: boolean } | null {
 	let i = from;
 	const skipWs = () => {
 		while (i < text.length && /\s/.test(text[i])) i++;
@@ -312,7 +317,9 @@ export function isTestFile(rel: string): boolean {
 	// `src/routes/test/` is a route, not a test directory: only count a test
 	// segment that is not below a `routes` segment.
 	const routes = dirs.indexOf('routes');
-	return dirs.some((s, i) => (s === 'tests' || s === 'test' || s === 'e2e') && (routes === -1 || i < routes));
+	return dirs.some(
+		(s, i) => (s === 'tests' || s === 'test' || s === 'e2e') && (routes === -1 || i < routes)
+	);
 }
 
 /** Node-side tooling: `*.config.*` files and anything outside src/static/public. */

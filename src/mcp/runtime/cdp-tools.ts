@@ -18,7 +18,13 @@ import { MAX_COMMAND_TIMEOUT_MS, NO_TAB_MESSAGE, type CommandChannel } from './c
 import type { TabEntry, TabRegistry } from './tab-registry.js';
 import type { RuntimeResultData } from './validate.js';
 import type { McpToolResult, McpToolServer, ZodNamespace } from './tools.js';
-import { CDP_HOW_TO_ENABLE, connectToTab, type CdpConfig, type CdpSessionLike, type CdpTarget } from '../cdp/client.js';
+import {
+	CDP_HOW_TO_ENABLE,
+	connectToTab,
+	type CdpConfig,
+	type CdpSessionLike,
+	type CdpTarget
+} from '../cdp/client.js';
 
 /** Page command names; must match src/lib/runtime/leak.ts. */
 export const LEAK_TRACK_START_TOOL = 'ui_leak_track_start';
@@ -49,7 +55,10 @@ export interface CdpToolDeps {
 	cdp: () => CdpConfig | null;
 	tabIdHint: string;
 	/** Test seam: open a CDP session on the tab's page target. */
-	connect?: (config: CdpConfig, tab: { url: string; title?: string }) => Promise<{ session: CdpSessionLike; target: CdpTarget; ambiguous: boolean }>;
+	connect?: (
+		config: CdpConfig,
+		tab: { url: string; title?: string }
+	) => Promise<{ session: CdpSessionLike; target: CdpTarget; ambiguous: boolean }>;
 	sleep?: (ms: number) => Promise<void>;
 }
 
@@ -117,14 +126,20 @@ export function settleMs(waitMs: unknown): number {
 
 /** Clamp `iterations` to 1..20 (default 5). */
 export function leakIterations(iterations: unknown): number {
-	if (typeof iterations !== 'number' || !Number.isFinite(iterations)) return DEFAULT_LEAK_ITERATIONS;
+	if (typeof iterations !== 'number' || !Number.isFinite(iterations))
+		return DEFAULT_LEAK_ITERATIONS;
 	return Math.min(MAX_LEAK_ITERATIONS, Math.max(1, Math.floor(iterations)));
 }
 
 /** Server timeout for a `ui_run_actions` call, capped at the channel's 60s. */
-export function runActionsTimeoutMs(actionCount: number, iterations: number, waitMs: number): number {
+export function runActionsTimeoutMs(
+	actionCount: number,
+	iterations: number,
+	waitMs: number
+): number {
 	const runs = actionCount > 0 ? iterations : 1;
-	const budget = runs * (actionCount * ACTION_BUDGET_MS + SETTLE_FRAMES_BUDGET_MS + waitMs) + SERVER_GRACE_MS;
+	const budget =
+		runs * (actionCount * ACTION_BUDGET_MS + SETTLE_FRAMES_BUDGET_MS + waitMs) + SERVER_GRACE_MS;
 	return Math.min(MAX_COMMAND_TIMEOUT_MS, budget);
 }
 
@@ -139,17 +154,23 @@ function isAction(value: unknown): value is CdpAction {
 }
 
 /** The action list of a call: `actions` (array) or `action` (one), validated for shape. */
-export function readActions(args: Record<string, unknown>, options: { required: boolean }): CdpAction[] {
+export function readActions(
+	args: Record<string, unknown>,
+	options: { required: boolean }
+): CdpAction[] {
 	let list: unknown[] = [];
 	if (args.actions !== undefined && args.actions !== null) {
-		if (!Array.isArray(args.actions)) throw new Error('"actions" must be an array of { ref, type, value? }');
+		if (!Array.isArray(args.actions))
+			throw new Error('"actions" must be an array of { ref, type, value? }');
 		list = args.actions;
 	} else if (args.action !== undefined && args.action !== null) {
 		list = [args.action];
 	}
-	if (list.length > MAX_RUN_ACTIONS) throw new Error(`"actions" takes at most ${MAX_RUN_ACTIONS} actions per iteration`);
+	if (list.length > MAX_RUN_ACTIONS)
+		throw new Error(`"actions" takes at most ${MAX_RUN_ACTIONS} actions per iteration`);
 	const actions = list.map((a, i) => {
-		if (!isAction(a)) throw new Error(`actions[${i}] must be { ref, type: "click"|"input"|"scroll", value? }`);
+		if (!isAction(a))
+			throw new Error(`actions[${i}] must be { ref, type: "click"|"input"|"scroll", value? }`);
 		const out: CdpAction = { ref: a.ref, type: a.type };
 		if (typeof a.value === 'string') out.value = a.value;
 		return out;
@@ -164,8 +185,12 @@ export function readActions(args: Record<string, unknown>, options: { required: 
 
 /** Read the counters of {@link PERF_METRICS} (ScriptDuration/TaskDuration in ms). */
 export async function readCounters(session: CdpSessionLike): Promise<Record<string, number>> {
-	const dom = await session.send<{ documents?: number; nodes?: number; jsEventListeners?: number }>('Memory.getDOMCounters');
-	const perf = await session.send<{ metrics?: { name: string; value: number }[] }>('Performance.getMetrics');
+	const dom = await session.send<{ documents?: number; nodes?: number; jsEventListeners?: number }>(
+		'Memory.getDOMCounters'
+	);
+	const perf = await session.send<{ metrics?: { name: string; value: number }[] }>(
+		'Performance.getMetrics'
+	);
 	const metrics = new Map((perf.metrics ?? []).map((m) => [m.name, m.value]));
 	const read = (name: string) => {
 		const v = metrics.get(name);
@@ -183,7 +208,10 @@ export async function readCounters(session: CdpSessionLike): Promise<Record<stri
 	};
 }
 
-export function computeDeltas(before: Record<string, number>, after: Record<string, number>): MetricDelta[] {
+export function computeDeltas(
+	before: Record<string, number>,
+	after: Record<string, number>
+): MetricDelta[] {
 	return PERF_METRICS.map(({ name, unit }) => {
 		const b = before[name] ?? 0;
 		const a = after[name] ?? 0;
@@ -212,7 +240,12 @@ function signed(value: number, unit: MetricDelta['unit']): string {
 
 /** `metric before after delta` table; changed rows are marked with `*`. */
 export function formatMetricsTable(rows: MetricDelta[]): string[] {
-	const cells = rows.map((r) => [r.name, formatMetricValue(r.before, r.unit), formatMetricValue(r.after, r.unit), signed(r.delta, r.unit)]);
+	const cells = rows.map((r) => [
+		r.name,
+		formatMetricValue(r.before, r.unit),
+		formatMetricValue(r.after, r.unit),
+		signed(r.delta, r.unit)
+	]);
 	const header = ['metric', 'before', 'after', 'delta'];
 	const widths = header.map((h, i) => Math.max(h.length, ...cells.map((c) => c[i].length)));
 	const line = (c: string[], mark = '') =>
@@ -221,7 +254,9 @@ export function formatMetricsTable(rows: MetricDelta[]): string[] {
 }
 
 function describeActions(actions: CdpAction[]): string {
-	return actions.map((a) => `${a.type} ${a.ref}${a.value !== undefined ? ` "${a.value}"` : ''}`).join(' -> ');
+	return actions
+		.map((a) => `${a.type} ${a.ref}${a.value !== undefined ? ` "${a.value}"` : ''}`)
+		.join(' -> ');
 }
 
 async function openSession(deps: CdpToolDeps, config: CdpConfig, tab: TabEntry) {
@@ -230,7 +265,10 @@ async function openSession(deps: CdpToolDeps, config: CdpConfig, tab: TabEntry) 
 }
 
 /** `ui_perf_metrics` handler. */
-export async function uiPerfMetrics(deps: CdpToolDeps, rawArgs: Record<string, unknown> | undefined): Promise<McpToolResult> {
+export async function uiPerfMetrics(
+	deps: CdpToolDeps,
+	rawArgs: Record<string, unknown> | undefined
+): Promise<McpToolResult> {
 	const args = rawArgs ?? {};
 	const config = deps.cdp();
 	if (!config) {
@@ -272,16 +310,20 @@ export async function uiPerfMetrics(deps: CdpToolDeps, rawArgs: Record<string, u
 		const rows = computeDeltas(before, after);
 		const performed = Number((run.data as { performed?: unknown } | undefined)?.performed ?? 0);
 		const changed = rows.filter((r) => r.delta !== 0);
-		const what = actions.length > 0 ? `${describeActions(actions)} (isTrusted=false)` : 'idle (no action)';
+		const what =
+			actions.length > 0 ? `${describeActions(actions)} (isTrusted=false)` : 'idle (no action)';
 		const lines = [
 			`PERF ${what}: ` +
-				(changed.length > 0 ? changed.map((r) => `${r.name} ${signed(r.delta, r.unit)}`).join(', ') : 'no counter changed'),
+				(changed.length > 0
+					? changed.map((r) => `${r.name} ${signed(r.delta, r.unit)}`).join(', ')
+					: 'no counter changed'),
 			`ui_perf_metrics via CDP (${target.url}), settled 2 frames + ${waitMs}ms after the action`,
 			...formatMetricsTable(rows),
 			'* changed. ScriptDuration/TaskDuration are main-thread time spent; LayoutCount/RecalcStyleCount count layouts and style recalcs.'
 		];
 		if (actions.length > 0 && performed < actions.length) lines.push(`warning: ${run.text}`);
-		if (conn.ambiguous) lines.push(`note: several Chrome tabs show ${tab.url}; measured the first match`);
+		if (conn.ambiguous)
+			lines.push(`note: several Chrome tabs show ${tab.url}; measured the first match`);
 		return {
 			content: [{ type: 'text', text: lines.join('\n') }],
 			structuredContent: {
@@ -361,17 +403,26 @@ export function assessLeak(input: LeakVerdictInput): LeakAssessment {
 			);
 		}
 	}
-	if (!input.forcedGc) return { verdict: 'INCONCLUSIVE', reason: 'no forced GC; enable --cdp', findings };
-	if (input.performed === 0) return { verdict: 'INCONCLUSIVE', reason: 'no action could be performed', findings };
+	if (!input.forcedGc)
+		return { verdict: 'INCONCLUSIVE', reason: 'no forced GC; enable --cdp', findings };
+	if (input.performed === 0)
+		return { verdict: 'INCONCLUSIVE', reason: 'no action could be performed', findings };
 	if (findings.length > 0) return { verdict: 'LEAK SUSPECTED', findings };
 	if (input.tracked === 0) {
-		return { verdict: 'INCONCLUSIVE', reason: 'the actions did not unmount any Svelte element', findings };
+		return {
+			verdict: 'INCONCLUSIVE',
+			reason: 'the actions did not unmount any Svelte element',
+			findings
+		};
 	}
 	return { verdict: 'NO LEAK DETECTED', findings };
 }
 
 /** `ui_leak_check` handler. */
-export async function uiLeakCheck(deps: CdpToolDeps, rawArgs: Record<string, unknown> | undefined): Promise<McpToolResult> {
+export async function uiLeakCheck(
+	deps: CdpToolDeps,
+	rawArgs: Record<string, unknown> | undefined
+): Promise<McpToolResult> {
 	const args = rawArgs ?? {};
 	const sleep = deps.sleep ?? defaultSleep;
 	let tab: TabEntry;
@@ -385,7 +436,11 @@ export async function uiLeakCheck(deps: CdpToolDeps, rawArgs: Record<string, unk
 	const iterations = leakIterations(args.iterations);
 	const waitMs = settleMs(args.waitMs);
 	const notes: string[] = [];
-	const send = (tool: string, toolArgs: Record<string, unknown>, timeoutMs?: number): Promise<RuntimeResultData> =>
+	const send = (
+		tool: string,
+		toolArgs: Record<string, unknown>,
+		timeoutMs?: number
+	): Promise<RuntimeResultData> =>
 		deps.channel.send(tool, toolArgs, { tabId: tab.tabId, timeoutMs });
 
 	const config = deps.cdp();
@@ -396,7 +451,8 @@ export async function uiLeakCheck(deps: CdpToolDeps, rawArgs: Record<string, unk
 			const conn = await openSession(deps, config, tab);
 			session = conn.session;
 			target = conn.target;
-			if (conn.ambiguous) notes.push(`several Chrome tabs show ${tab.url}; measured the first match`);
+			if (conn.ambiguous)
+				notes.push(`several Chrome tabs show ${tab.url}; measured the first match`);
 		} catch (err) {
 			notes.push(`CDP unavailable, ran without a forced GC: ${messageOf(err)}`);
 		}
@@ -418,21 +474,39 @@ export async function uiLeakCheck(deps: CdpToolDeps, rawArgs: Record<string, unk
 		}
 		await send(LEAK_TRACK_START_TOOL, {});
 		tracking = true;
-		const run = await send(RUN_ACTIONS_TOOL, { actions, iterations, waitMs }, runActionsTimeoutMs(actions.length, iterations, waitMs));
+		const run = await send(
+			RUN_ACTIONS_TOOL,
+			{ actions, iterations, waitMs },
+			runActionsTimeoutMs(actions.length, iterations, waitMs)
+		);
 		const runData = (run.data ?? {}) as { performed?: number; skipped?: string[] };
 		if (session) await gc();
 		const report = await send(LEAK_TRACK_REPORT_TOOL, {});
 		tracking = false;
 		const after = session ? await readCounters(session) : null;
 
-		const reportData = (report.data ?? {}) as { tracked?: number; retained?: number; groups?: LeakGroup[]; truncated?: boolean };
+		const reportData = (report.data ?? {}) as {
+			tracked?: number;
+			retained?: number;
+			groups?: LeakGroup[];
+			truncated?: boolean;
+		};
 		const groups = Array.isArray(reportData.groups) ? reportData.groups : [];
 		const tracked = Number(reportData.tracked ?? 0);
 		const retained = Number(reportData.retained ?? 0);
 		const performed = Number(runData.performed ?? 0);
 		const growth: Record<string, number> | null =
-			baseline && after ? Object.fromEntries(LEAK_METRICS.map((m) => [m, Math.round(after[m] - baseline![m])])) : null;
-		const assessment = assessLeak({ forcedGc: session !== null, iterations, performed, tracked, groups, growth });
+			baseline && after
+				? Object.fromEntries(LEAK_METRICS.map((m) => [m, Math.round(after[m] - baseline![m])]))
+				: null;
+		const assessment = assessLeak({
+			forcedGc: session !== null,
+			iterations,
+			performed,
+			tracked,
+			groups,
+			growth
+		});
 
 		const lines = [
 			`${assessment.verdict}${assessment.reason ? ` (${assessment.reason})` : ''}: ${iterations} iteration${iterations === 1 ? '' : 's'} of [${describeActions(actions)}]` +
@@ -462,8 +536,11 @@ export async function uiLeakCheck(deps: CdpToolDeps, rawArgs: Record<string, unk
 		if (!session && groups.length > 0) {
 			lines.push('CANDIDATES (unconfirmed without a forced GC):');
 			for (const g of groups.slice(0, 15)) {
-				const roots = typeof g.roots === 'number' ? ` in ${g.roots} subtree${g.roots === 1 ? '' : 's'}` : '';
-				lines.push(`  ${g.component ?? '(unknown component)'} ${g.source} ${g.count} detached node${g.count === 1 ? '' : 's'}${roots}`);
+				const roots =
+					typeof g.roots === 'number' ? ` in ${g.roots} subtree${g.roots === 1 ? '' : 's'}` : '';
+				lines.push(
+					`  ${g.component ?? '(unknown component)'} ${g.source} ${g.count} detached node${g.count === 1 ? '' : 's'}${roots}`
+				);
 			}
 		}
 		if (performed < actions.length * iterations) lines.push(`warning: ${run.text}`);
@@ -503,8 +580,13 @@ export function registerCdpTools(server: McpToolServer, z: ZodNamespace, deps: C
 	const actionSchema = () =>
 		z.object({
 			ref: z.string().describe('Ref (eN) or ui:// stable key of the element to act on.'),
-			type: z.enum(CDP_ACTION_TYPES).describe('"click", "input" (sets value, fires input + change) or "scroll".'),
-			value: z.string().optional().describe('input: the text to set (required). scroll: "dy" or "dx,dy" px.')
+			type: z
+				.enum(CDP_ACTION_TYPES)
+				.describe('"click", "input" (sets value, fires input + change) or "scroll".'),
+			value: z
+				.string()
+				.optional()
+				.describe('input: the text to set (required). scroll: "dy" or "dx,dy" px.')
 		});
 
 	server.registerTool(
@@ -526,7 +608,9 @@ export function registerCdpTools(server: McpToolServer, z: ZodNamespace, deps: C
 					.number()
 					.int()
 					.optional()
-					.describe(`Settle time after the action, after 2 frames (default ${DEFAULT_SETTLE_MS}, max ${MAX_SETTLE_MS}).`),
+					.describe(
+						`Settle time after the action, after 2 frames (default ${DEFAULT_SETTLE_MS}, max ${MAX_SETTLE_MS}).`
+					),
 				tabId: z.string().optional().describe(deps.tabIdHint)
 			}
 		},
@@ -551,19 +635,27 @@ export function registerCdpTools(server: McpToolServer, z: ZodNamespace, deps: C
 				actions: z
 					.array(actionSchema())
 					.optional()
-					.describe(`Actions per iteration, in order (max ${MAX_RUN_ACTIONS}), e.g. [open toggle, close toggle].`),
-				action: actionSchema().optional().describe('A single action per iteration (e.g. a toggle clicked once).'),
+					.describe(
+						`Actions per iteration, in order (max ${MAX_RUN_ACTIONS}), e.g. [open toggle, close toggle].`
+					),
+				action: actionSchema()
+					.optional()
+					.describe('A single action per iteration (e.g. a toggle clicked once).'),
 				iterations: z
 					.number()
 					.int()
 					.positive()
 					.optional()
-					.describe(`How many times to run the actions (default ${DEFAULT_LEAK_ITERATIONS}, max ${MAX_LEAK_ITERATIONS}).`),
+					.describe(
+						`How many times to run the actions (default ${DEFAULT_LEAK_ITERATIONS}, max ${MAX_LEAK_ITERATIONS}).`
+					),
 				waitMs: z
 					.number()
 					.int()
 					.optional()
-					.describe(`Settle time after each iteration, after 2 frames (default ${DEFAULT_SETTLE_MS}, max ${MAX_SETTLE_MS}).`),
+					.describe(
+						`Settle time after each iteration, after 2 frames (default ${DEFAULT_SETTLE_MS}, max ${MAX_SETTLE_MS}).`
+					),
 				tabId: z.string().optional().describe(deps.tabIdHint)
 			}
 		},

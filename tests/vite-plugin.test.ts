@@ -27,14 +27,20 @@ function node(file: string, url: string, id = file): ModuleNodeLike {
 /** App.svelte and ControlFlow.svelte import Card.svelte; Card has a CSS sub-module. */
 function fakeGraph(): ModuleGraphLike {
 	const app = node(`${ROOT}/src/App.svelte`, '/src/App.svelte');
-	const flow = node(`${ROOT}/src/components/ControlFlow.svelte`, '/src/components/ControlFlow.svelte');
+	const flow = node(
+		`${ROOT}/src/components/ControlFlow.svelte`,
+		'/src/components/ControlFlow.svelte'
+	);
 	const card = node(`${ROOT}/src/components/Card.svelte`, '/src/components/Card.svelte');
 	const cardCss = node(
 		`${ROOT}/src/components/Card.svelte`,
 		'/src/components/Card.svelte?svelte&type=style&lang.css',
 		`${ROOT}/src/components/Card.svelte?svelte&type=style&lang.css`
 	);
-	const fixtureCard = node(`${ROOT}/src/components/FixtureCard.svelte`, '/src/components/FixtureCard.svelte');
+	const fixtureCard = node(
+		`${ROOT}/src/components/FixtureCard.svelte`,
+		'/src/components/FixtureCard.svelte'
+	);
 	card.importers.add(app).add(flow);
 	cardCss.importers.add(card);
 	fixtureCard.importers.add(flow);
@@ -74,8 +80,15 @@ function run(
 			res.body = b ?? '';
 		}
 	} as unknown as ServerResponse;
-	const req = { method, url, headers: { host: 'localhost:5173', ...headers } } as unknown as IncomingMessage;
-	createImportersMiddleware(() => graph ?? undefined, () => ROOT)(req, fakeRes, () => {
+	const req = {
+		method,
+		url,
+		headers: { host: 'localhost:5173', ...headers }
+	} as unknown as IncomingMessage;
+	createImportersMiddleware(
+		() => graph ?? undefined,
+		() => ROOT
+	)(req, fakeRes, () => {
 		throw new Error('next() should not be called');
 	});
 	return { ...res, json: res.body ? JSON.parse(res.body) : null };
@@ -139,7 +152,9 @@ describe('svelte-grab/vite plugin shape', () => {
 	});
 
 	it('injectClientImport matches real imports of svelte-grab only', () => {
-		expect(injectClientImport(`import { SvelteDevKit } from 'svelte-grab';`)).toMatch(/^import "virtual:svelte-grab\/client";/);
+		expect(injectClientImport(`import { SvelteDevKit } from 'svelte-grab';`)).toMatch(
+			/^import "virtual:svelte-grab\/client";/
+		);
 		expect(injectClientImport(`import x from "svelte-grab/vite";`)).not.toBeNull();
 		expect(injectClientImport(`const m = await import('svelte-grab');`)).not.toBeNull();
 		expect(injectClientImport(`const key = 'svelte-grab-tab-id';`)).toBeNull();
@@ -147,7 +162,12 @@ describe('svelte-grab/vite plugin shape', () => {
 	});
 
 	it('the client module forwards every bridged Vite event', () => {
-		const code = createClientModule({ version: '1', root: ROOT, hmrBridge: true, importersEndpoint: null });
+		const code = createClientModule({
+			version: '1',
+			root: ROOT,
+			hmrBridge: true,
+			importersEndpoint: null
+		});
 		for (const event of BRIDGED_EVENTS) expect(code).toContain(event);
 		expect(code).toContain(`"${HMR_BRIDGE_EVENT}"`);
 		expect(code).toContain('waitUntil');
@@ -157,7 +177,10 @@ describe('svelte-grab/vite plugin shape', () => {
 
 	it('mounts the importers middleware on the dev server (and not when disabled)', () => {
 		const used: string[] = [];
-		const server = { middlewares: { use: (path: string) => used.push(path) }, moduleGraph: fakeGraph() };
+		const server = {
+			middlewares: { use: (path: string) => used.push(path) },
+			moduleGraph: fakeGraph()
+		};
 		(svelteGrab() as any).configureServer(server);
 		expect(used).toEqual([IMPORTERS_PATH]);
 		used.length = 0;
@@ -173,7 +196,12 @@ describe('findImporters', () => {
 			{ file: 'src/App.svelte', url: '/src/App.svelte' },
 			{ file: 'src/components/ControlFlow.svelte', url: '/src/components/ControlFlow.svelte' }
 		];
-		for (const q of ['Card.svelte', 'src/components/Card.svelte', '/src/components/Card.svelte', `${ROOT}/src/components/Card.svelte`]) {
+		for (const q of [
+			'Card.svelte',
+			'src/components/Card.svelte',
+			'/src/components/Card.svelte',
+			`${ROOT}/src/components/Card.svelte`
+		]) {
 			const out = findImporters(graph, ROOT, q);
 			expect(out.found, q).toBe(true);
 			expect(out.matches).toEqual(['src/components/Card.svelte']);
@@ -195,7 +223,10 @@ describe('findImporters', () => {
 
 describe('importers endpoint', () => {
 	it('answers GET with the importers as JSON', () => {
-		const res = run('GET', '/?file=FixtureCard.svelte', { 'sec-fetch-site': 'same-origin', origin: 'http://localhost:5173' });
+		const res = run('GET', '/?file=FixtureCard.svelte', {
+			'sec-fetch-site': 'same-origin',
+			origin: 'http://localhost:5173'
+		});
 		expect(res.statusCode).toBe(200);
 		expect(res.headers['content-type']).toMatch(/application\/json/);
 		expect(res.json).toMatchObject({
@@ -206,11 +237,19 @@ describe('importers endpoint', () => {
 	});
 
 	it('rejects cross-origin requests', () => {
-		expect(run('GET', '/?file=Card.svelte', { origin: 'http://evil.example' }).statusCode).toBe(403);
-		expect(run('GET', '/?file=Card.svelte', { 'sec-fetch-site': 'cross-site' }).statusCode).toBe(403);
-		expect(run('GET', '/?file=Card.svelte', { 'sec-fetch-site': 'same-site' }).statusCode).toBe(403);
+		expect(run('GET', '/?file=Card.svelte', { origin: 'http://evil.example' }).statusCode).toBe(
+			403
+		);
+		expect(run('GET', '/?file=Card.svelte', { 'sec-fetch-site': 'cross-site' }).statusCode).toBe(
+			403
+		);
+		expect(run('GET', '/?file=Card.svelte', { 'sec-fetch-site': 'same-site' }).statusCode).toBe(
+			403
+		);
 		expect(run('GET', '/?file=Card.svelte', { origin: 'null' }).statusCode).toBe(403);
-		expect(run('GET', '/?file=Card.svelte', { origin: 'http://localhost:9999' }).statusCode).toBe(403);
+		expect(run('GET', '/?file=Card.svelte', { origin: 'http://localhost:9999' }).statusCode).toBe(
+			403
+		);
 	});
 
 	it('rejects other methods, missing/oversized file and a missing graph', () => {
@@ -224,8 +263,14 @@ describe('importers endpoint', () => {
 
 	it('isSameOriginRequest allows non-browser clients and same-origin browsers', () => {
 		expect(isSameOriginRequest({ headers: { host: 'localhost:5173' } })).toBe(true);
-		expect(isSameOriginRequest({ headers: { host: 'localhost:5173', 'sec-fetch-site': 'none' } })).toBe(true);
-		expect(isSameOriginRequest({ headers: { host: 'localhost:5173', origin: 'http://localhost:5173' } })).toBe(true);
-		expect(isSameOriginRequest({ headers: { host: 'localhost:5173', origin: 'not a url' } })).toBe(false);
+		expect(
+			isSameOriginRequest({ headers: { host: 'localhost:5173', 'sec-fetch-site': 'none' } })
+		).toBe(true);
+		expect(
+			isSameOriginRequest({ headers: { host: 'localhost:5173', origin: 'http://localhost:5173' } })
+		).toBe(true);
+		expect(isSameOriginRequest({ headers: { host: 'localhost:5173', origin: 'not a url' } })).toBe(
+			false
+		);
 	});
 });

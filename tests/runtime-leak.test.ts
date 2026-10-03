@@ -30,7 +30,12 @@ const APP = '/app/src/App.svelte';
 /** A Panel component instance: div (line 10) > strong (11) + ul (12) > li (13). */
 function panel(): HTMLElement {
 	return meta(
-		h('div', { class: 'panel' }, meta(h('strong', {}, 'Panel'), PANEL, 11, 3, null), meta(h('ul', {}, meta(h('li', {}, 'one'), PANEL, 13, 5, null)), PANEL, 12, 3, null)),
+		h(
+			'div',
+			{ class: 'panel' },
+			meta(h('strong', {}, 'Panel'), PANEL, 11, 3, null),
+			meta(h('ul', {}, meta(h('li', {}, 'one'), PANEL, 13, 5, null)), PANEL, 12, 3, null)
+		),
 		PANEL,
 		10,
 		1,
@@ -67,7 +72,14 @@ describe('LeakTracker', () => {
 		expect(report.tracked).toBe(12);
 		expect(report.retained).toBe(12);
 		expect(report.groups).toEqual([
-			{ component: 'Panel', file: 'src/components/Panel.svelte', line: 10, source: 'src/components/Panel.svelte:10', count: 12, roots: 3 }
+			{
+				component: 'Panel',
+				file: 'src/components/Panel.svelte',
+				line: 10,
+				source: 'src/components/Panel.svelte:10',
+				count: 12,
+				roots: 3
+			}
 		]);
 		expect(kept).toHaveLength(3);
 	});
@@ -136,7 +148,10 @@ describe('ui_leak_track_start / ui_leak_track_report', () => {
 		const p = panel();
 		document.body.append(p);
 		const started = await dispatchRuntimeCommand(LEAK_TRACK_START_TOOL, {});
-		expect(started).toMatchObject({ ok: true, result: { data: { tracking: true, restarted: false } } });
+		expect(started).toMatchObject({
+			ok: true,
+			result: { data: { tracking: true, restarted: false } }
+		});
 		p.remove();
 		await tick();
 		const out = await dispatchRuntimeCommand(LEAK_TRACK_REPORT_TOOL, {});
@@ -179,7 +194,11 @@ describe('ui_run_actions', () => {
 		openBtn.addEventListener('click', () => open++);
 		closeBtn.addEventListener('click', () => close++);
 		document.body.append(openBtn, closeBtn);
-		return { openRef: registry.refFor(openBtn), closeRef: registry.refFor(closeBtn), counts: () => [open, close] };
+		return {
+			openRef: registry.refFor(openBtn),
+			closeRef: registry.refFor(closeBtn),
+			counts: () => [open, close]
+		};
 	}
 
 	it('runs the actions in order for each iteration, one frame after each and a settle after each iteration', async () => {
@@ -201,7 +220,14 @@ describe('ui_run_actions', () => {
 		expect(out.text).toBe(
 			`Ran 3 iterations of [click ${t.openRef} -> click ${t.closeRef}]: 6 actions performed (isTrusted=false), settled 2 frames + 50ms after each`
 		);
-		expect(out.data).toMatchObject({ iterations: 3, performed: 6, expected: 6, skipped: [], waitMs: 50, isTrusted: false });
+		expect(out.data).toMatchObject({
+			iterations: 3,
+			performed: 6,
+			expected: 6,
+			skipped: [],
+			waitMs: 50,
+			isTrusted: false
+		});
 	});
 
 	it('with no actions only settles once (default 300ms)', async () => {
@@ -212,15 +238,22 @@ describe('ui_run_actions', () => {
 	});
 
 	it('validates refs up front and the action shapes', async () => {
-		await expect(uiRunActions({ actions: [{ ref: 'e99', type: 'click' }] }, { registry, ...fast })).rejects.toThrow(
-			'Unknown ref "e99" in actions[0]'
+		await expect(
+			uiRunActions({ actions: [{ ref: 'e99', type: 'click' }] }, { registry, ...fast })
+		).rejects.toThrow('Unknown ref "e99" in actions[0]');
+		await expect(uiRunActions({ actions: 'nope' }, { registry, ...fast })).rejects.toThrow(
+			'"actions" must be an array'
 		);
-		await expect(uiRunActions({ actions: 'nope' }, { registry, ...fast })).rejects.toThrow('"actions" must be an array');
-		await expect(uiRunActions({ actions: [{ ref: 'e1', type: 'hover' }] }, { registry, ...fast })).rejects.toThrow(
-			'"actions[0].type" must be one of click, input, scroll'
+		await expect(
+			uiRunActions({ actions: [{ ref: 'e1', type: 'hover' }] }, { registry, ...fast })
+		).rejects.toThrow('"actions[0].type" must be one of click, input, scroll');
+		const many = Array.from({ length: PAGE_MAX_RUN_ACTIONS + 1 }, () => ({
+			ref: 'e1',
+			type: 'click'
+		}));
+		await expect(uiRunActions({ actions: many }, { registry, ...fast })).rejects.toThrow(
+			'at most 10 actions'
 		);
-		const many = Array.from({ length: PAGE_MAX_RUN_ACTIONS + 1 }, () => ({ ref: 'e1', type: 'click' }));
-		await expect(uiRunActions({ actions: many }, { registry, ...fast })).rejects.toThrow('at most 10 actions');
 	});
 
 	it('skips (and reports) an action whose ref stops resolving mid-run', async () => {
@@ -228,18 +261,33 @@ describe('ui_run_actions', () => {
 		const closeBtn = registry.resolve(t.closeRef)!.element;
 		document.body.querySelector('button')!.addEventListener('click', () => closeBtn.remove());
 		const out = await uiRunActions(
-			{ actions: [{ ref: t.openRef, type: 'click' }, { ref: t.closeRef, type: 'click' }], iterations: 2, waitMs: 0 },
+			{
+				actions: [
+					{ ref: t.openRef, type: 'click' },
+					{ ref: t.closeRef, type: 'click' }
+				],
+				iterations: 2,
+				waitMs: 0
+			},
 			{ registry, ...fast }
 		);
 		expect(out.data).toMatchObject({ performed: 2, expected: 4 });
-		expect((out.data!.skipped as string[])[0]).toBe(`iteration 1, actions[1]: ref ${t.closeRef} no longer resolves`);
+		expect((out.data!.skipped as string[])[0]).toBe(
+			`iteration 1, actions[1]: ref ${t.closeRef} no longer resolves`
+		);
 		expect(fast.sleep).not.toHaveBeenCalled();
 	});
 
 	it('clamps iterations to 20', async () => {
 		const t = toggle();
-		const out = await uiRunActions({ actions: [{ ref: t.openRef, type: 'click' }], iterations: 99, waitMs: 0 }, { registry, ...fast });
-		expect(out.data).toMatchObject({ iterations: MAX_RUN_ITERATIONS, performed: MAX_RUN_ITERATIONS });
+		const out = await uiRunActions(
+			{ actions: [{ ref: t.openRef, type: 'click' }], iterations: 99, waitMs: 0 },
+			{ registry, ...fast }
+		);
+		expect(out.data).toMatchObject({
+			iterations: MAX_RUN_ITERATIONS,
+			performed: MAX_RUN_ITERATIONS
+		});
 	});
 });
 

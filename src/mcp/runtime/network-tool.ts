@@ -83,13 +83,21 @@ function message(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
 }
 
-export async function runUiNetwork(deps: NetworkToolDeps, rawArgs: Record<string, unknown> | undefined): Promise<McpToolResult> {
+export async function runUiNetwork(
+	deps: NetworkToolDeps,
+	rawArgs: Record<string, unknown> | undefined
+): Promise<McpToolResult> {
 	const { tabId, args } = splitForwardArgs(rawArgs);
 	const reload = args.reload === true;
 	delete args.reload;
 	if (!reload) {
 		try {
-			return toToolResult(await deps.channel.send('ui_network', args, { tabId, timeoutMs: networkServerTimeoutMs(args.waitMs) }));
+			return toToolResult(
+				await deps.channel.send('ui_network', args, {
+					tabId,
+					timeoutMs: networkServerTimeoutMs(args.waitMs)
+				})
+			);
 		} catch (err) {
 			return toToolError(message(err));
 		}
@@ -145,11 +153,19 @@ export async function runUiNetwork(deps: NetworkToolDeps, rawArgs: Record<string
 			const result = await deps.channel.send('ui_network', pageArgs, { tabId: id });
 			const header = `# reloaded tab ${id}: reconnected after ${reconnectedMs}ms, then waited ${waitMs}ms`;
 			const out = toToolResult({ ...result, text: `${header}\n${result.text}` });
-			if (out.structuredContent) out.structuredContent = { ...out.structuredContent, reloaded: true, reconnectedMs, waitedMs: waitMs };
+			if (out.structuredContent)
+				out.structuredContent = {
+					...out.structuredContent,
+					reloaded: true,
+					reconnectedMs,
+					waitedMs: waitMs
+				};
 			return out;
 		} catch (err) {
 			const msg = message(err);
-			const retryable = msg.includes(NOT_RELOADED) || /did not respond|No browser tab connected|is not connected/.test(msg);
+			const retryable =
+				msg.includes(NOT_RELOADED) ||
+				/did not respond|No browser tab connected|is not connected/.test(msg);
 			if (!retryable || now() >= deadline + waitMs) return toToolError(msg);
 			await sleep(RELOAD_POLL_MS);
 		}
@@ -177,7 +193,10 @@ export function registerNetworkTool(
 				'Bodies are not returned unless includeBodies (same-origin JSON only, redacted, 2 KB); for the page load ' +
 				'use reload + includeBodies. Follow with ui_security_scan for credential leaks.',
 			inputSchema: {
-				reload: z.boolean().optional().describe('Reload the tab and report the requests of the fresh page load.'),
+				reload: z
+					.boolean()
+					.optional()
+					.describe('Reload the tab and report the requests of the fresh page load.'),
 				waitMs: z
 					.number()
 					.int()
@@ -186,7 +205,12 @@ export function registerNetworkTool(
 						`Wait before reporting, in ms (reload: default ${DEFAULT_NETWORK_WAIT_MS} after the tab reconnects; ` +
 							`otherwise default 0; max ${MAX_NETWORK_WAIT_MS}).`
 					),
-				since: z.number().optional().describe('Only requests started at or after this epoch ms (reload implies the new page load).'),
+				since: z
+					.number()
+					.optional()
+					.describe(
+						'Only requests started at or after this epoch ms (reload implies the new page load).'
+					),
 				filter: z
 					.object({
 						origin: z
@@ -197,14 +221,18 @@ export function registerNetworkTool(
 						status: z
 							.string()
 							.optional()
-							.describe('"failed" (network error or >= 400), "ok", "4xx", "5xx" or a code like "404".')
+							.describe(
+								'"failed" (network error or >= 400), "ok", "4xx", "5xx" or a code like "404".'
+							)
 					})
 					.optional()
 					.describe('Keep only matching requests.'),
 				includeBodies: z
 					.boolean()
 					.optional()
-					.describe('Include redacted, truncated (2 KB) same-origin JSON response bodies (captured from now on / after reload).'),
+					.describe(
+						'Include redacted, truncated (2 KB) same-origin JSON response bodies (captured from now on / after reload).'
+					),
 				tabId: z.string().optional().describe(deps.tabIdHint)
 			}
 		},

@@ -23,16 +23,16 @@ export function remove(providerName?: string, options: RemoveOptions = {}): void
 		return;
 	}
 
-	const existing = config.providers.find(p => p.name === providerName);
+	const existing = config.providers.find((p) => p.name === providerName);
 	if (!existing) {
 		console.log(`Provider "${providerName}" is not configured.`);
-		console.log('Current providers: ' + config.providers.map(p => p.name).join(', '));
+		console.log('Current providers: ' + config.providers.map((p) => p.name).join(', '));
 		return;
 	}
 
 	const beforeJson = JSON.stringify(config, null, 2);
 
-	config.providers = config.providers.filter(p => p.name !== providerName);
+	config.providers = config.providers.filter((p) => p.name !== providerName);
 
 	const afterJson = JSON.stringify(config, null, 2);
 

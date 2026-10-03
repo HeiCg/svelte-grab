@@ -2,11 +2,23 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { audit, FINDING_SCHEMA, validateAgainstSchema, validateAuditReport } from '../src/cli/audit/index.js';
+import {
+	audit,
+	FINDING_SCHEMA,
+	validateAgainstSchema,
+	validateAuditReport
+} from '../src/cli/audit/index.js';
 import { parseAuditArgs } from '../src/cli/audit/cli.js';
 import { parseNpmAudit } from '../src/cli/audit/deps.js';
 import { svelteRules } from '../src/cli/audit/rules/svelte.js';
-import { classifyFile, functionBodyAfter, isServerOnly, lineColAt, lineStarts, maskComments } from '../src/cli/audit/source.js';
+import {
+	classifyFile,
+	functionBodyAfter,
+	isServerOnly,
+	lineColAt,
+	lineStarts,
+	maskComments
+} from '../src/cli/audit/source.js';
 import { isIgnored, parseGitignore } from '../src/cli/audit/walker.js';
 import { FAKE, cleanupFixtures, makeProject } from './audit-helpers.js';
 
@@ -19,7 +31,9 @@ describe('shared secret rules', () => {
 		const src = readFileSync(join(root, 'src/lib/security/secret-rules.ts'), 'utf-8');
 		const code = src.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
 		expect(code).not.toMatch(/^\s*import\s/m);
-		expect(code).not.toMatch(/\b(?:window|document|navigator|localStorage|process|require|Buffer|globalThis)\b/);
+		expect(code).not.toMatch(
+			/\b(?:window|document|navigator|localStorage|process|require|Buffer|globalThis)\b/
+		);
 	});
 });
 
@@ -68,7 +82,9 @@ describe('finding schema', () => {
 });
 
 describe('walker: .gitignore subset', () => {
-	const rules = parseGitignore(['# c', '*.log', '/build-out', 'tmp/', 'docs/**/draft.md', '!keep.log', 'a/b'].join('\n'));
+	const rules = parseGitignore(
+		['# c', '*.log', '/build-out', 'tmp/', 'docs/**/draft.md', '!keep.log', 'a/b'].join('\n')
+	);
 	it.each([
 		['x.log', false, true],
 		['deep/x.log', false, true],
@@ -168,7 +184,7 @@ describe('rules: edge cases', () => {
 	it('load returning locals data or selected fields is not flagged', () => {
 		const f = run({
 			'src/routes/+layout.server.ts':
-				"export const load = ({ locals }) => ({ user: locals.user });\n",
+				'export const load = ({ locals }) => ({ user: locals.user });\n',
 			'src/routes/a/+page.server.ts':
 				"export async function load() {\n\tconst { data: user } = await supabase.from('users').select('id, name').single();\n\treturn { user };\n}\n"
 		});
@@ -223,7 +239,8 @@ describe('rules: edge cases', () => {
 
 	it('sessionStorage is low; key held in a token-named constant is needs_validation', () => {
 		const f = run({
-			'src/lib/a.ts': "sessionStorage.setItem('jwt', t);\nlocalStorage.setItem(TOKEN_KEY, t);\nlocalStorage.refreshToken = t;\n"
+			'src/lib/a.ts':
+				"sessionStorage.setItem('jwt', t);\nlocalStorage.setItem(TOKEN_KEY, t);\nlocalStorage.refreshToken = t;\n"
 		});
 		expect(f.map((x) => [x.line, x.severity, x.verdict])).toEqual([
 			[2, 'medium', 'needs_validation'],
@@ -234,7 +251,9 @@ describe('rules: edge cases', () => {
 
 	it('high-entropy literal under a sensitive name in client code', () => {
 		const f = run({ 'src/lib/a.ts': "const apiSecret = 'Zx8kQ2mN7pL4vR9tW3yB6cF1hJ5';\n" });
-		expect(f).toMatchObject([{ rule: 'secrets/client-exposure', severity: 'medium', verdict: 'needs_validation' }]);
+		expect(f).toMatchObject([
+			{ rule: 'secrets/client-exposure', severity: 'medium', verdict: 'needs_validation' }
+		]);
 	});
 
 	it('redaction holds on long minified lines and for name-only secrets with punctuation', () => {
@@ -251,12 +270,17 @@ describe('rules: edge cases', () => {
 		expect(out).not.toContain('FAKEfake0000');
 		expect(out).not.toContain(odd);
 		expect(out).not.toContain('kQ2!mN7p');
-		expect(report.findings.map((f) => f.rule).sort()).toEqual(['js/eval', 'secrets/client-exposure', 'secrets/client-exposure']);
+		expect(report.findings.map((f) => f.rule).sort()).toEqual([
+			'js/eval',
+			'secrets/client-exposure',
+			'secrets/client-exposure'
+		]);
 	});
 
 	it('eval( inside strings, comments or as a method is not flagged', () => {
 		const f = run({
-			'src/lib/a.ts': "const msg = 'eval() is bad';\nconst t = `new Function(x)`;\npage.evaluate(x);\nobj.eval(x);\n/* eval(y) */\n"
+			'src/lib/a.ts':
+				"const msg = 'eval() is bad';\nconst t = `new Function(x)`;\npage.evaluate(x);\nobj.eval(x);\n/* eval(y) */\n"
 		});
 		expect(f).toEqual([]);
 	});
@@ -268,7 +292,9 @@ describe('rules: edge cases', () => {
 
 	it('.env.example values are needs_validation', () => {
 		const f = run({ '.env.example': `PUBLIC_KEY=${FAKE.stripe}\n` });
-		expect(f).toMatchObject([{ rule: 'env/public-secret', severity: 'high', verdict: 'needs_validation' }]);
+		expect(f).toMatchObject([
+			{ rule: 'env/public-secret', severity: 'high', verdict: 'needs_validation' }
+		]);
 	});
 
 	it('{@html} literal forms and sanitizer calls are not flagged; templates with expressions are', () => {
@@ -295,7 +321,9 @@ describe('rules: edge cases', () => {
 	});
 
 	it('a Svelte parse error falls back to the regex scan with a note', () => {
-		const report = audit({ path: makeProject({ 'src/routes/+page.svelte': '{#if x}\n{@html body}\n' }) });
+		const report = audit({
+			path: makeProject({ 'src/routes/+page.svelte': '{#if x}\n{@html body}\n' })
+		});
 		expect(report.findings.map((x) => x.rule)).toEqual(['svelte/html-non-literal']);
 		expect(report.notes.some((n) => n.includes('Svelte parse error'))).toBe(true);
 	});
@@ -309,7 +337,13 @@ describe('dependency advisories (--deps)', () => {
 				name: 'svelte',
 				severity: 'moderate',
 				isDirect: true,
-				via: [{ title: 'XSS in SSR attribute', url: 'https://github.com/advisories/GHSA-fake-0001', severity: 'moderate' }],
+				via: [
+					{
+						title: 'XSS in SSR attribute',
+						url: 'https://github.com/advisories/GHSA-fake-0001',
+						severity: 'moderate'
+					}
+				],
 				range: '<5.0.1',
 				fixAvailable: { name: 'svelte', version: '5.0.1', isSemVerMajor: false }
 			},
@@ -321,12 +355,20 @@ describe('dependency advisories (--deps)', () => {
 				range: '<2.0.0',
 				fixAvailable: true
 			},
-			cookie: { name: 'cookie', severity: 'low', isDirect: false, via: ['@sveltejs/kit'], range: '<0.7.0', fixAvailable: false }
+			cookie: {
+				name: 'cookie',
+				severity: 'low',
+				isDirect: false,
+				via: ['@sveltejs/kit'],
+				range: '<0.7.0',
+				fixAvailable: false
+			}
 		}
 	});
 
 	it('maps npm severities and verdicts (framework confirmed, others needs_validation)', () => {
-		const pkg = '{\n  "devDependencies": {\n    "@sveltejs/kit": "1.0.0",\n    "svelte": "4.0.0"\n  }\n}\n';
+		const pkg =
+			'{\n  "devDependencies": {\n    "@sveltejs/kit": "1.0.0",\n    "svelte": "4.0.0"\n  }\n}\n';
 		const f = parseNpmAudit(npmJson, pkg);
 		expect(f.map((x) => [x.title.split(' ')[0], x.severity, x.verdict, x.line])).toEqual([
 			['svelte', 'medium', 'confirmed', 4],
@@ -339,7 +381,10 @@ describe('dependency advisories (--deps)', () => {
 	});
 
 	it('audit({ deps: true }) runs the injected npm audit and keeps the report schema-valid', () => {
-		const dir = makeProject({ 'package.json': '{ "name": "x" }\n', 'src/lib/a.ts': 'export {};\n' });
+		const dir = makeProject({
+			'package.json': '{ "name": "x" }\n',
+			'src/lib/a.ts': 'export {};\n'
+		});
 		const calls: [string, number][] = [];
 		const report = audit({
 			path: dir,
@@ -360,7 +405,10 @@ describe('dependency advisories (--deps)', () => {
 		const failing = audit({
 			path: dir,
 			deps: true,
-			npmAudit: () => JSON.stringify({ error: { code: 'ENOLOCK', summary: 'This command requires an existing lockfile.' } })
+			npmAudit: () =>
+				JSON.stringify({
+					error: { code: 'ENOLOCK', summary: 'This command requires an existing lockfile.' }
+				})
 		});
 		expect(failing.notes.some((n) => n.includes('ENOLOCK'))).toBe(true);
 		const timeout = audit({
@@ -376,7 +424,18 @@ describe('dependency advisories (--deps)', () => {
 
 describe('parseAuditArgs', () => {
 	it('accepts --flag value and --flag=value', () => {
-		expect(parseAuditArgs(['--path', 'app', '--json', 'o.json', '--html=r.html', '--ci', '--min-severity=low', '--deps'])).toEqual({
+		expect(
+			parseAuditArgs([
+				'--path',
+				'app',
+				'--json',
+				'o.json',
+				'--html=r.html',
+				'--ci',
+				'--min-severity=low',
+				'--deps'
+			])
+		).toEqual({
 			path: 'app',
 			json: 'o.json',
 			html: 'r.html',

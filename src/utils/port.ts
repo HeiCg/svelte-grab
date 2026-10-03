@@ -48,7 +48,9 @@ export function validatePort(value: unknown, fallback: number, label = 'port'): 
 		return n;
 	}
 	if (value !== undefined && value !== null && value !== '') {
-		console.warn(`[svelte-grab] Invalid ${label} "${String(value)}" — must be an integer 1..65535. Using ${fallback}.`);
+		console.warn(
+			`[svelte-grab] Invalid ${label} "${String(value)}" — must be an integer 1..65535. Using ${fallback}.`
+		);
 	}
 	return fallback;
 }

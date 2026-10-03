@@ -42,7 +42,11 @@ interface Session {
 	tabId: string;
 }
 
-async function openApp(client: Client, mcpPort: number, baseURL: string | undefined): Promise<Session> {
+async function openApp(
+	client: Client,
+	mcpPort: number,
+	baseURL: string | undefined
+): Promise<Session> {
 	const context = await browser!.newContext({ baseURL });
 	const page = await context.newPage();
 	await gotoPlayground(page, `/?mcp=1&mcpPort=${mcpPort}`);
@@ -85,11 +89,17 @@ test.describe('CDP mode (--cdp)', () => {
 
 	test('ui_leak_check on the leaky toggle: LEAK SUSPECTED naming LeakyFixture', async () => {
 		const actions = await openClose(client!, 'leaky', session!.tabId);
-		const out = await call(client!, 'ui_leak_check', { actions, iterations: 5, tabId: session!.tabId });
+		const out = await call(client!, 'ui_leak_check', {
+			actions,
+			iterations: 5,
+			tabId: session!.tabId
+		});
 		console.log(`--- ui_leak_check (leaky) ---\n${out.text}`);
 		expect(out.isError, out.text).toBe(false);
 		const lines = out.text.split('\n');
-		expect(lines[0]).toMatch(/^LEAK SUSPECTED: 5 iterations of \[click e\d+ -> click e\d+\], forced GC via CDP$/);
+		expect(lines[0]).toMatch(
+			/^LEAK SUSPECTED: 5 iterations of \[click e\d+ -> click e\d+\], forced GC via CDP$/
+		);
 		expect(out.text).toMatch(
 			/^LEAK\? LeakyFixture src\/components\/fixtures\/LeakyFixture\.svelte:\d+ retains 30 detached nodes \(~6\/iteration\)$/m
 		);
@@ -100,17 +110,28 @@ test.describe('CDP mode (--cdp)', () => {
 		expect(data.forcedGc).toBe(true);
 		expect(data.performed).toBe(10);
 		// One group: the panel root (5 detached subtrees, one per iteration) with its 6 elements each.
-		const groups = data.groups as { component: string; source: string; count: number; roots: number }[];
+		const groups = data.groups as {
+			component: string;
+			source: string;
+			count: number;
+			roots: number;
+		}[];
 		expect(groups).toHaveLength(1);
 		expect(groups[0]).toMatchObject({ component: 'LeakyFixture', count: 30, roots: 5 });
 		expect(groups[0].source).toMatch(/^src\/components\/fixtures\/LeakyFixture\.svelte:\d+$/);
-		expect((data.counters as { growth: Record<string, number> }).growth.JSEventListeners).toBeGreaterThanOrEqual(5);
+		expect(
+			(data.counters as { growth: Record<string, number> }).growth.JSEventListeners
+		).toBeGreaterThanOrEqual(5);
 		await expect(session!.page.getByTestId('fx-leaky-panel')).toHaveCount(0);
 	});
 
 	test('ui_leak_check on the clean toggle: NO LEAK DETECTED', async () => {
 		const actions = await openClose(client!, 'clean', session!.tabId);
-		const out = await call(client!, 'ui_leak_check', { actions, iterations: 5, tabId: session!.tabId });
+		const out = await call(client!, 'ui_leak_check', {
+			actions,
+			iterations: 5,
+			tabId: session!.tabId
+		});
 		console.log(`--- ui_leak_check (clean) ---\n${out.text}`);
 		expect(out.isError, out.text).toBe(false);
 		expect(out.text.split('\n')[0]).toMatch(/^NO LEAK DETECTED: 5 iterations of/);
@@ -122,10 +143,15 @@ test.describe('CDP mode (--cdp)', () => {
 
 	test('ui_perf_metrics with a click returns non-empty deltas', async () => {
 		const open = await refOf(client!, 'fx-clean-open', session!.tabId);
-		const out = await call(client!, 'ui_perf_metrics', { action: { ref: open, type: 'click' }, tabId: session!.tabId });
+		const out = await call(client!, 'ui_perf_metrics', {
+			action: { ref: open, type: 'click' },
+			tabId: session!.tabId
+		});
 		console.log(`--- ui_perf_metrics ---\n${out.text}`);
 		expect(out.isError, out.text).toBe(false);
-		expect(out.text.split('\n')[0]).toMatch(new RegExp(`^PERF click ${open} \\(isTrusted=false\\): .*Nodes \\+\\d+`));
+		expect(out.text.split('\n')[0]).toMatch(
+			new RegExp(`^PERF click ${open} \\(isTrusted=false\\): .*Nodes \\+\\d+`)
+		);
 		const metrics = out.data!.metrics as { name: string; delta: number }[];
 		expect(metrics.map((m) => m.name)).toEqual([
 			'Nodes',
@@ -162,10 +188,16 @@ test.describe('without CDP', () => {
 
 	test('ui_leak_check runs the page tracking and is INCONCLUSIVE; ui_perf_metrics explains how to enable', async () => {
 		const actions = await openClose(client!, 'leaky', session!.tabId);
-		const out = await call(client!, 'ui_leak_check', { actions, iterations: 3, tabId: session!.tabId });
+		const out = await call(client!, 'ui_leak_check', {
+			actions,
+			iterations: 3,
+			tabId: session!.tabId
+		});
 		console.log(`--- ui_leak_check (no CDP) ---\n${out.text}`);
 		expect(out.isError, out.text).toBe(false);
-		expect(out.text.split('\n')[0]).toMatch(/^INCONCLUSIVE \(no forced GC; enable --cdp\): 3 iterations of/);
+		expect(out.text.split('\n')[0]).toMatch(
+			/^INCONCLUSIVE \(no forced GC; enable --cdp\): 3 iterations of/
+		);
 		expect(out.data!.verdict).toBe('INCONCLUSIVE');
 		expect(out.data!.forcedGc).toBe(false);
 		expect(out.data!.tracked as number).toBeGreaterThan(0);

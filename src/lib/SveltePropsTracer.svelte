@@ -22,6 +22,7 @@
 	import { resolveTheme } from './utils/resolve-theme.js';
 	import { createCopyFeedback } from './utils/copy-with-feedback.js';
 	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
+	import { isInOwnUi } from './runtime/node-info.js';
 
 	let {
 		modifier = 'alt',
@@ -29,7 +30,8 @@
 		showPopup = true,
 		theme = {},
 		lightTheme = false,
-		enableHotkeys = true
+		enableHotkeys = true,
+		onTrace
 	}: SveltePropsTracerProps = $props();
 
 	let colors = $derived(resolveTheme(theme, lightTheme));
@@ -42,10 +44,18 @@
 	let traceDepth = $derived(trace ? componentCount(trace) : 0);
 
 	const copyFb = createCopyFeedback({
-		get copied() { return copied; },
-		set copied(v) { copied = v; },
-		get copyFailed() { return copyFailed; },
-		set copyFailed(v) { copyFailed = v; }
+		get copied() {
+			return copied;
+		},
+		set copied(v) {
+			copied = v;
+		},
+		get copyFailed() {
+			return copyFailed;
+		},
+		set copyFailed(v) {
+			copyFailed = v;
+		}
 	});
 
 	/**
@@ -191,8 +201,12 @@
 		parts.push(`\u{1F333} Depth: ${depthCount} component${depthCount !== 1 ? 's' : ''}`);
 
 		// Categorize nesting chain
-		const hasDataAttrs = t.chain.some(n => n.propsProxy && Object.keys(n.propsProxy).some(k => k.startsWith('data-')));
-		const allLayoutOnly = t.chain.every(n => !n.propsProxy || Object.keys(n.propsProxy).length === 0);
+		const hasDataAttrs = t.chain.some(
+			(n) => n.propsProxy && Object.keys(n.propsProxy).some((k) => k.startsWith('data-'))
+		);
+		const allLayoutOnly = t.chain.every(
+			(n) => !n.propsProxy || Object.keys(n.propsProxy).length === 0
+		);
 		if (allLayoutOnly && depthCount > 3) {
 			parts.push(`\u{1F4A1} Chain type: layout-only (no data attributes) - may be over-wrapped`);
 		} else if (hasDataAttrs) {
@@ -210,6 +224,21 @@
 		return parts.join('\n');
 	}
 
+	/**
+	 * The page element under the pointer. The second click of a double-click can
+	 * land on an overlay svelte-grab opened on the first click (in SvelteDevKit,
+	 * the SvelteGrab popup's backdrop): trace what lies beneath it, never
+	 * svelte-grab's own UI.
+	 */
+	function pageTarget(event: MouseEvent): HTMLElement {
+		const target = event.target as HTMLElement;
+		if (!(target instanceof Element) || !isInOwnUi(target)) return target;
+		for (const el of document.elementsFromPoint(event.clientX, event.clientY)) {
+			if (!isInOwnUi(el)) return el as HTMLElement;
+		}
+		return target;
+	}
+
 	function handleClick(event: MouseEvent) {
 		// Double-click with modifier for props tracer
 		if (!enableHotkeys) return;
@@ -219,11 +248,13 @@
 		event.preventDefault();
 		event.stopPropagation();
 
-		const target = event.target as HTMLElement;
+		const target = pageTarget(event);
 		const svelteEl = findSvelteElement(target);
 		if (!svelteEl) {
 			const tag = target.tagName?.toLowerCase() || 'unknown';
-			console.log(`[SveltePropsTracer] No Svelte component found for <${tag}>. This element may be plain HTML, rendered by a third-party library, or outside Svelte's component tree. Try clicking a parent element.`);
+			console.log(
+				`[SveltePropsTracer] No Svelte component found for <${tag}>. This element may be plain HTML, rendered by a third-party library, or outside Svelte's component tree. Try clicking a parent element.`
+			);
 			return;
 		}
 
@@ -234,26 +265,33 @@
 
 		console.log('[SveltePropsTracer] Component trace:\n' + formatted);
 		if (showPopup) visible = true;
+		onTrace?.(trace);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape' && visible) visible = false;
 	}
 
-	const mount = useDevtoolMount(() => forceEnable, () => {
-		document.addEventListener('dblclick', handleClick, true);
-		document.addEventListener('keydown', handleKeydown);
-		return () => {
-			document.removeEventListener('dblclick', handleClick, true);
-			document.removeEventListener('keydown', handleKeydown);
-		};
-	}, {
-		onDev: () => {
-			isDev = true;
-			const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
-			console.log(`[SveltePropsTracer] Active! ${modLabel}+DoubleClick to trace component hierarchy`);
+	const mount = useDevtoolMount(
+		() => forceEnable,
+		() => {
+			document.addEventListener('dblclick', handleClick, true);
+			document.addEventListener('keydown', handleKeydown);
+			return () => {
+				document.removeEventListener('dblclick', handleClick, true);
+				document.removeEventListener('keydown', handleKeydown);
+			};
+		},
+		{
+			onDev: () => {
+				isDev = true;
+				const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
+				console.log(
+					`[SveltePropsTracer] Active! ${modLabel}+DoubleClick to trace component hierarchy`
+				);
+			}
 		}
-	});
+	);
 
 	onMount(mount.start);
 	onDestroy(() => {
@@ -286,7 +324,11 @@
 							<span class="sg-trace-component">{nodeLabel(node)}</span>
 							<span class="sg-trace-file">{shortenPath(node.file)}:{node.line}</span>
 							{#if node.propsProxy && Object.keys(node.propsProxy).length > 0}
-								<span class="sg-trace-attrs">{Object.entries(node.propsProxy).map(([k, v]) => `${k}="${v}"`).join(' ')}</span>
+								<span class="sg-trace-attrs"
+									>{Object.entries(node.propsProxy)
+										.map(([k, v]) => `${k}="${v}"`)
+										.join(' ')}</span
+								>
 							{/if}
 							{#if i === 0}
 								<span class="sg-trace-marker">← target</span>
@@ -311,8 +353,8 @@
 			<DevToolButton
 				onclick={() => {
 					if (trace) copyFb.copy(formatForAgent(trace));
-				}}
-			>Copy for Agent</DevToolButton>
+				}}>Copy for Agent</DevToolButton
+			>
 		{/snippet}
 	</DevToolPopup>
 {/if}
@@ -327,9 +369,13 @@
 		white-space: nowrap;
 	}
 
-	.sg-trace-content { padding: 12px; }
+	.sg-trace-content {
+		padding: 12px;
+	}
 
-	.sg-trace-chain { padding: 0 8px; }
+	.sg-trace-chain {
+		padding: 0 8px;
+	}
 
 	.sg-trace-node {
 		display: flex;
@@ -358,12 +404,21 @@
 		gap: 2px;
 	}
 
-	.sg-trace-component { color: #60a5fa; font-weight: 600; }
-	.sg-trace-file { color: #888; font-size: 10px; }
+	.sg-trace-component {
+		color: #60a5fa;
+		font-weight: 600;
+	}
+	.sg-trace-file {
+		color: #888;
+		font-size: 10px;
+	}
 	.sg-trace-attrs {
-		color: #fbbf24; font-size: 9px;
-		max-width: 300px; overflow: hidden;
-		text-overflow: ellipsis; white-space: nowrap;
+		color: #fbbf24;
+		font-size: 9px;
+		max-width: 300px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.sg-trace-marker {
 		color: #34d399;

@@ -46,7 +46,8 @@ const FIELD_SELECTION =
 /** Offset ranges of the `load` function body. */
 function loadBodies(code: string): { start: number; end: number; expression: boolean }[] {
 	const bodies: { start: number; end: number; expression: boolean }[] = [];
-	const re = /export\s+(?:(async\s+function|function)\s+load\b|(?:const|let|var)\s+load\b[^=]*=\s*)/g;
+	const re =
+		/export\s+(?:(async\s+function|function)\s+load\b|(?:const|let|var)\s+load\b[^=]*=\s*)/g;
 	for (const m of code.matchAll(re)) {
 		const at = m[1] ? (m.index ?? 0) + m[0].indexOf(m[1]) : (m.index ?? 0) + m[0].length;
 		let body = functionBodyAfter(code, at);
@@ -57,7 +58,11 @@ function loadBodies(code: string): { start: number; end: number; expression: boo
 }
 
 /** Initializer of `const|let|var <name> = ...` (also `[name]` / `{ name }`), searched in `scope`. */
-function initializerOf(code: string, scope: { start: number; end: number }, name: string): string | null {
+function initializerOf(
+	code: string,
+	scope: { start: number; end: number },
+	name: string
+): string | null {
 	const n = name.replace(/[$]/g, '\\$');
 	const re = new RegExp(
 		`\\b(?:const|let|var)\\s+(?:${n}\\b|\\[\\s*${n}\\b[^\\]]*\\]|\\{[^}]*\\b${n}\\b[^}]*\\})\\s*(?::[^=]+)?=\\s*`,
@@ -85,7 +90,8 @@ function loadRule(code: string, sink: FindingSink): void {
 			const lead = /^\(\s*\{/.exec(segment);
 			if (lead) objects.push(body.start + lead[0].length - 1);
 		}
-		for (const m of segment.matchAll(/\breturn\s*\(?\s*\{/g)) objects.push(body.start + (m.index ?? 0) + m[0].length - 1);
+		for (const m of segment.matchAll(/\breturn\s*\(?\s*\{/g))
+			objects.push(body.start + (m.index ?? 0) + m[0].length - 1);
 
 		for (const open of objects) {
 			const close = matchBracket(code, open);
@@ -136,7 +142,9 @@ function actionsRule(code: string, sink: FindingSink): void {
 			if (!keyMatch) continue;
 			const key = keyMatch[1].replace(/['"]/g, '');
 			let body: string | null = entry.text;
-			const ref = /^[A-Za-z_$][\w$]*\s*:\s*([A-Za-z_$][\w$]*)$/.exec(entry.text) ?? /^([A-Za-z_$][\w$]*)$/.exec(entry.text);
+			const ref =
+				/^[A-Za-z_$][\w$]*\s*:\s*([A-Za-z_$][\w$]*)$/.exec(entry.text) ??
+				/^([A-Za-z_$][\w$]*)$/.exec(entry.text);
 			if (ref) body = resolveFunctionBody(code, ref[1]);
 			if (body !== null && AUTH_CHECK.test(body)) continue;
 			sink.add(
@@ -166,7 +174,10 @@ function remoteRule(code: string, sink: FindingSink): void {
 	}
 	if (locals.size === 0) return;
 	const names = [...locals.keys()].map((n) => n.replace(/[$]/g, '\\$')).join('|');
-	const re = new RegExp(`\\b(?:export\\s+)?const\\s+([A-Za-z_$][\\w$]*)\\s*(?::[^=]+)?=\\s*(${names})\\s*(?:<[^>]*>)?\\s*\\(`, 'g');
+	const re = new RegExp(
+		`\\b(?:export\\s+)?const\\s+([A-Za-z_$][\\w$]*)\\s*(?::[^=]+)?=\\s*(${names})\\s*(?:<[^>]*>)?\\s*\\(`,
+		'g'
+	);
 	for (const m of code.matchAll(re)) {
 		const open = (m.index ?? 0) + m[0].length - 1;
 		const close = matchBracket(code, open);
@@ -222,7 +233,8 @@ function cspRule(file: SourceFile, code: string, ctx: RuleContext, sink: Finding
 	if (/\bcsp\s*:/.test(code)) return;
 	const dir = file.rel.includes('/') ? file.rel.slice(0, file.rel.lastIndexOf('/') + 1) : '';
 	for (const [rel, other] of ctx.files) {
-		if (!rel.startsWith(dir) || !/\.server\.[cm]?[jt]s$|(?:^|\/)\+server\.[cm]?[jt]s$/.test(rel)) continue;
+		if (!rel.startsWith(dir) || !/\.server\.[cm]?[jt]s$|(?:^|\/)\+server\.[cm]?[jt]s$/.test(rel))
+			continue;
 		if (/content-security-policy/i.test(other.text)) return;
 	}
 	const kit = /\bkit\s*:/.exec(code);

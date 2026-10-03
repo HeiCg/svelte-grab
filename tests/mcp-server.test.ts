@@ -3,15 +3,23 @@ import { readFileSync } from 'node:fs';
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { createServer, type AddressInfo, type Server } from 'node:net';
 import { startMcpServer } from '../src/mcp/server.js';
-import { DEFAULT_MCP_PORT, MCP_PORT_RANGE_END, MCP_PORT_RANGE_SIZE, MCP_SERVICE_ID } from '../src/mcp/constants.js';
+import {
+	DEFAULT_MCP_PORT,
+	MCP_PORT_RANGE_END,
+	MCP_PORT_RANGE_SIZE,
+	MCP_SERVICE_ID
+} from '../src/mcp/constants.js';
 
 // Real server on 127.0.0.1, ephemeral ports.
 const HOST = '127.0.0.1';
 const TOKEN = 'server-test-token';
 const GOOD_ORIGIN = 'http://localhost:5173';
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
-const PKG_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string })
-	.version;
+const PKG_VERSION = (
+	JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+		version: string;
+	}
+).version;
 
 function listenOn(port: number): Promise<Server> {
 	return new Promise((resolve, reject) => {
@@ -49,7 +57,8 @@ function send(
 		headers.origin = GOOD_ORIGIN;
 		headers['x-svelte-grab-token'] = TOKEN;
 	}
-	if (opts.body !== undefined && !opts.chunked) headers['content-length'] = String(Buffer.byteLength(opts.body));
+	if (opts.body !== undefined && !opts.chunked)
+		headers['content-length'] = String(Buffer.byteLength(opts.body));
 	return new Promise((resolve, reject) => {
 		const req = httpRequest({ host: HOST, port, method, path, headers, agent: false }, (res) => {
 			const chunks: Buffer[] = [];
@@ -69,7 +78,8 @@ function send(
 		req.on('error', reject);
 		if (opts.body !== undefined) {
 			if (opts.chunked) {
-				for (let i = 0; i < opts.body.length; i += 64 * 1024) req.write(opts.body.slice(i, i + 64 * 1024));
+				for (let i = 0; i < opts.body.length; i += 64 * 1024)
+					req.write(opts.body.slice(i, i + 64 * 1024));
 			} else {
 				req.write(opts.body);
 			}
@@ -78,7 +88,10 @@ function send(
 	});
 }
 
-const saved = { token: process.env.SVELTE_GRAB_TOKEN, origins: process.env.SVELTE_GRAB_ALLOWED_ORIGINS };
+const saved = {
+	token: process.env.SVELTE_GRAB_TOKEN,
+	origins: process.env.SVELTE_GRAB_ALLOWED_ORIGINS
+};
 
 beforeAll(() => {
 	delete process.env.SVELTE_GRAB_TOKEN;
@@ -116,18 +129,23 @@ describe('MCP HTTP server', () => {
 		];
 
 		describe.each(['/context', '/runtime/hello', '/runtime/result', '/mcp'])('POST %s', (path) => {
-			it.each(cases)('$label -> 413 JSON, then close (no connection reset)', async ({ size, chunked }) => {
-				const body = JSON.stringify({ content: ['x'.repeat(size)] });
-				const r = await send(port, 'POST', path, { body, chunked });
-				expect(r.status).toBe(413);
-				expect(r.json).toEqual({ error: 'Request body too large' });
-				expect(r.headers.connection).toBe('close');
-			});
+			it.each(cases)(
+				'$label -> 413 JSON, then close (no connection reset)',
+				async ({ size, chunked }) => {
+					const body = JSON.stringify({ content: ['x'.repeat(size)] });
+					const r = await send(port, 'POST', path, { body, chunked });
+					expect(r.status).toBe(413);
+					expect(r.json).toEqual({ error: 'Request body too large' });
+					expect(r.headers.connection).toBe('close');
+				}
+			);
 		});
 
 		it('keeps serving after refusing an oversized body', async () => {
 			await send(port, 'POST', '/context', { body: 'x'.repeat(MAX_BODY_BYTES * 3) });
-			const r = await send(port, 'POST', '/context', { body: JSON.stringify({ content: ['after'] }) });
+			const r = await send(port, 'POST', '/context', {
+				body: JSON.stringify({ content: ['after'] })
+			});
 			expect(r.status).toBe(200);
 		});
 

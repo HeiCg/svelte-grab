@@ -68,7 +68,7 @@ Coding agent --MCP--> svelte-grab MCP server (src/mcp/server.ts, HTTP :port)
 ### Wire contract (v1) — server and page must match exactly
 
 - `POST /runtime/hello` body `{ tabId: string, url: string, title: string,
-  focused: boolean }` -> `{ ok: true }`. Page sends it on SSE connect, on
+focused: boolean }` -> `{ ok: true }`. Page sends it on SSE connect, on
   `focus`/`blur`/`visibilitychange`, and as heartbeat every 15s. Server forgets
   tabs not seen for 45s. Active tab = most recent `focused: true` hello, else
   most recently seen tab.
@@ -77,7 +77,7 @@ Coding agent --MCP--> svelte-grab MCP server (src/mcp/server.ts, HTTP :port)
   Broadcast to all SSE clients; a page handles it only if
   `targetTabId === its tabId`.
 - `POST /runtime/result` body `{ id: string, tabId: string, ok: boolean,
-  result?: { text: string, data?: object }, error?: string }` -> `{ ok: true }`.
+result?: { text: string, data?: object }, error?: string }` -> `{ ok: true }`.
   Unknown/expired `id` -> 404. Same `checkAccess` + body cap as `/context`.
 - Server maps a page result to MCP: `content: [{type:'text', text}]`,
   `structuredContent: data` (when present). Page errors -> MCP tool error with
@@ -95,21 +95,21 @@ Coding agent --MCP--> svelte-grab MCP server (src/mcp/server.ts, HTTP :port)
   role/name + index among siblings with same key. Survives HMR.
 - Registry `ref -> {stableKey, WeakRef<Element>}`. On lookup, if the element is
   disconnected, re-resolve by stable key and return `{ref: newRef, rebound:
-  true, previous: oldRef}`. Tools accept either `eN` or `ui://` keys.
+true, previous: oldRef}`. Tools accept either `eN` or `ui://` keys.
 
 ## MCP tools (new, prefix `ui_`)
 
-| Tool | Args | Returns |
-|---|---|---|
-| `ui_snapshot` | `scope: "viewport"\|"page"\|ref`, `detail: "minimal"\|"normal"`, `maxNodes` (default 200) | Indented tree: only elements with Svelte meta or a11y role/name; each line `eN <role/tag> "<name>" <Component> <file:line>`; `normal` adds box + classes |
-| `ui_find` | any of `text`, `role`, `name`, `component`, `file`, `selector`; `limit` | List of `{ref, stableKey, component, source, role, name, box, visible}` |
-| `ui_inspect` | `ref` (`eN` or `ui://` key), `include?: ("stack"\|"props"\|"state"\|"styles"\|"layout"\|"a11y"\|"usage")[]` (default all; `events` deferred) | Sectioned text (COMPONENT, SOURCE always; STACK, PROPS/ATTRIBUTES, STATE, LAYOUT, STYLES, A11Y, USAGE) built from existing formatters (component-stack, state-capture, css-analyzer, a11y-checker, ui_find matching), capped at ~8000 chars, plus the same data structured; rebound refs noted at the top |
-| `ui_wait_for_hmr` | `files?: string[]`, `timeoutMs?` (default 15000, max 55000), `since?` (epoch ms) | `{status: "updated"\|"full-reload"\|"error", updated: string[], errors: string[], rebound: [{from,to}], lost: string[], kept: n, consoleErrors: n, source: "vite-hmr"\|"plugin"\|"heuristic"}` |
-| `ui_verify` | `ref`, `checks: ("visible"\|"overflow"\|"console"\|"a11y"\|"contrast")[]` | Per check `PASS\|WARN\|FAIL` + detail |
-| `ui_component_impact` | `ref` | Instances of the component on page (count + refs), importers from Vite module graph when plugin present, else "unknown" |
-| `ui_click` / `ui_scroll` | `ref` | Best-effort in-page action; result notes `isTrusted=false` and suggests Playwright for real input |
-| `ui_tabs` | — | Connected tabs |
-| `ui_annotations` | `clear?: boolean` | Pending human annotations `{annotations:[{id, comment, refs:[{ref, stableKey, component, source}], createdAt}], instruction}`; refs re-resolved (rebound / `stale`); `clear` marks them consumed (Phase 6, README "Annotation mode") |
+| Tool                     | Args                                                                                                                                         | Returns                                                                                                                                                                                                                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ui_snapshot`            | `scope: "viewport"\|"page"\|ref`, `detail: "minimal"\|"normal"`, `maxNodes` (default 200)                                                    | Indented tree: only elements with Svelte meta or a11y role/name; each line `eN <role/tag> "<name>" <Component> <file:line>`; `normal` adds box + classes                                                                                                                                                  |
+| `ui_find`                | any of `text`, `role`, `name`, `component`, `file`, `selector`; `limit`                                                                      | List of `{ref, stableKey, component, source, role, name, box, visible}`                                                                                                                                                                                                                                   |
+| `ui_inspect`             | `ref` (`eN` or `ui://` key), `include?: ("stack"\|"props"\|"state"\|"styles"\|"layout"\|"a11y"\|"usage")[]` (default all; `events` deferred) | Sectioned text (COMPONENT, SOURCE always; STACK, PROPS/ATTRIBUTES, STATE, LAYOUT, STYLES, A11Y, USAGE) built from existing formatters (component-stack, state-capture, css-analyzer, a11y-checker, ui_find matching), capped at ~8000 chars, plus the same data structured; rebound refs noted at the top |
+| `ui_wait_for_hmr`        | `files?: string[]`, `timeoutMs?` (default 15000, max 55000), `since?` (epoch ms)                                                             | `{status: "updated"\|"full-reload"\|"error", updated: string[], errors: string[], rebound: [{from,to}], lost: string[], kept: n, consoleErrors: n, source: "vite-hmr"\|"plugin"\|"heuristic"}`                                                                                                            |
+| `ui_verify`              | `ref`, `checks: ("visible"\|"overflow"\|"console"\|"a11y"\|"contrast")[]`                                                                    | Per check `PASS\|WARN\|FAIL` + detail                                                                                                                                                                                                                                                                     |
+| `ui_component_impact`    | `ref`                                                                                                                                        | Instances of the component on page (count + refs), importers from Vite module graph when plugin present, else "unknown"                                                                                                                                                                                   |
+| `ui_click` / `ui_scroll` | `ref`                                                                                                                                        | Best-effort in-page action; result notes `isTrusted=false` and suggests Playwright for real input                                                                                                                                                                                                         |
+| `ui_tabs`                | —                                                                                                                                            | Connected tabs                                                                                                                                                                                                                                                                                            |
+| `ui_annotations`         | `clear?: boolean`                                                                                                                            | Pending human annotations `{annotations:[{id, comment, refs:[{ref, stableKey, component, source}], createdAt}], instruction}`; refs re-resolved (rebound / `stale`); `clear` marks them consumed (Phase 6, README "Annotation mode")                                                                      |
 
 Existing tools (`watch_for_grab`, `get_element_context`, …) stay. New tools use
 `registerTool` with `title`, `inputSchema`, `outputSchema` where the SDK
@@ -123,7 +123,7 @@ version in package.json supports it; migrate old tools to `registerTool` too.
   (`SvelteGrab.svelte`, `core/dom-navigation.ts`, `SveltePropsTracer.svelte`,
   `utils/profiler-tracker.ts`) uses it.
 - Component naming: for `type: 'component'` parent entries the component name
-  is `componentTag`; `file/line` is the *usage site*. Block entries
+  is `componentTag`; `file/line` is the _usage site_. Block entries
   (`if/each/await/key/render`) are tagged as blocks, not counted as component
   depth. Types in `types.ts` match Svelte's real shape (`parent: … | null`,
   `type` union, `componentTag?`).
@@ -164,13 +164,13 @@ touches `process.env.NODE_ENV`; Vite's `import.meta.hot -> undefined` define
 is build-only). Checked with a scratch app installing a packed copy of the
 package (not a link):
 
-| Setup | svelte-grab served as | hot context injected | `ui_wait_for_hmr` source |
-|---|---|---|---|
-| Vite 8.3 + vite-plugin-svelte 7.3, default | `/node_modules/.vite/deps/svelte-grab.js` (pre-bundled) | yes | `vite-hmr`, file list correct |
-| Vite 8.3, `optimizeDeps.exclude: ['svelte-grab']` | `/node_modules/svelte-grab/dist/runtime/hmr.js` | yes | `vite-hmr` |
-| Vite 8.3 + `svelteGrab()` plugin | pre-bundled | yes | `vite-hmr`; bridge events also fire, counted once |
-| Vite 6.4 + vite-plugin-svelte 5.1 + plugin | pre-bundled (esbuild chunks) | yes | `vite-hmr`; bridge events also fire |
-| Playground (alias to `src/lib`) | `/@fs/.../src/lib/runtime/hmr.ts` | yes | `vite-hmr` |
+| Setup                                             | svelte-grab served as                                   | hot context injected | `ui_wait_for_hmr` source                          |
+| ------------------------------------------------- | ------------------------------------------------------- | -------------------- | ------------------------------------------------- |
+| Vite 8.3 + vite-plugin-svelte 7.3, default        | `/node_modules/.vite/deps/svelte-grab.js` (pre-bundled) | yes                  | `vite-hmr`, file list correct                     |
+| Vite 8.3, `optimizeDeps.exclude: ['svelte-grab']` | `/node_modules/svelte-grab/dist/runtime/hmr.js`         | yes                  | `vite-hmr`                                        |
+| Vite 8.3 + `svelteGrab()` plugin                  | pre-bundled                                             | yes                  | `vite-hmr`; bridge events also fire, counted once |
+| Vite 6.4 + vite-plugin-svelte 5.1 + plugin        | pre-bundled (esbuild chunks)                            | yes                  | `vite-hmr`; bridge events also fire               |
+| Playground (alias to `src/lib`)                   | `/@fs/.../src/lib/runtime/hmr.ts`                       | yes                  | `vite-hmr`                                        |
 
 Consequences in the code:
 
@@ -210,8 +210,8 @@ out of scope (no public hook).
 ### 8a. `ui_profile` (in-page, no CDP)
 
 - Page command `ui_profile({ durationMs?: number (default 3000, max 30000),
-  action?: { ref: string, type: 'click'|'input'|'scroll', value?: string,
-  repeat?: number }, component?: string, ref?: string })`.
+action?: { ref: string, type: 'click'|'input'|'scroll', value?: string,
+repeat?: number }, component?: string, ref?: string })`.
   Starts the existing ProfilerTracker (the same one Alt+P uses, without opening
   the human UI), optionally performs the in-page action (best effort,
   `isTrusted=false`), records for `durationMs`, stops.
@@ -220,7 +220,7 @@ out of scope (no public hook).
   (childList/attributes/characterData), plus FPS min/avg (existing
   `fps-meter.ts`) and long frames (> 50ms via `PerformanceObserver`
   `longtask`/`long-animation-frame` when available). Verdict line: `HOT
-  <Component> 240 mutations in 3s (burst x4)`.
+<Component> 240 mutations in 3s (burst x4)`.
 - Scope filter by `component` or a ref subtree.
 - Server tool `ui_profile` (timeout `durationMs + 10s`, cap 60s).
 - `get_profiler_report` stays for human-started sessions.
@@ -246,7 +246,7 @@ out of scope (no public hook).
     gets disconnected during the iterations; after the forced GC, elements
     whose `WeakRef.deref()` is still alive are retained ("detached but alive")
     and grouped by `__svelte_meta` source -> `LEAK? Modal.svelte:12 retains 40
-    detached nodes per iteration`. Report growth per iteration for nodes,
+detached nodes per iteration`. Report growth per iteration for nodes,
     listeners, heap.
   - Without `--cdp`, both tools return a clear error explaining how to enable,
     and `ui_leak_check` still runs the page-side WeakRef part (no forced GC ->
@@ -281,7 +281,7 @@ not integrated).
   `error-parser.ts`, map first app frame to a source file:line and, when the
   call happens inside a component context, the component name.
 - Page command `ui_network({ since?: number | 'navigation', reload?: boolean,
-  waitMs?: number (default 2000), filter?: {origin?, type?, status?} })`:
+waitMs?: number (default 2000), filter?: {origin?, type?, status?} })`:
   `reload: true` reloads the page and records the load window (the runtime
   survives reload via the existing reconnect; capture starts at module eval).
   Returns: totals (count, bytes, by type, by origin first- vs third-party),
@@ -295,6 +295,7 @@ not integrated).
 
 Each finding: `{ id, severity: high|medium|low|info, verdict: confirmed |
 needs_validation, title, evidence (redacted), source?, fix }`. Checks:
+
 - Credentials in transit: tokens/API keys/JWTs in URL query strings or
   fragments; `Authorization`/cookies/API-key headers sent to third-party
   origins; credentials in request bodies to analytics/telemetry hosts; HTTP
@@ -319,14 +320,14 @@ needs_validation, title, evidence (redacted), source?, fix }`. Checks:
   `postMessage` listeners without origin checks (static, 9c).
 - Redaction (mandatory, also in 9a): never return a full secret. Show kind +
   first 4 chars + length + short SHA-256 prefix (`jwt:eyJh…(len 812,
-  sha 3f9a1c)`), so the agent can match occurrences without seeing the value.
+sha 3f9a1c)`), so the agent can match occurrences without seeing the value.
   Detection uses a shared rule table (JWT, Bearer, AWS/GCP/Stripe/GitHub/
   OpenAI/Anthropic/Supabase key shapes, generic high-entropy).
 
 ### 9c. `svelte-grab audit` (static scanner CLI, rnsec-style)
 
 - `npx svelte-grab audit [--path .] [--json out.json] [--html report.html]
-  [--ci]`, zero config, no new heavy deps (regex + light parsing with the
+[--ci]`, zero config, no new heavy deps (regex + light parsing with the
   Svelte compiler's `parse` already available as peer).
 - Svelte/SvelteKit rules: `{@html}` with non-literal input; secrets in
   client-reachable code (not under `/server/` or `*.server.*` / `$lib/server`
@@ -349,10 +350,10 @@ needs_validation, title, evidence (redacted), source?, fix }`. Checks:
   (trigger: "security audit", "performance audit", "what does screen X load",
   "credential leak", "why is this page slow"), `CHECKLIST.md` (security +
   performance checklists below), `REPORT.md` template, `finding-schema.json`.
-  Also `skills/svelte-grab/SKILL.md` (core: how to use the ui_* loop).
+  Also `skills/svelte-grab/SKILL.md` (core: how to use the ui\_\* loop).
 - Workflow in SKILL.md (phased, cloudflare-inspired, lightweight):
   1. Recon: routes list (from `src/routes`), pick screens; `svelte-grab
-     audit --json` for static findings.
+audit --json` for static findings.
   2. Per screen: `ui_network({reload:true})`, `ui_security_scan`,
      `ui_profile`, `ui_verify` on key elements; with CDP also
      `ui_perf_metrics` + `ui_leak_check` on modals/toggles.
@@ -367,7 +368,7 @@ needs_validation, title, evidence (redacted), source?, fix }`. Checks:
   - Files ship inside the npm package (`files` adds `skills/`), so
     `npx svelte-grab skills install` can (re)install/update them.
   - Installable via the Skills CLI: `npx skills add HeiCg/svelte-grab
-    --skill svelte-grab-audit`.
+--skill svelte-grab-audit`.
   - MCP `prompts` capability on the svelte-grab MCP server:
     `security-audit` and `performance-audit` prompts that inline the
     checklist — works in any MCP client with zero install.

@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { NetworkCapture } from '../src/lib/runtime/network.js';
-import { SECURITY_CHECKS, literalPairs, uiSecurityScan, type SecurityFinding } from '../src/lib/runtime/security-scan.js';
+import {
+	SECURITY_CHECKS,
+	literalPairs,
+	uiSecurityScan,
+	type SecurityFinding
+} from '../src/lib/runtime/security-scan.js';
 import { meta } from './runtime-helpers.js';
 
 /** Fake credentials, assembled at runtime (never a literal secret in the repo). */
@@ -86,9 +91,17 @@ describe('ui_security_scan: transit', () => {
 		cap.record({
 			type: 'fetch',
 			url: `http://localhost:5173/api/mock?api_key=${FAKE_STRIPE}&page=1`,
-			initiator: { file: 'src/components/LeakyRequests.svelte', line: 14, column: 3, component: 'LeakyRequests' }
+			initiator: {
+				file: 'src/components/LeakyRequests.svelte',
+				line: 14,
+				column: 3,
+				component: 'LeakyRequests'
+			}
 		});
-		cap.record({ type: 'fetch', url: `http://localhost:5173/api/mock?api_key=${FAKE_STRIPE}&page=2` });
+		cap.record({
+			type: 'fetch',
+			url: `http://localhost:5173/api/mock?api_key=${FAKE_STRIPE}&page=2`
+		});
 		const { findings, text } = await scan(['transit'], { cap });
 		expect(findings).toHaveLength(1);
 		expect(findings[0]).toMatchObject({
@@ -99,14 +112,27 @@ describe('ui_security_scan: transit', () => {
 			source: 'src/components/LeakyRequests.svelte:14 (LeakyRequests)'
 		});
 		expect(findings[0].id).toMatch(/^token-in-url:[0-9a-f]{6}$/);
-		expect(findings[0].evidence).toMatch(/api_key=stripe-secret-key:sk_t…\(len \d+, sha [0-9a-f]{6}\)&page=1 \(x2\)$/);
-		expect(text).toMatch(/^SECURITY 1 high, 0 medium, 0 low, 0 info \(checks: transit\)\nHIGH\n {2}token-in-url:/);
+		expect(findings[0].evidence).toMatch(
+			/api_key=stripe-secret-key:sk_t…\(len \d+, sha [0-9a-f]{6}\)&page=1 \(x2\)$/
+		);
+		expect(text).toMatch(
+			/^SECURITY 1 high, 0 medium, 0 low, 0 info \(checks: transit\)\nHIGH\n {2}token-in-url:/
+		);
 	});
 
 	it('auth header to a third-party origin -> high; same-origin auth header is fine', async () => {
 		const cap = capture();
-		cap.record({ type: 'fetch', method: 'POST', url: 'https://third-party.example/collect', requestHeaders: { authorization: `Bearer ${FAKE_JWT}` } });
-		cap.record({ type: 'fetch', url: 'http://localhost:5173/api/me', requestHeaders: { authorization: `Bearer ${FAKE_JWT}` } });
+		cap.record({
+			type: 'fetch',
+			method: 'POST',
+			url: 'https://third-party.example/collect',
+			requestHeaders: { authorization: `Bearer ${FAKE_JWT}` }
+		});
+		cap.record({
+			type: 'fetch',
+			url: 'http://localhost:5173/api/me',
+			requestHeaders: { authorization: `Bearer ${FAKE_JWT}` }
+		});
 		const { findings } = await scan(['transit'], { cap });
 		expect(findings).toHaveLength(1);
 		expect(findings[0]).toMatchObject({
@@ -114,7 +140,9 @@ describe('ui_security_scan: transit', () => {
 			verdict: 'confirmed',
 			title: 'Credential header "authorization" sent to third-party third-party.example'
 		});
-		expect(findings[0].evidence).toMatch(/authorization: Bearer jwt:eyJh…\(len \d+, sha [0-9a-f]{6}\)$/);
+		expect(findings[0].evidence).toMatch(
+			/authorization: Bearer jwt:eyJh…\(len \d+, sha [0-9a-f]{6}\)$/
+		);
 	});
 
 	it('credentials in a body to a third party -> finding; key-only -> needs_validation', async () => {
@@ -123,18 +151,28 @@ describe('ui_security_scan: transit', () => {
 			type: 'beacon',
 			method: 'POST',
 			url: 'https://analytics.example/e',
-			requestBody: JSON.stringify({ event: 'login', props: { password: 'fake-pass-1234', session: FAKE_JWT } })
+			requestBody: JSON.stringify({
+				event: 'login',
+				props: { password: 'fake-pass-1234', session: FAKE_JWT }
+			})
 		});
 		const { findings } = await scan(['transit'], { cap });
 		expect(findings.map((f) => [f.severity, f.verdict, f.title])).toEqual([
 			['high', 'confirmed', 'JWT in request body to third-party analytics.example'],
-			['medium', 'needs_validation', 'Sensitive field (password) in request body to third-party analytics.example']
+			[
+				'medium',
+				'needs_validation',
+				'Sensitive field (password) in request body to third-party analytics.example'
+			]
 		]);
 	});
 
 	it('the page URL itself is checked', async () => {
 		const { findings } = await scan(['transit'], { pageUrl: `${PAGE}#access_token=${FAKE_JWT}` });
-		expect(findings[0]).toMatchObject({ severity: 'high', title: 'JWT in URL fragment parameter "access_token"' });
+		expect(findings[0]).toMatchObject({
+			severity: 'high',
+			title: 'JWT in URL fragment parameter "access_token"'
+		});
 	});
 });
 
@@ -151,7 +189,9 @@ describe('ui_security_scan: storage, cookies, globals', () => {
 		]);
 		expect(findings[1].id).toMatch(/^jwt-in-storage:/);
 		expect(findings[1].evidence).toMatch(/^localStorage\["fake-auth"\] = jwt:eyJh…/);
-		expect(findings[0].evidence).toMatch(/^sessionStorage\["cfg"\]\.stripe\.key = stripe-secret-key:sk_l…/);
+		expect(findings[0].evidence).toMatch(
+			/^sessionStorage\["cfg"\]\.stripe\.key = stripe-secret-key:sk_l…/
+		);
 	});
 
 	it('opaque token under a sensitive storage key -> medium needs_validation', async () => {
@@ -180,7 +220,11 @@ describe('ui_security_scan: storage, cookies, globals', () => {
 		try {
 			const { findings } = await scan(['globals']);
 			expect(findings).toEqual([
-				expect.objectContaining({ check: 'globals', severity: 'high', title: 'Stripe secret key in window.APP_CONFIG' })
+				expect.objectContaining({
+					check: 'globals',
+					severity: 'high',
+					title: 'Stripe secret key in window.APP_CONFIG'
+				})
 			]);
 		} finally {
 			delete w.APP_CONFIG;
@@ -227,7 +271,12 @@ describe('ui_security_scan: sveltekit + env', () => {
 		fetched.type = 'application/json';
 		fetched.setAttribute('data-sveltekit-fetched', '');
 		fetched.setAttribute('data-url', '/api/profile');
-		fetched.textContent = JSON.stringify({ status: 200, statusText: '', headers: {}, body: JSON.stringify({ apiKey: FAKE_STRIPE_LIVE }) });
+		fetched.textContent = JSON.stringify({
+			status: 200,
+			statusText: '',
+			headers: {},
+			body: JSON.stringify({ apiKey: FAKE_STRIPE_LIVE })
+		});
 		document.body.append(fetched);
 
 		const cap = capture();
@@ -236,7 +285,10 @@ describe('ui_security_scan: sveltekit + env', () => {
 			url: 'http://localhost:5173/account/__data.json?x-sveltekit-invalidated=01',
 			responseBody: JSON.stringify({
 				type: 'data',
-				nodes: [null, { type: 'data', data: [{ user: 1 }, { name: 2, ssn: 3 }, 'Ada', '123-45-6789'], uses: {} }]
+				nodes: [
+					null,
+					{ type: 'data', data: [{ user: 1 }, { name: 2, ssn: 3 }, 'Ada', '123-45-6789'], uses: {} }
+				]
 			})
 		});
 		cap.record({ type: 'fetch', url: 'http://localhost:5173/other/__data.json' });
@@ -245,18 +297,36 @@ describe('ui_security_scan: sveltekit + env', () => {
 			['high', 'Stripe secret key in SvelteKit SSR fetch payload /api/profile'],
 			['high', 'Sensitive field (ssn) in SvelteKit __data.json response']
 		]);
-		expect(findings[1].evidence).toMatch(/__data\.json\?x-sveltekit-invalidated=01 user\.ssn = ssn:12…/);
-		expect(data!.notes).toEqual([expect.stringMatching(/1 __data\.json \/ remote-function response\(s\) captured without bodies/)]);
+		expect(findings[1].evidence).toMatch(
+			/__data\.json\?x-sveltekit-invalidated=01 user\.ssn = ssn:12…/
+		);
+		expect(data!.notes).toEqual([
+			expect.stringMatching(
+				/1 __data\.json \/ remote-function response\(s\) captured without bodies/
+			)
+		]);
 	});
 
 	it('client env: secret-shaped VITE_ value -> high; sensitive name -> medium; Kit dynamic public env', async () => {
-		(window as unknown as Record<string, unknown>).__sveltekit_dev = { env: { PUBLIC_ANALYTICS_TOKEN: 'fakeAnalyticsToken1234' } };
+		(window as unknown as Record<string, unknown>).__sveltekit_dev = {
+			env: { PUBLIC_ANALYTICS_TOKEN: 'fakeAnalyticsToken1234' }
+		};
 		const { findings } = await scan(['env'], {
-			env: { MODE: 'development', DEV: true, BASE_URL: '/', VITE_STRIPE_SECRET: FAKE_STRIPE_LIVE, VITE_APP_NAME: 'demo' }
+			env: {
+				MODE: 'development',
+				DEV: true,
+				BASE_URL: '/',
+				VITE_STRIPE_SECRET: FAKE_STRIPE_LIVE,
+				VITE_APP_NAME: 'demo'
+			}
 		});
 		expect(findings.map((f) => [f.severity, f.verdict, f.title])).toEqual([
 			['high', 'confirmed', 'Stripe secret key exposed to the browser as VITE_STRIPE_SECRET'],
-			['medium', 'needs_validation', 'Sensitive name (token) exposed to the browser as PUBLIC_ANALYTICS_TOKEN']
+			[
+				'medium',
+				'needs_validation',
+				'Sensitive name (token) exposed to the browser as PUBLIC_ANALYTICS_TOKEN'
+			]
 		]);
 	});
 
@@ -269,7 +339,8 @@ describe('ui_security_scan: sveltekit + env', () => {
 });
 
 describe('ui_security_scan: headers', () => {
-	const headersFetch = (headers: Record<string, string>) => async () => new Response(null, { status: 200, headers });
+	const headersFetch = (headers: Record<string, string>) => async () =>
+		new Response(null, { status: 200, headers });
 
 	it('dev (loopback) host: missing headers are info / needs_validation', async () => {
 		const { findings } = await scan(['headers']);
@@ -279,25 +350,42 @@ describe('ui_security_scan: headers', () => {
 			expect(f.verdict).toBe('needs_validation');
 			expect(f.title).toContain('(dev server');
 		}
-		expect(findings.map((f) => f.id.split(':')[0]).sort()).toEqual(['clickjacking', 'csp-missing', 'no-nosniff', 'no-referrer-policy']);
+		expect(findings.map((f) => f.id.split(':')[0]).sort()).toEqual([
+			'clickjacking',
+			'csp-missing',
+			'no-nosniff',
+			'no-referrer-policy'
+		]);
 	});
 
 	it('production host: missing CSP medium, unsafe-inline medium, HSTS low', async () => {
-		const missing = await scan(['headers'], { pageUrl: 'https://app.example.com/', fetch: headersFetch({}) });
-		expect(missing.findings.find((f) => f.id.startsWith('csp-missing'))).toMatchObject({ severity: 'medium', verdict: 'confirmed' });
-		expect(missing.findings.find((f) => f.id.startsWith('no-hsts'))).toMatchObject({ severity: 'low' });
+		const missing = await scan(['headers'], {
+			pageUrl: 'https://app.example.com/',
+			fetch: headersFetch({})
+		});
+		expect(missing.findings.find((f) => f.id.startsWith('csp-missing'))).toMatchObject({
+			severity: 'medium',
+			verdict: 'confirmed'
+		});
+		expect(missing.findings.find((f) => f.id.startsWith('no-hsts'))).toMatchObject({
+			severity: 'low'
+		});
 
 		const weak = await scan(['headers'], {
 			pageUrl: 'https://app.example.com/',
 			fetch: headersFetch({
-				'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+				'content-security-policy':
+					"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'",
 				'x-content-type-options': 'nosniff',
 				'referrer-policy': 'strict-origin',
 				'x-frame-options': 'DENY',
 				'strict-transport-security': 'max-age=31536000'
 			})
 		});
-		expect(weak.findings.map((f) => f.id.split(':')[0]).sort()).toEqual(['csp-unsafe-eval', 'csp-unsafe-inline']);
+		expect(weak.findings.map((f) => f.id.split(':')[0]).sort()).toEqual([
+			'csp-unsafe-eval',
+			'csp-unsafe-inline'
+		]);
 
 		const good = await scan(['headers'], {
 			pageUrl: 'https://app.example.com/',
@@ -361,19 +449,34 @@ describe('ui_security_scan: dom + mixed', () => {
 		cap.record({ type: 'websocket', method: 'WS', url: 'ws://live.example.com/socket' });
 		cap.record({ type: 'websocket', method: 'WS', url: 'ws://localhost:5173/' });
 		const { findings } = await scan(['mixed'], { cap });
-		expect(findings).toEqual([expect.objectContaining({ severity: 'low', title: 'Unencrypted WebSocket (ws://) to a remote host' })]);
+		expect(findings).toEqual([
+			expect.objectContaining({
+				severity: 'low',
+				title: 'Unencrypted WebSocket (ws://) to a remote host'
+			})
+		]);
 	});
 });
 
 describe('ui_security_scan: handler', () => {
 	it('runs every check by default, groups text by severity, rejects unknown checks', async () => {
 		local.setItem('fake-auth', FAKE_JWT);
-		const out = await uiSecurityScan({}, { capture: capture(), pageUrl: PAGE, env: null, fetch: NO_HEADERS_FETCH });
-		const storage = await uiSecurityScan({}, { capture: capture(), pageUrl: PAGE, env: null, fetch: NO_HEADERS_FETCH, win: storageWin() });
-		expect(storage.text).toMatch(/\nMEDIUM\n {2}jwt-in-storage:[0-9a-f]{6} \[confirmed\] JWT in localStorage "fake-auth"\n {4}evidence: /);
+		const out = await uiSecurityScan(
+			{},
+			{ capture: capture(), pageUrl: PAGE, env: null, fetch: NO_HEADERS_FETCH }
+		);
+		const storage = await uiSecurityScan(
+			{},
+			{ capture: capture(), pageUrl: PAGE, env: null, fetch: NO_HEADERS_FETCH, win: storageWin() }
+		);
+		expect(storage.text).toMatch(
+			/\nMEDIUM\n {2}jwt-in-storage:[0-9a-f]{6} \[confirmed\] JWT in localStorage "fake-auth"\n {4}evidence: /
+		);
 		expect(storage.text).not.toContain(FAKE_JWT);
 		expect(out.data!.checks).toEqual([...SECURITY_CHECKS]);
-		expect(out.text).toMatch(/^SECURITY 0 high, 0 medium, 0 low, \d+ info \(checks: transit, storage, cookies, globals, sveltekit, env, headers, dom, mixed\)/);
+		expect(out.text).toMatch(
+			/^SECURITY 0 high, 0 medium, 0 low, \d+ info \(checks: transit, storage, cookies, globals, sveltekit, env, headers, dom, mixed\)/
+		);
 		expect(out.text).toMatch(/\nINFO\n {2}csp-missing:[0-9a-f]{6} \[needs_validation\] /);
 		expect(out.text).toMatch(/\n {4}fix: /);
 		expect(out.text).toMatch(/\nNOTES\n/);

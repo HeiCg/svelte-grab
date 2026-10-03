@@ -118,7 +118,9 @@ describe('secret-rules: false positives', () => {
 	});
 
 	it('base64 image data URIs are not secrets', () => {
-		const png = 'data:image/png;base64,' + Buffer.from('x'.repeat(40) + 'PNGDATA12345678'.repeat(30)).toString('base64');
+		const png =
+			'data:image/png;base64,' +
+			Buffer.from('x'.repeat(40) + 'PNGDATA12345678'.repeat(30)).toString('base64');
 		expect(findSecrets(png)).toEqual([]);
 		expect(findSecrets(`<img src="${png}">`)).toEqual([]);
 	});
@@ -210,9 +212,17 @@ describe('secret-rules: sensitive key names', () => {
 
 describe('secret-rules: sha256 + redaction', () => {
 	it('sha256Hex matches node:crypto (ASCII, UTF-8, multi-block)', () => {
-		expect(sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+		expect(sha256Hex('abc')).toBe(
+			'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+		);
 		expect(sha256Hex('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
-		for (const s of ['héllo wörld ✓ 😀', 'x'.repeat(55), 'y'.repeat(64), 'z'.repeat(1000), FAKE.jwt]) {
+		for (const s of [
+			'héllo wörld ✓ 😀',
+			'x'.repeat(55),
+			'y'.repeat(64),
+			'z'.repeat(1000),
+			FAKE.jwt
+		]) {
 			expect(sha256Hex(s)).toBe(createHash('sha256').update(s, 'utf8').digest('hex'));
 		}
 		expect(utf8Length('é😀')).toBe(Buffer.byteLength('é😀'));
@@ -222,7 +232,9 @@ describe('secret-rules: sha256 + redaction', () => {
 		const r = redact(FAKE.jwt);
 		expect(r).toBe(`jwt:eyJh…(len ${FAKE.jwt.length}, sha ${sha256Hex(FAKE.jwt).slice(0, 6)})`);
 		expect(r).not.toContain(FAKE.jwt);
-		expect(redact(FAKE.stripeLive)).toMatch(/^stripe-secret-key:sk_l…\(len \d+, sha [0-9a-f]{6}\)$/);
+		expect(redact(FAKE.stripeLive)).toMatch(
+			/^stripe-secret-key:sk_l…\(len \d+, sha [0-9a-f]{6}\)$/
+		);
 		expect(redact('hunter2pw', 'password')).toMatch(/^password:hu…\(len 9, sha [0-9a-f]{6}\)$/);
 		expect(redact('abc', 'password')).toMatch(/^password:…\(len 3, sha [0-9a-f]{6}\)$/);
 		expect(redactionPrefixLength(16)).toBe(4);
@@ -243,7 +255,8 @@ describe('secret-rules: sha256 + redaction', () => {
 	it('redactUrl: query/fragment values by shape or by sensitive name, path secrets, userinfo', () => {
 		const url = `https://api.example.com/v1/${FAKE.ghp}/items?api_key=${FAKE.stripeTest}&page=2&password=hunter2pw&q=shoes#access_token=${FAKE.jwt}`;
 		const { redacted, hits } = redactUrl(url);
-		for (const secret of [FAKE.ghp, FAKE.stripeTest, 'hunter2pw', FAKE.jwt]) expect(redacted).not.toContain(secret);
+		for (const secret of [FAKE.ghp, FAKE.stripeTest, 'hunter2pw', FAKE.jwt])
+			expect(redacted).not.toContain(secret);
 		expect(redacted).toContain('page=2');
 		expect(redacted).toContain('q=shoes');
 		expect(hits.map((h) => [h.location, h.key, h.kind, h.shaped])).toEqual([
@@ -268,7 +281,12 @@ describe('secret-rules: sha256 + redaction', () => {
 describe('secret-rules: structured values', () => {
 	it('scanValue reports shaped strings and sensitive keys with paths', () => {
 		const hits = scanValue({
-			user: { id: 1, email: 'a@example.com', password_hash: '$2b$10$FAKEfakeFAKEfakeFAKEfake', ssn: 123456789 },
+			user: {
+				id: 1,
+				email: 'a@example.com',
+				password_hash: '$2b$10$FAKEfakeFAKEfakeFAKEfake',
+				ssn: 123456789
+			},
 			session: { access_token: FAKE.jwt },
 			items: [{ note: `key ${FAKE.aws}` }],
 			csrf: 'short'

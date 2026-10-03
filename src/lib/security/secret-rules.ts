@@ -123,17 +123,23 @@ function utf8Decode(bytes: number[]): string {
 		let cp: number;
 		if (b < 0x80) cp = b;
 		else if (b >= 0xc0 && b < 0xe0) cp = ((b & 0x1f) << 6) | (bytes[i++] & 0x3f);
-		else if (b >= 0xe0 && b < 0xf0) cp = ((b & 0x0f) << 12) | ((bytes[i++] & 0x3f) << 6) | (bytes[i++] & 0x3f);
+		else if (b >= 0xe0 && b < 0xf0)
+			cp = ((b & 0x0f) << 12) | ((bytes[i++] & 0x3f) << 6) | (bytes[i++] & 0x3f);
 		else
 			cp =
-				((b & 0x07) << 18) | ((bytes[i++] & 0x3f) << 12) | ((bytes[i++] & 0x3f) << 6) | (bytes[i++] & 0x3f);
+				((b & 0x07) << 18) |
+				((bytes[i++] & 0x3f) << 12) |
+				((bytes[i++] & 0x3f) << 6) |
+				(bytes[i++] & 0x3f);
 		out += String.fromCodePoint(Number.isFinite(cp) && cp <= 0x10ffff ? cp : 0xfffd);
 	}
 	return out;
 }
 
 /** Decoded JWT header + payload, or `null` when `token` is not a JWT. */
-export function decodeJwt(token: string): { header: Record<string, unknown>; payload: Record<string, unknown> } | null {
+export function decodeJwt(
+	token: string
+): { header: Record<string, unknown>; payload: Record<string, unknown> } | null {
 	const parts = token.split('.');
 	if (parts.length !== 3) return null;
 	try {
@@ -277,7 +283,8 @@ export interface FindSecretsOptions {
 export function findSecrets(text: string, options: FindSecretsOptions = {}): SecretMatch[] {
 	if (typeof text !== 'string' || text.length < 8) return [];
 	const found: SecretMatch[] = [];
-	const overlaps = (start: number, end: number) => found.some((m) => start < m.end && end > m.start);
+	const overlaps = (start: number, end: number) =>
+		found.some((m) => start < m.end && end > m.start);
 
 	for (const rule of SECRET_RULES) {
 		rule.pattern.lastIndex = 0;
@@ -350,7 +357,8 @@ export type SensitiveKeyKind =
 const TOKEN_FALSE_POSITIVES =
 	/maxtokens|tokencount|tokensused|tokenlimit|tokenizer|tokenize|inputtokens|outputtokens|totaltokens|completiontokens|prompttokens|cachedtokens|tokenusage/;
 /** `*hash` names that are content hashes, not secrets. */
-const HASH_FALSE_POSITIVES = /^(content|file|asset|commit|git|build|etag|route|url|location|integrity|chunk|module|cache)hash$/;
+const HASH_FALSE_POSITIVES =
+	/^(content|file|asset|commit|git|build|etag|route|url|location|integrity|chunk|module|cache)hash$/;
 
 const KEY_RULES: [SensitiveKeyKind, RegExp][] = [
 	['private-key', /privatekey|privkey/],
@@ -387,27 +395,30 @@ export function sensitiveKeyKind(name: string): SensitiveKeyKind | null {
 }
 
 /** Values that are clearly placeholders, not credentials. */
-const PLACEHOLDER = /^(?:\*+|x+|•+|null|undefined|none|redacted|\[redacted\]|<redacted>|true|false|changeme|example|placeholder)$/i;
+const PLACEHOLDER =
+	/^(?:\*+|x+|•+|null|undefined|none|redacted|\[redacted\]|<redacted>|true|false|changeme|example|placeholder)$/i;
 
 /**
  * Whether a value stored under a sensitive key is worth reporting: a string
  * of at least `minLength` characters that is not a placeholder.
  */
 export function isMeaningfulSecretValue(value: unknown, minLength = 4): value is string {
-	return typeof value === 'string' && value.trim().length >= minLength && !PLACEHOLDER.test(value.trim());
+	return (
+		typeof value === 'string' && value.trim().length >= minLength && !PLACEHOLDER.test(value.trim())
+	);
 }
 
 // ------------------------------------------------------------------ SHA-256
 
 const K = new Uint32Array([
-	0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98,
-	0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-	0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8,
-	0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-	0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819,
-	0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-	0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
-	0xc67178f2
+	0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+	0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+	0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+	0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+	0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+	0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+	0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+	0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 ]);
 
 function utf8Encode(value: string): number[] {
@@ -416,7 +427,8 @@ function utf8Encode(value: string): number[] {
 		const cp = ch.codePointAt(0)!;
 		if (cp < 0x80) out.push(cp);
 		else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 0x3f));
-		else if (cp < 0x10000) out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 0x3f), 0x80 | (cp & 0x3f));
+		else if (cp < 0x10000)
+			out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 0x3f), 0x80 | (cp & 0x3f));
 		else
 			out.push(
 				0xf0 | (cp >> 18),
@@ -564,7 +576,14 @@ function scanParams(part: string, location: 'query' | 'fragment', hits: UrlSecre
 			const shaped = detectSecret(value);
 			const keyKind = sensitiveKeyKind(key);
 			if (shaped) {
-				hits.push({ location, key, kind: shaped.kind, confidence: shaped.confidence, shaped: true, redacted: shaped.redacted });
+				hits.push({
+					location,
+					key,
+					kind: shaped.kind,
+					confidence: shaped.confidence,
+					shaped: true,
+					redacted: shaped.redacted
+				});
 				return `${rawKey}=${shaped.redacted}`;
 			}
 			if (keyKind && isMeaningfulSecretValue(value)) {
@@ -599,12 +618,21 @@ export function redactUrl(url: string): UrlScan {
 	}
 
 	// userinfo: scheme://user:password@host
-	rest = rest.replace(/^([a-z][a-z0-9+.-]*:\/\/)([^/@:]*):([^/@]*)@/i, (_m, scheme: string, user: string, pass: string) => {
-		if (!pass) return `${scheme}${user}:@`;
-		const r = redact(safeDecode(pass), 'password');
-		hits.push({ location: 'userinfo', kind: 'password', confidence: 'high', shaped: false, redacted: r });
-		return `${scheme}${user}:${r}@`;
-	});
+	rest = rest.replace(
+		/^([a-z][a-z0-9+.-]*:\/\/)([^/@:]*):([^/@]*)@/i,
+		(_m, scheme: string, user: string, pass: string) => {
+			if (!pass) return `${scheme}${user}:@`;
+			const r = redact(safeDecode(pass), 'password');
+			hits.push({
+				location: 'userinfo',
+				kind: 'password',
+				confidence: 'high',
+				shaped: false,
+				redacted: r
+			});
+			return `${scheme}${user}:${r}@`;
+		}
+	);
 
 	// path: only the specific (high-confidence) rules, never entropy.
 	const pathMatches = findSecrets(rest, { entropy: false });
@@ -614,7 +642,13 @@ export function redactUrl(url: string): UrlScan {
 		for (const m of pathMatches) {
 			out += rest.slice(pos, m.start) + m.redacted;
 			pos = m.end;
-			hits.push({ location: 'path', kind: m.kind, confidence: m.confidence, shaped: true, redacted: m.redacted });
+			hits.push({
+				location: 'path',
+				kind: m.kind,
+				confidence: m.confidence,
+				shaped: true,
+				redacted: m.redacted
+			});
 		}
 		rest = out + rest.slice(pos);
 	}
@@ -622,7 +656,9 @@ export function redactUrl(url: string): UrlScan {
 	let out = rest;
 	if (query !== null) out += '?' + scanParams(query, 'query', hits);
 	if (hashAt !== -1) {
-		out += '#' + (fragment.includes('=') ? scanParams(fragment, 'fragment', hits) : redactText(fragment));
+		out +=
+			'#' +
+			(fragment.includes('=') ? scanParams(fragment, 'fragment', hits) : redactText(fragment));
 	}
 	return { redacted: out, hits };
 }
@@ -662,14 +698,39 @@ export function scanValue(
 		if (typeof v === 'string') {
 			const shaped = detectSecret(v, { entropy: options.entropy });
 			if (shaped) {
-				hits.push({ path, key, kind: shaped.kind, confidence: shaped.confidence, shaped: true, redacted: shaped.redacted });
+				hits.push({
+					path,
+					key,
+					kind: shaped.kind,
+					confidence: shaped.confidence,
+					shaped: true,
+					redacted: shaped.redacted
+				});
 			} else if (keyKind && isMeaningfulSecretValue(v)) {
-				hits.push({ path, key, kind: keyKind, confidence: 'low', shaped: false, redacted: redact(v, keyKind) });
+				hits.push({
+					path,
+					key,
+					kind: keyKind,
+					confidence: 'low',
+					shaped: false,
+					redacted: redact(v, keyKind)
+				});
 			}
 			return;
 		}
-		if (typeof v === 'number' && keyKind && (keyKind === 'ssn' || keyKind === 'credit-card' || keyKind === 'cvv')) {
-			hits.push({ path, key, kind: keyKind, confidence: 'low', shaped: false, redacted: redact(String(v), keyKind) });
+		if (
+			typeof v === 'number' &&
+			keyKind &&
+			(keyKind === 'ssn' || keyKind === 'credit-card' || keyKind === 'cvv')
+		) {
+			hits.push({
+				path,
+				key,
+				kind: keyKind,
+				confidence: 'low',
+				shaped: false,
+				redacted: redact(String(v), keyKind)
+			});
 			return;
 		}
 		if (!v || typeof v !== 'object' || depth >= maxDepth || seen.has(v)) return;
@@ -707,7 +768,8 @@ export function unflattenDevalue(data: unknown): unknown {
 			return raw.map((i) => resolve(i, depth + 1, next));
 		}
 		const out: Record<string, unknown> = {};
-		for (const [k, i] of Object.entries(raw as Record<string, unknown>)) out[k] = resolve(i, depth + 1, next);
+		for (const [k, i] of Object.entries(raw as Record<string, unknown>))
+			out[k] = resolve(i, depth + 1, next);
 		return out;
 	};
 	return resolve(0, 0, new Set());

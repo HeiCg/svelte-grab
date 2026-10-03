@@ -6,22 +6,38 @@ import { getSvelteLoc } from './component-stack.js';
  * Educational "why this matters" text for each a11y rule
  */
 const WHY_TEXT: Record<string, string> = {
-	'input-label': 'Screen readers announce form fields by their label. Without one, users cannot identify what information to enter.',
-	'button-label': 'Buttons without accessible text are announced as just "button" by screen readers, giving users no indication of the action.',
-	'img-alt': 'Screen readers read alt text to describe images. Without it, visually impaired users miss the content entirely.',
-	'img-alt-empty': 'Empty alt indicates a decorative image. Adding role="presentation" makes this explicit for assistive technology.',
-	'contrast': 'Low contrast makes text unreadable for users with visual impairments, including the ~300 million people with color vision deficiency.',
-	'tabindex-positive': 'Positive tabindex values create a custom tab order that conflicts with the visual layout, confusing keyboard users.',
-	'heading-order': 'Screen reader users navigate by headings. Skipped levels break the document outline and make navigation unpredictable.',
-	'form-landmark': 'Forms without labels are hard to distinguish when a page has multiple forms. Screen readers list forms by their label.',
-	'interactive-role': 'Clickable elements without semantic roles are invisible to assistive technology. Keyboard users cannot reach or activate them.',
-	'link-text': 'Generic link text like "click here" provides no context when screen readers list all links on a page. Users cannot distinguish between links.',
-	'html-lang': 'Screen readers use the lang attribute to switch pronunciation rules. Without it, content may be read with the wrong language\'s pronunciation.',
-	'autocomplete': 'Autocomplete attributes help browsers and password managers fill forms correctly, reducing errors for all users including those with cognitive disabilities.',
-	'media-alternative': 'Users who are deaf or hard of hearing cannot access audio content. Users who are blind cannot access video content. Alternatives are essential.',
-	'landmark-regions': 'Landmark regions let screen reader users jump directly to major page sections. Without them, users must navigate through every element sequentially.',
-	'skip-nav': 'Keyboard users must tab through all navigation links on every page load. A skip link lets them jump directly to the main content.',
-	'focus-visible': 'Keyboard users rely on visible focus indicators to know which element is active. Removing focus styles makes keyboard navigation impossible.',
+	'input-label':
+		'Screen readers announce form fields by their label. Without one, users cannot identify what information to enter.',
+	'button-label':
+		'Buttons without accessible text are announced as just "button" by screen readers, giving users no indication of the action.',
+	'img-alt':
+		'Screen readers read alt text to describe images. Without it, visually impaired users miss the content entirely.',
+	'img-alt-empty':
+		'Empty alt indicates a decorative image. Adding role="presentation" makes this explicit for assistive technology.',
+	contrast:
+		'Low contrast makes text unreadable for users with visual impairments, including the ~300 million people with color vision deficiency.',
+	'tabindex-positive':
+		'Positive tabindex values create a custom tab order that conflicts with the visual layout, confusing keyboard users.',
+	'heading-order':
+		'Screen reader users navigate by headings. Skipped levels break the document outline and make navigation unpredictable.',
+	'form-landmark':
+		'Forms without labels are hard to distinguish when a page has multiple forms. Screen readers list forms by their label.',
+	'interactive-role':
+		'Clickable elements without semantic roles are invisible to assistive technology. Keyboard users cannot reach or activate them.',
+	'link-text':
+		'Generic link text like "click here" provides no context when screen readers list all links on a page. Users cannot distinguish between links.',
+	'html-lang':
+		"Screen readers use the lang attribute to switch pronunciation rules. Without it, content may be read with the wrong language's pronunciation.",
+	autocomplete:
+		'Autocomplete attributes help browsers and password managers fill forms correctly, reducing errors for all users including those with cognitive disabilities.',
+	'media-alternative':
+		'Users who are deaf or hard of hearing cannot access audio content. Users who are blind cannot access video content. Alternatives are essential.',
+	'landmark-regions':
+		'Landmark regions let screen reader users jump directly to major page sections. Without them, users must navigate through every element sequentially.',
+	'skip-nav':
+		'Keyboard users must tab through all navigation links on every page load. A skip link lets them jump directly to the main content.',
+	'focus-visible':
+		'Keyboard users rely on visible focus indicators to know which element is active. Removing focus styles makes keyboard navigation impossible.'
 };
 
 /**
@@ -39,7 +55,7 @@ function withWhy(issue: A11yIssue, el?: HTMLElement): A11yIssue {
 function getAccessibleName(el: HTMLElement): string {
 	return (
 		el.getAttribute('aria-label') ||
-		el.getAttribute('aria-labelledby') && getLabelledByText(el) ||
+		(el.getAttribute('aria-labelledby') && getLabelledByText(el)) ||
 		el.getAttribute('title') ||
 		el.textContent?.trim() ||
 		''
@@ -48,7 +64,7 @@ function getAccessibleName(el: HTMLElement): string {
 
 function getLabelledByText(el: HTMLElement): string {
 	const ids = el.getAttribute('aria-labelledby')?.split(/\s+/) || [];
-	return ids.map(id => document.getElementById(id)?.textContent?.trim() || '').join(' ');
+	return ids.map((id) => document.getElementById(id)?.textContent?.trim() || '').join(' ');
 }
 
 /**
@@ -60,7 +76,7 @@ function elementHtml(el: HTMLElement, maxLen = 80): string {
 	// Show opening tag only
 	const tag = el.tagName.toLowerCase();
 	const attrs = Array.from(el.attributes)
-		.map(a => `${a.name}="${a.value.slice(0, 30)}"`)
+		.map((a) => `${a.name}="${a.value.slice(0, 30)}"`)
 		.join(' ');
 	const opening = `<${tag} ${attrs}>`.slice(0, maxLen);
 	return opening.endsWith('>') ? opening : opening + '...>';
@@ -107,9 +123,7 @@ function parseColor(color: string): RGBA | null {
 	if (rgbMatch) {
 		let a = 1;
 		if (rgbMatch[4] !== undefined) {
-			a = rgbMatch[4].endsWith('%')
-				? parseFloat(rgbMatch[4]) / 100
-				: parseFloat(rgbMatch[4]);
+			a = rgbMatch[4].endsWith('%') ? parseFloat(rgbMatch[4]) / 100 : parseFloat(rgbMatch[4]);
 		}
 		if (!Number.isFinite(a)) a = 1;
 		return {
@@ -127,7 +141,7 @@ function parseColor(color: string): RGBA | null {
 		if (hex.length === 3 || hex.length === 4) {
 			hex = hex
 				.split('')
-				.map(ch => ch + ch)
+				.map((ch) => ch + ch)
 				.join('');
 		}
 		if (hex.length !== 6 && hex.length !== 8) return null;
@@ -148,7 +162,10 @@ function parseColor(color: string): RGBA | null {
  * background, returning the resulting opaque RGB. Uses the standard
  * "source over" compositing formula.
  */
-function compositeOver(fg: RGBA, bg: { r: number; g: number; b: number }): {
+function compositeOver(
+	fg: RGBA,
+	bg: { r: number; g: number; b: number }
+): {
 	r: number;
 	g: number;
 	b: number;
@@ -165,7 +182,7 @@ function compositeOver(fg: RGBA, bg: { r: number; g: number; b: number }): {
  * Calculate relative luminance (WCAG 2.0)
  */
 function relativeLuminance(r: number, g: number, b: number): number {
-	const [rs, gs, bs] = [r, g, b].map(c => {
+	const [rs, gs, bs] = [r, g, b].map((c) => {
 		const s = c / 255;
 		return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
 	});
@@ -235,12 +252,12 @@ function checkInputLabels(root: HTMLElement): A11yIssue[] {
 	const issues: A11yIssue[] = [];
 	const inputs = root.querySelectorAll('input, select, textarea');
 
-	inputs.forEach(input => {
+	inputs.forEach((input) => {
 		const el = input as HTMLInputElement;
 		if (el.type === 'hidden' || el.type === 'submit' || el.type === 'button') return;
 
 		const hasLabel =
-			el.id && root.querySelector(`label[for="${el.id}"]`) ||
+			(el.id && root.querySelector(`label[for="${el.id}"]`)) ||
 			el.closest('label') ||
 			el.getAttribute('aria-label') ||
 			el.getAttribute('aria-labelledby');
@@ -249,18 +266,23 @@ function checkInputLabels(root: HTMLElement): A11yIssue[] {
 			const { file, line } = getElementSource(el);
 			const tag = el.tagName.toLowerCase();
 			const typeAttr = el.type ? ` type="${el.type}"` : '';
-			issues.push(withWhy({
-				severity: 'critical',
-				rule: 'input-label',
-				message: `Input without associated label`,
-				elementHtml: elementHtml(el),
-				file,
-				line,
-				fix: `Add a label to the field`,
-				fixCode: el.id
-					? `<label for="${el.id}">Description</label>\n<${tag}${typeAttr} id="${el.id}">`
-					: `<${tag}${typeAttr} aria-label="Field description">`
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'critical',
+						rule: 'input-label',
+						message: `Input without associated label`,
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: `Add a label to the field`,
+						fixCode: el.id
+							? `<label for="${el.id}">Description</label>\n<${tag}${typeAttr} id="${el.id}">`
+							: `<${tag}${typeAttr} aria-label="Field description">`
+					},
+					el
+				)
+			);
 		}
 	});
 
@@ -274,22 +296,27 @@ function checkButtonLabels(root: HTMLElement): A11yIssue[] {
 	const issues: A11yIssue[] = [];
 	const buttons = root.querySelectorAll('button, [role="button"]');
 
-	buttons.forEach(btn => {
+	buttons.forEach((btn) => {
 		const el = btn as HTMLElement;
 		const name = getAccessibleName(el);
 
 		if (!name) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'critical',
-				rule: 'button-label',
-				message: `Button without accessible text`,
-				elementHtml: elementHtml(el),
-				file,
-				line,
-				fix: `Add aria-label to the button`,
-				fixCode: `<button aria-label="Action description">...</button>`
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'critical',
+						rule: 'button-label',
+						message: `Button without accessible text`,
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: `Add aria-label to the button`,
+						fixCode: `<button aria-label="Action description">...</button>`
+					},
+					el
+				)
+			);
 		}
 	});
 
@@ -303,35 +330,45 @@ function checkImageAlts(root: HTMLElement): A11yIssue[] {
 	const issues: A11yIssue[] = [];
 	const images = root.querySelectorAll('img');
 
-	images.forEach(img => {
+	images.forEach((img) => {
 		const el = img as HTMLImageElement;
 		const hasAlt = el.hasAttribute('alt');
 		const altEmpty = el.getAttribute('alt') === '';
 
 		if (!hasAlt) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'critical',
-				rule: 'img-alt',
-				message: `Image missing alt attribute`,
-				elementHtml: elementHtml(el),
-				file,
-				line,
-				fix: `Add descriptive alt text`,
-				fixCode: `<img src="..." alt="Image description">`
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'critical',
+						rule: 'img-alt',
+						message: `Image missing alt attribute`,
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: `Add descriptive alt text`,
+						fixCode: `<img src="..." alt="Image description">`
+					},
+					el
+				)
+			);
 		} else if (altEmpty && !el.getAttribute('role')) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'info',
-				rule: 'img-alt-empty',
-				message: `Image with empty alt (decorative). Consider adding role="presentation"`,
-				elementHtml: elementHtml(el),
-				file,
-				line,
-				fix: `Add role="presentation" for decorative images`,
-				fixCode: `<img src="..." alt="" role="presentation">`
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'info',
+						rule: 'img-alt-empty',
+						message: `Image with empty alt (decorative). Consider adding role="presentation"`,
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: `Add role="presentation" for decorative images`,
+						fixCode: `<img src="..." alt="" role="presentation">`
+					},
+					el
+				)
+			);
 		}
 	});
 
@@ -343,10 +380,12 @@ function checkImageAlts(root: HTMLElement): A11yIssue[] {
  */
 function checkContrast(root: HTMLElement): A11yIssue[] {
 	const issues: A11yIssue[] = [];
-	const textElements = root.querySelectorAll('p, span, a, h1, h2, h3, h4, h5, h6, li, td, th, label, button, div');
+	const textElements = root.querySelectorAll(
+		'p, span, a, h1, h2, h3, h4, h5, h6, li, td, th, label, button, div'
+	);
 
 	const checked = new Set<string>();
-	textElements.forEach(el => {
+	textElements.forEach((el) => {
 		const element = el as HTMLElement;
 		if (!element.textContent?.trim()) return;
 
@@ -371,15 +410,20 @@ function checkContrast(root: HTMLElement): A11yIssue[] {
 		if (ratio < minRatio) {
 			const { file, line } = getElementSource(element);
 			const suggestion = suggestContrastColor(bg, minRatio);
-			issues.push(withWhy({
-				severity: ratio < 3 ? 'critical' : 'warning',
-				rule: 'contrast',
-				message: `Insufficient contrast: ${ratio.toFixed(1)}:1 (WCAG AA minimum: ${minRatio}:1)`,
-				elementHtml: elementHtml(element),
-				file,
-				line,
-				fix: `Foreground: ${fg}\nBackground: ${bg}${suggestion ? `\nSuggestion: use ${suggestion} (ratio ${minRatio}:1+)` : ''}`,
-			}, element));
+			issues.push(
+				withWhy(
+					{
+						severity: ratio < 3 ? 'critical' : 'warning',
+						rule: 'contrast',
+						message: `Insufficient contrast: ${ratio.toFixed(1)}:1 (WCAG AA minimum: ${minRatio}:1)`,
+						elementHtml: elementHtml(element),
+						file,
+						line,
+						fix: `Foreground: ${fg}\nBackground: ${bg}${suggestion ? `\nSuggestion: use ${suggestion} (ratio ${minRatio}:1+)` : ''}`
+					},
+					element
+				)
+			);
 		}
 	});
 
@@ -426,21 +470,26 @@ function checkTabOrder(root: HTMLElement): A11yIssue[] {
 	const issues: A11yIssue[] = [];
 	const withTabindex = root.querySelectorAll('[tabindex]');
 
-	withTabindex.forEach(el => {
+	withTabindex.forEach((el) => {
 		const element = el as HTMLElement;
 		const tabindex = parseInt(element.getAttribute('tabindex') || '0');
 
 		if (tabindex > 0) {
 			const { file, line } = getElementSource(element);
-			issues.push(withWhy({
-				severity: 'warning',
-				rule: 'tabindex-positive',
-				message: `tabindex="${tabindex}" breaks natural focus order`,
-				elementHtml: elementHtml(element),
-				file,
-				line,
-				fix: `Use tabindex="0" for natural order or tabindex="-1" to remove from tab flow`
-			}, element));
+			issues.push(
+				withWhy(
+					{
+						severity: 'warning',
+						rule: 'tabindex-positive',
+						message: `tabindex="${tabindex}" breaks natural focus order`,
+						elementHtml: elementHtml(element),
+						file,
+						line,
+						fix: `Use tabindex="0" for natural order or tabindex="-1" to remove from tab flow`
+					},
+					element
+				)
+			);
 		}
 	});
 
@@ -455,21 +504,26 @@ function checkHeadingHierarchy(root: HTMLElement): A11yIssue[] {
 	const headings = root.querySelectorAll('h1, h2, h3, h4, h5, h6');
 
 	let lastLevel = 0;
-	headings.forEach(heading => {
+	headings.forEach((heading) => {
 		const el = heading as HTMLElement;
 		const level = parseInt(el.tagName[1]);
 
 		if (lastLevel > 0 && level > lastLevel + 1) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'warning',
-				rule: 'heading-order',
-				message: `Heading skips from h${lastLevel} to h${level}`,
-				elementHtml: elementHtml(el),
-				file,
-				line,
-				fix: `Use h${lastLevel + 1} instead of h${level} to maintain hierarchy`
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'warning',
+						rule: 'heading-order',
+						message: `Heading skips from h${lastLevel} to h${level}`,
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: `Use h${lastLevel + 1} instead of h${level} to maintain hierarchy`
+					},
+					el
+				)
+			);
 		}
 		lastLevel = level;
 	});
@@ -484,20 +538,29 @@ function checkFormLandmarks(root: HTMLElement): A11yIssue[] {
 	const issues: A11yIssue[] = [];
 	const forms = root.querySelectorAll('form');
 
-	forms.forEach(form => {
+	forms.forEach((form) => {
 		const el = form as HTMLFormElement;
-		if (!el.getAttribute('aria-label') && !el.getAttribute('aria-labelledby') && !el.getAttribute('role')) {
+		if (
+			!el.getAttribute('aria-label') &&
+			!el.getAttribute('aria-labelledby') &&
+			!el.getAttribute('role')
+		) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'warning',
-				rule: 'form-landmark',
-				message: `Form without landmark (aria-label)`,
-				elementHtml: elementHtml(el),
-				file,
-				line,
-				fix: `Add aria-label to the form`,
-				fixCode: `<form aria-label="Form description">`
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'warning',
+						rule: 'form-landmark',
+						message: `Form without landmark (aria-label)`,
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: `Add aria-label to the form`,
+						fixCode: `<form aria-label="Form description">`
+					},
+					el
+				)
+			);
 		}
 	});
 
@@ -513,7 +576,7 @@ function checkInteractiveRoles(root: HTMLElement): A11yIssue[] {
 	// Svelte 5 uses addEventListener (not HTML attributes), so we check multiple signals
 	const candidates = root.querySelectorAll('div, span');
 
-	candidates.forEach(el => {
+	candidates.forEach((el) => {
 		const element = el as HTMLElement;
 		if (element.getAttribute('role')) return; // already has role
 
@@ -526,16 +589,21 @@ function checkInteractiveRoles(root: HTMLElement): A11yIssue[] {
 
 		if (isInteractive) {
 			const { file, line } = getElementSource(element);
-			issues.push(withWhy({
-				severity: 'warning',
-				rule: 'interactive-role',
-				message: `Interactive element without role`,
-				elementHtml: elementHtml(element),
-				file,
-				line,
-				fix: `Use <button> or add role="button" and tabindex="0"`,
-				fixCode: `<div role="button" tabindex="0" onclick="...">`
-			}, element));
+			issues.push(
+				withWhy(
+					{
+						severity: 'warning',
+						rule: 'interactive-role',
+						message: `Interactive element without role`,
+						elementHtml: elementHtml(element),
+						file,
+						line,
+						fix: `Use <button> or add role="button" and tabindex="0"`,
+						fixCode: `<div role="button" tabindex="0" onclick="...">`
+					},
+					element
+				)
+			);
 		}
 	});
 
@@ -550,21 +618,26 @@ function checkLinkText(root: HTMLElement): A11yIssue[] {
 	const genericTexts = ['click here', 'read more', 'learn more', 'here', 'more', 'link', 'this'];
 	const links = root.querySelectorAll('a[href]');
 
-	links.forEach(link => {
+	links.forEach((link) => {
 		const el = link as HTMLAnchorElement;
 		const text = (el.textContent || '').trim().toLowerCase();
 		if (genericTexts.includes(text)) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'warning',
-				rule: 'link-text',
-				message: `Link with generic text "${text}"`,
-				elementHtml: elementHtml(el),
-				file,
-				line,
-				fix: `Use descriptive link text that explains the destination`,
-				fixCode: `<a href="...">View pricing details</a>`
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'warning',
+						rule: 'link-text',
+						message: `Link with generic text "${text}"`,
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: `Use descriptive link text that explains the destination`,
+						fixCode: `<a href="...">View pricing details</a>`
+					},
+					el
+				)
+			);
 		}
 	});
 
@@ -578,14 +651,16 @@ function checkHtmlLang(): A11yIssue[] {
 	const issues: A11yIssue[] = [];
 	const html = document.documentElement;
 	if (!html.getAttribute('lang')) {
-		issues.push(withWhy({
-			severity: 'warning',
-			rule: 'html-lang',
-			message: 'Page missing language attribute on <html>',
-			elementHtml: '<html>',
-			fix: 'Add lang attribute to the html element',
-			fixCode: '<html lang="en">'
-		}));
+		issues.push(
+			withWhy({
+				severity: 'warning',
+				rule: 'html-lang',
+				message: 'Page missing language attribute on <html>',
+				elementHtml: '<html>',
+				fix: 'Add lang attribute to the html element',
+				fixCode: '<html lang="en">'
+			})
+		);
 	}
 	return issues;
 }
@@ -603,22 +678,27 @@ function checkAutocomplete(root: HTMLElement): A11yIssue[] {
 	};
 
 	const inputs = root.querySelectorAll('input');
-	inputs.forEach(input => {
+	inputs.forEach((input) => {
 		const el = input as HTMLInputElement;
 		const type = el.type;
 		const expectedValues = autocompleteFields[type];
 		if (expectedValues && !el.getAttribute('autocomplete')) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'info',
-				rule: 'autocomplete',
-				message: `Input type="${type}" missing autocomplete attribute`,
-				elementHtml: elementHtml(el),
-				file,
-				line,
-				fix: `Add autocomplete="${expectedValues[0]}" to the input`,
-				fixCode: `<input type="${type}" autocomplete="${expectedValues[0]}">`
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'info',
+						rule: 'autocomplete',
+						message: `Input type="${type}" missing autocomplete attribute`,
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: `Add autocomplete="${expectedValues[0]}" to the input`,
+						fixCode: `<input type="${type}" autocomplete="${expectedValues[0]}">`
+					},
+					el
+				)
+			);
 		}
 	});
 
@@ -632,42 +712,54 @@ function checkMediaAlternatives(root: HTMLElement): A11yIssue[] {
 	const issues: A11yIssue[] = [];
 
 	const videos = root.querySelectorAll('video');
-	videos.forEach(video => {
+	videos.forEach((video) => {
 		const el = video as HTMLVideoElement;
 		const hasCaptions = el.querySelector('track[kind="captions"], track[kind="subtitles"]');
 		if (!hasCaptions) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'warning',
-				rule: 'media-alternative',
-				message: 'Video without captions or subtitles',
-				elementHtml: elementHtml(el),
-				file,
-				line,
-				fix: 'Add a <track> element with captions',
-				fixCode: '<video>\n  <track kind="captions" src="captions.vtt" srclang="en" label="English">\n</video>'
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'warning',
+						rule: 'media-alternative',
+						message: 'Video without captions or subtitles',
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: 'Add a <track> element with captions',
+						fixCode:
+							'<video>\n  <track kind="captions" src="captions.vtt" srclang="en" label="English">\n</video>'
+					},
+					el
+				)
+			);
 		}
 	});
 
 	const audios = root.querySelectorAll('audio');
-	audios.forEach(audio => {
+	audios.forEach((audio) => {
 		const el = audio as HTMLAudioElement;
 		// Check if there's a nearby transcript link or element
 		const parent = el.parentElement;
-		const hasTranscript = parent?.querySelector('[class*="transcript"], [id*="transcript"]') ||
+		const hasTranscript =
+			parent?.querySelector('[class*="transcript"], [id*="transcript"]') ||
 			parent?.querySelector('a[href*="transcript"]');
 		if (!hasTranscript) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'info',
-				rule: 'media-alternative',
-				message: 'Audio without visible transcript',
-				elementHtml: elementHtml(el),
-				file,
-				line,
-				fix: 'Provide a text transcript near the audio element'
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'info',
+						rule: 'media-alternative',
+						message: 'Audio without visible transcript',
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: 'Provide a text transcript near the audio element'
+					},
+					el
+				)
+			);
 		}
 	});
 
@@ -689,25 +781,29 @@ function checkLandmarkRegions(root: HTMLElement): A11yIssue[] {
 	const hasNav = root.querySelector('nav, [role="navigation"]');
 
 	if (!hasMain) {
-		issues.push(withWhy({
-			severity: 'warning',
-			rule: 'landmark-regions',
-			message: 'Page missing <main> landmark region',
-			elementHtml: elementHtml(root),
-			fix: 'Wrap the primary content in a <main> element',
-			fixCode: '<main>\n  <!-- primary page content -->\n</main>'
-		}));
+		issues.push(
+			withWhy({
+				severity: 'warning',
+				rule: 'landmark-regions',
+				message: 'Page missing <main> landmark region',
+				elementHtml: elementHtml(root),
+				fix: 'Wrap the primary content in a <main> element',
+				fixCode: '<main>\n  <!-- primary page content -->\n</main>'
+			})
+		);
 	}
 
 	if (!hasNav && root.querySelectorAll('a[href]').length > 5) {
-		issues.push(withWhy({
-			severity: 'info',
-			rule: 'landmark-regions',
-			message: 'Page has many links but no <nav> landmark',
-			elementHtml: elementHtml(root),
-			fix: 'Wrap navigation links in a <nav> element',
-			fixCode: '<nav aria-label="Main navigation">\n  <!-- links -->\n</nav>'
-		}));
+		issues.push(
+			withWhy({
+				severity: 'info',
+				rule: 'landmark-regions',
+				message: 'Page has many links but no <nav> landmark',
+				elementHtml: elementHtml(root),
+				fix: 'Wrap navigation links in a <nav> element',
+				fixCode: '<nav aria-label="Main navigation">\n  <!-- links -->\n</nav>'
+			})
+		);
 	}
 
 	return issues;
@@ -722,20 +818,23 @@ function checkSkipNav(root: HTMLElement): A11yIssue[] {
 	if (root !== document.body) return issues;
 
 	const firstLink = root.querySelector('a[href^="#"]');
-	const hasSkipLink = firstLink &&
+	const hasSkipLink =
+		firstLink &&
 		firstLink === root.querySelector('a') &&
 		(firstLink.textContent || '').toLowerCase().includes('skip');
 
 	const navLinks = root.querySelectorAll('nav a, [role="navigation"] a');
 	if (navLinks.length > 3 && !hasSkipLink) {
-		issues.push(withWhy({
-			severity: 'info',
-			rule: 'skip-nav',
-			message: 'Page has navigation but no skip link',
-			elementHtml: '<body>',
-			fix: 'Add a skip navigation link as the first element',
-			fixCode: '<a href="#main-content" class="skip-link">Skip to main content</a>'
-		}));
+		issues.push(
+			withWhy({
+				severity: 'info',
+				rule: 'skip-nav',
+				message: 'Page has navigation but no skip link',
+				elementHtml: '<body>',
+				fix: 'Add a skip navigation link as the first element',
+				fixCode: '<a href="#main-content" class="skip-link">Skip to main content</a>'
+			})
+		);
 	}
 
 	return issues;
@@ -746,7 +845,9 @@ function checkSkipNav(root: HTMLElement): A11yIssue[] {
  */
 function checkFocusVisible(root: HTMLElement): A11yIssue[] {
 	const issues: A11yIssue[] = [];
-	const focusable = root.querySelectorAll('a[href], button, input, select, textarea, [tabindex="0"]');
+	const focusable = root.querySelectorAll(
+		'a[href], button, input, select, textarea, [tabindex="0"]'
+	);
 
 	// Sample a few focusable elements (checking all would be expensive)
 	const sample = Array.from(focusable).slice(0, 5);
@@ -764,16 +865,21 @@ function checkFocusVisible(root: HTMLElement): A11yIssue[] {
 
 			if (!hasFocusAlternative) {
 				const { file, line } = getElementSource(element);
-				issues.push(withWhy({
-					severity: 'warning',
-					rule: 'focus-visible',
-					message: 'Focusable element with outline:none and no alternative focus indicator',
-					elementHtml: elementHtml(element),
-					file,
-					line,
-					fix: 'Keep outline or add a visible :focus-visible style',
-					fixCode: `${element.tagName.toLowerCase()}:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }`
-				}, element));
+				issues.push(
+					withWhy(
+						{
+							severity: 'warning',
+							rule: 'focus-visible',
+							message: 'Focusable element with outline:none and no alternative focus indicator',
+							elementHtml: elementHtml(element),
+							file,
+							line,
+							fix: 'Keep outline or add a visible :focus-visible style',
+							fixCode: `${element.tagName.toLowerCase()}:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }`
+						},
+						element
+					)
+				);
 			}
 		}
 	}
@@ -788,11 +894,11 @@ function collectPasses(root: HTMLElement): string[] {
 	const passes: string[] = [];
 
 	const inputs = root.querySelectorAll('input, select, textarea');
-	const allHaveType = Array.from(inputs).every(i => (i as HTMLInputElement).type);
+	const allHaveType = Array.from(inputs).every((i) => (i as HTMLInputElement).type);
 	if (inputs.length > 0 && allHaveType) passes.push('All inputs have type defined');
 
 	const forms = root.querySelectorAll('form');
-	const formsHaveSubmit = Array.from(forms).every(f =>
+	const formsHaveSubmit = Array.from(forms).every((f) =>
 		f.querySelector('[type="submit"], button:not([type="button"])')
 	);
 	if (forms.length > 0 && formsHaveSubmit) passes.push('Forms have submit button');
@@ -804,12 +910,12 @@ function collectPasses(root: HTMLElement): string[] {
 	if (html.getAttribute('lang')) passes.push('Page language defined');
 
 	const links = root.querySelectorAll('a[href]');
-	const allLinksHaveText = Array.from(links).every(a => getAccessibleName(a as HTMLElement));
+	const allLinksHaveText = Array.from(links).every((a) => getAccessibleName(a as HTMLElement));
 	if (links.length > 0 && allLinksHaveText) passes.push('All links have accessible text');
 
 	const genericTexts = ['click here', 'read more', 'learn more', 'here', 'more', 'link', 'this'];
-	const allLinksDescriptive = Array.from(links).every(a =>
-		!genericTexts.includes((a.textContent || '').trim().toLowerCase())
+	const allLinksDescriptive = Array.from(links).every(
+		(a) => !genericTexts.includes((a.textContent || '').trim().toLowerCase())
 	);
 	if (links.length > 0 && allLinksDescriptive) passes.push('All links have descriptive text');
 
@@ -817,7 +923,7 @@ function collectPasses(root: HTMLElement): string[] {
 	if (root.querySelector('nav, [role="navigation"]')) passes.push('Navigation landmark present');
 
 	const videos = root.querySelectorAll('video');
-	const allVideosCaptioned = Array.from(videos).every(v =>
+	const allVideosCaptioned = Array.from(videos).every((v) =>
 		v.querySelector('track[kind="captions"], track[kind="subtitles"]')
 	);
 	if (videos.length > 0 && allVideosCaptioned) passes.push('All videos have captions');
@@ -828,7 +934,12 @@ function collectPasses(root: HTMLElement): string[] {
 /**
  * Calculate accessibility score (0-100)
  */
-function calculateScore(critical: number, warnings: number, passes: number, totalChecks: number): number {
+function calculateScore(
+	critical: number,
+	warnings: number,
+	passes: number,
+	totalChecks: number
+): number {
 	if (totalChecks === 0) return 100;
 	const deductions = critical * 15 + warnings * 5;
 	const base = Math.max(0, 100 - deductions);
@@ -854,17 +965,23 @@ function checkElementOnly(el: HTMLElement): A11yIssue[] {
 				inputEl.getAttribute('aria-labelledby');
 			if (!hasLabel) {
 				const { file, line } = getElementSource(el);
-				issues.push(withWhy({
-					severity: 'critical',
-					rule: 'input-label',
-					message: 'Input without associated label',
-					elementHtml: elementHtml(el),
-					file, line,
-					fix: 'Add a label to the field',
-					fixCode: inputEl.id
-						? `<label for="${inputEl.id}">Description</label>`
-						: `<${tag} aria-label="Field description">`
-				}, el));
+				issues.push(
+					withWhy(
+						{
+							severity: 'critical',
+							rule: 'input-label',
+							message: 'Input without associated label',
+							elementHtml: elementHtml(el),
+							file,
+							line,
+							fix: 'Add a label to the field',
+							fixCode: inputEl.id
+								? `<label for="${inputEl.id}">Description</label>`
+								: `<${tag} aria-label="Field description">`
+						},
+						el
+					)
+				);
 			}
 		}
 	}
@@ -873,15 +990,21 @@ function checkElementOnly(el: HTMLElement): A11yIssue[] {
 	if (tag === 'button' || el.getAttribute('role') === 'button') {
 		if (!getAccessibleName(el)) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'critical',
-				rule: 'button-label',
-				message: 'Button without accessible text',
-				elementHtml: elementHtml(el),
-				file, line,
-				fix: 'Add aria-label to the button',
-				fixCode: '<button aria-label="Action description">...</button>'
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'critical',
+						rule: 'button-label',
+						message: 'Button without accessible text',
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: 'Add aria-label to the button',
+						fixCode: '<button aria-label="Action description">...</button>'
+					},
+					el
+				)
+			);
 		}
 	}
 
@@ -890,15 +1013,21 @@ function checkElementOnly(el: HTMLElement): A11yIssue[] {
 		const img = el as HTMLImageElement;
 		if (!img.hasAttribute('alt')) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'critical',
-				rule: 'img-alt',
-				message: 'Image missing alt attribute',
-				elementHtml: elementHtml(el),
-				file, line,
-				fix: 'Add descriptive alt text',
-				fixCode: '<img src="..." alt="Image description">'
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'critical',
+						rule: 'img-alt',
+						message: 'Image missing alt attribute',
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: 'Add descriptive alt text',
+						fixCode: '<img src="..." alt="Image description">'
+					},
+					el
+				)
+			);
 		}
 	}
 
@@ -915,14 +1044,20 @@ function checkElementOnly(el: HTMLElement): A11yIssue[] {
 			const minRatio = isLargeText ? 3 : 4.5;
 			if (ratio < minRatio) {
 				const { file, line } = getElementSource(el);
-				issues.push(withWhy({
-					severity: ratio < 3 ? 'critical' : 'warning',
-					rule: 'contrast',
-					message: `Insufficient contrast: ${ratio.toFixed(1)}:1 (minimum: ${minRatio}:1)`,
-					elementHtml: elementHtml(el),
-					file, line,
-					fix: `Foreground: ${fg}, Background: ${bg}`
-				}, el));
+				issues.push(
+					withWhy(
+						{
+							severity: ratio < 3 ? 'critical' : 'warning',
+							rule: 'contrast',
+							message: `Insufficient contrast: ${ratio.toFixed(1)}:1 (minimum: ${minRatio}:1)`,
+							elementHtml: elementHtml(el),
+							file,
+							line,
+							fix: `Foreground: ${fg}, Background: ${bg}`
+						},
+						el
+					)
+				);
 			}
 		}
 	}
@@ -931,14 +1066,20 @@ function checkElementOnly(el: HTMLElement): A11yIssue[] {
 	const tabindex = parseInt(el.getAttribute('tabindex') || '0');
 	if (el.hasAttribute('tabindex') && tabindex > 0) {
 		const { file, line } = getElementSource(el);
-		issues.push(withWhy({
-			severity: 'warning',
-			rule: 'tabindex-positive',
-			message: `tabindex="${tabindex}" breaks natural focus order`,
-			elementHtml: elementHtml(el),
-			file, line,
-			fix: 'Use tabindex="0" for natural order or tabindex="-1" to remove from tab flow'
-		}, el));
+		issues.push(
+			withWhy(
+				{
+					severity: 'warning',
+					rule: 'tabindex-positive',
+					message: `tabindex="${tabindex}" breaks natural focus order`,
+					elementHtml: elementHtml(el),
+					file,
+					line,
+					fix: 'Use tabindex="0" for natural order or tabindex="-1" to remove from tab flow'
+				},
+				el
+			)
+		);
 	}
 
 	// Interactive role check (div/span with handlers)
@@ -952,14 +1093,20 @@ function checkElementOnly(el: HTMLElement): A11yIssue[] {
 
 		if (isInteractive) {
 			const { file, line } = getElementSource(el);
-			issues.push(withWhy({
-				severity: 'warning',
-				rule: 'interactive-role',
-				message: 'Interactive element without role',
-				elementHtml: elementHtml(el),
-				file, line,
-				fix: 'Use <button> or add role="button" and tabindex="0"'
-			}, el));
+			issues.push(
+				withWhy(
+					{
+						severity: 'warning',
+						rule: 'interactive-role',
+						message: 'Interactive element without role',
+						elementHtml: elementHtml(el),
+						file,
+						line,
+						fix: 'Use <button> or add role="button" and tabindex="0"'
+					},
+					el
+				)
+			);
 		}
 	}
 
@@ -972,29 +1119,29 @@ function checkElementOnly(el: HTMLElement): A11yIssue[] {
 export function analyzeA11y(element: HTMLElement, includeSubtree: boolean): A11yReport {
 	const allIssues: A11yIssue[] = includeSubtree
 		? [
-			...checkInputLabels(element),
-			...checkButtonLabels(element),
-			...checkImageAlts(element),
-			...checkContrast(element),
-			...checkTabOrder(element),
-			...checkHeadingHierarchy(element),
-			...checkFormLandmarks(element),
-			...checkInteractiveRoles(element),
-			...checkLinkText(element),
-			...checkHtmlLang(),
-			...checkAutocomplete(element),
-			...checkMediaAlternatives(element),
-			...checkLandmarkRegions(element),
-			...checkSkipNav(element),
-			...checkFocusVisible(element),
-		]
+				...checkInputLabels(element),
+				...checkButtonLabels(element),
+				...checkImageAlts(element),
+				...checkContrast(element),
+				...checkTabOrder(element),
+				...checkHeadingHierarchy(element),
+				...checkFormLandmarks(element),
+				...checkInteractiveRoles(element),
+				...checkLinkText(element),
+				...checkHtmlLang(),
+				...checkAutocomplete(element),
+				...checkMediaAlternatives(element),
+				...checkLandmarkRegions(element),
+				...checkSkipNav(element),
+				...checkFocusVisible(element)
+			]
 		: [
-			// Only check the element itself, not its subtree
-			...checkElementOnly(element),
-		];
+				// Only check the element itself, not its subtree
+				...checkElementOnly(element)
+			];
 
-	const critical = allIssues.filter(i => i.severity === 'critical');
-	const warnings = allIssues.filter(i => i.severity === 'warning' || i.severity === 'info');
+	const critical = allIssues.filter((i) => i.severity === 'critical');
+	const warnings = allIssues.filter((i) => i.severity === 'warning' || i.severity === 'info');
 	const passes = includeSubtree ? collectPasses(element) : [];
 
 	const totalChecks = allIssues.length + passes.length;
@@ -1028,7 +1175,8 @@ export function formatA11yForAgent(report: A11yReport): string {
 		report.critical.forEach((issue, i) => {
 			parts.push(`  ${i + 1}. ${issue.message}`);
 			parts.push(`     \u2502 ${issue.elementHtml}`);
-			if (issue.file) parts.push(`     \u2502 Line: ${issue.file}${issue.line ? ':' + issue.line : ''}`);
+			if (issue.file)
+				parts.push(`     \u2502 Line: ${issue.file}${issue.line ? ':' + issue.line : ''}`);
 			parts.push(`     \u2502`);
 			parts.push(`     \u2502 \u274C Issue: ${issue.message}`);
 			if (issue.why) parts.push(`     \u2502 \u{1F4AC} Why: ${issue.why}`);
@@ -1055,11 +1203,13 @@ export function formatA11yForAgent(report: A11yReport): string {
 
 	if (report.passes.length > 0) {
 		parts.push(`\u{1F7E2} GOOD (${report.passes.length}):`);
-		report.passes.forEach(p => parts.push(`  \u2713 ${p}`));
+		report.passes.forEach((p) => parts.push(`  \u2713 ${p}`));
 		parts.push('');
 	}
 
-	parts.push(`\u{1F4CA} SCORE: ${report.score}/100${report.score >= 80 ? ' (Good)' : report.score >= 60 ? ' (Needs improvement)' : ' (Critical)'}`);
+	parts.push(
+		`\u{1F4CA} SCORE: ${report.score}/100${report.score >= 80 ? ' (Good)' : report.score >= 60 ? ' (Needs improvement)' : ' (Critical)'}`
+	);
 
 	return parts.join('\n');
 }

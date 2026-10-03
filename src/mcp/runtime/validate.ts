@@ -34,7 +34,8 @@ function isId(value: unknown): value is string {
 /** Validate `POST /runtime/hello` body `{ tabId, url, title, focused }`. */
 export function parseHelloPayload(data: unknown): Validation<TabHello> {
 	if (!isPlainObject(data)) return { ok: false, error: 'Expected a JSON object' };
-	if (!isId(data.tabId)) return { ok: false, error: `tabId must be a non-empty string (max ${MAX_ID_LENGTH} chars)` };
+	if (!isId(data.tabId))
+		return { ok: false, error: `tabId must be a non-empty string (max ${MAX_ID_LENGTH} chars)` };
 	if (typeof data.url !== 'string') return { ok: false, error: 'url must be a string' };
 	if (typeof data.title !== 'string') return { ok: false, error: 'title must be a string' };
 	if (typeof data.focused !== 'boolean') return { ok: false, error: 'focused must be a boolean' };
@@ -55,14 +56,18 @@ export function parseHelloPayload(data: unknown): Validation<TabHello> {
  */
 export function parseResultPayload(data: unknown): Validation<RuntimeResultPayload> {
 	if (!isPlainObject(data)) return { ok: false, error: 'Expected a JSON object' };
-	if (!isId(data.id)) return { ok: false, error: `id must be a non-empty string (max ${MAX_ID_LENGTH} chars)` };
-	if (!isId(data.tabId)) return { ok: false, error: `tabId must be a non-empty string (max ${MAX_ID_LENGTH} chars)` };
+	if (!isId(data.id))
+		return { ok: false, error: `id must be a non-empty string (max ${MAX_ID_LENGTH} chars)` };
+	if (!isId(data.tabId))
+		return { ok: false, error: `tabId must be a non-empty string (max ${MAX_ID_LENGTH} chars)` };
 	if (typeof data.ok !== 'boolean') return { ok: false, error: 'ok must be a boolean' };
 
 	if (data.ok) {
 		const result = data.result;
-		if (!isPlainObject(result)) return { ok: false, error: 'result must be an object when ok is true' };
-		if (typeof result.text !== 'string') return { ok: false, error: 'result.text must be a string' };
+		if (!isPlainObject(result))
+			return { ok: false, error: 'result must be an object when ok is true' };
+		if (typeof result.text !== 'string')
+			return { ok: false, error: 'result.text must be a string' };
 		if (result.data !== undefined && !isPlainObject(result.data)) {
 			return { ok: false, error: 'result.data must be an object when present' };
 		}
@@ -71,6 +76,7 @@ export function parseResultPayload(data: unknown): Validation<RuntimeResultPaylo
 		return { ok: true, value: { id: data.id, tabId: data.tabId, ok: true, result: value } };
 	}
 
-	if (typeof data.error !== 'string') return { ok: false, error: 'error must be a string when ok is false' };
+	if (typeof data.error !== 'string')
+		return { ok: false, error: 'error must be a string when ok is false' };
 	return { ok: true, value: { id: data.id, tabId: data.tabId, ok: false, error: data.error } };
 }

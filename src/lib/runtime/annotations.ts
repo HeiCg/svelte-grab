@@ -79,7 +79,12 @@ export function refreshAnnotationRefs(
 			targets.push(resolved.element);
 			if (resolved.ref === r.ref && resolved.stableKey === r.stableKey && !r.stale) return r;
 			changed = true;
-			return { ref: resolved.ref, stableKey: resolved.stableKey, component: r.component, source: r.source };
+			return {
+				ref: resolved.ref,
+				stableKey: resolved.stableKey,
+				component: r.component,
+				source: r.source
+			};
 		});
 		if (changed || targets.some((el, i) => el !== oldTargets[i])) {
 			store.replaceRefs(annotation.id, refs, targets);

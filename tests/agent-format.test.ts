@@ -12,7 +12,13 @@ const deps = {
 describe('formatForAgent component stack labels', () => {
 	it('labels block entries as blocks and components by their tag', () => {
 		const entries: StackEntry[] = [
-			{ type: 'element', file: 'src/components/List.svelte', line: 8, column: 3, componentName: 'List' },
+			{
+				type: 'element',
+				file: 'src/components/List.svelte',
+				line: 8,
+				column: 3,
+				componentName: 'List'
+			},
 			{ type: 'each', file: 'src/components/List.svelte', line: 7, column: 1 },
 			{ type: 'component', file: 'src/App.svelte', line: 20, column: 1, componentName: 'List' },
 			{ type: 'render', file: 'src/App.svelte', line: 30, column: 1 }

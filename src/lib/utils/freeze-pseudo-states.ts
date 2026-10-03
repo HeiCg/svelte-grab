@@ -175,10 +175,7 @@ export function freezePseudoStates(): () => void {
 	}
 
 	// --- Capture :focus and :focus-visible elements ---
-	const focusElements = [
-		...safeQueryPseudo(':focus'),
-		...safeQueryPseudo(':focus-visible')
-	];
+	const focusElements = [...safeQueryPseudo(':focus'), ...safeQueryPseudo(':focus-visible')];
 	// Deduplicate
 	const seenFocus = new Set<HTMLElement>();
 	for (const el of focusElements) {

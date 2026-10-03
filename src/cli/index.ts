@@ -109,7 +109,12 @@ async function main() {
 			const mcpPort = parsePortArg(mcpPortArg, DEFAULT_MCP_PORT);
 			const stdio = args.includes('--stdio');
 			const { cdpArgFromArgv } = await import('../mcp/cdp/client.js');
-			await startMcpServer({ port: mcpPort, stdio, token: parseTokenArg(args), cdp: cdpArgFromArgv(args) });
+			await startMcpServer({
+				port: mcpPort,
+				stdio,
+				token: parseTokenArg(args),
+				cdp: cdpArgFromArgv(args)
+			});
 			break;
 		}
 

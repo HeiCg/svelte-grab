@@ -119,14 +119,27 @@ describe('network capture: fetch wrapper is transparent', () => {
 		capture.retain();
 		expect(win.fetch).not.toBe(original);
 
-		const res = await win.fetch(`${origin}/json?x=1`, { method: 'post', headers: { Authorization: `Bearer ${FAKE_JWT}` }, body: '{"a":1}' });
+		const res = await win.fetch(`${origin}/json?x=1`, {
+			method: 'post',
+			headers: { Authorization: `Bearer ${FAKE_JWT}` },
+			body: '{"a":1}'
+		});
 		expect(res).toBeInstanceOf(Response);
 		expect(res.status).toBe(200);
-		expect(await res.json()).toEqual({ ok: true, user: { name: 'Ada', password: 'fake-pass-1234' } });
+		expect(await res.json()).toEqual({
+			ok: true,
+			user: { name: 'Ada', password: 'fake-pass-1234' }
+		});
 		expect(seenHeaders[0].authorization).toBe(`Bearer ${FAKE_JWT}`);
 
 		const [e] = capture.entries();
-		expect(e).toMatchObject({ type: 'fetch', method: 'POST', url: `${origin}/json?x=1`, status: 200, wrapped: true });
+		expect(e).toMatchObject({
+			type: 'fetch',
+			method: 'POST',
+			url: `${origin}/json?x=1`,
+			status: 200,
+			wrapped: true
+		});
 		expect(e.requestHeaders.authorization).toBe(`Bearer ${FAKE_JWT}`);
 		expect(e.requestBody).toBe('{"a":1}');
 		expect(e.requestBodySize).toBe(7);
@@ -226,7 +239,9 @@ describe('network capture: fetch wrapper is transparent', () => {
 	});
 
 	it('a wrapper installed after ours stays in the chain on release (ours becomes inert)', async () => {
-		const win = makeWindow({ fetch: (() => Promise.resolve(new Response('a'))) as unknown as typeof fetch });
+		const win = makeWindow({
+			fetch: (() => Promise.resolve(new Response('a'))) as unknown as typeof fetch
+		});
 		const capture = captureFor(win);
 		capture.retain();
 		const ours = win.fetch;
@@ -239,7 +254,9 @@ describe('network capture: fetch wrapper is transparent', () => {
 	});
 
 	it('skips svelte-grab own traffic (MCP server, plugin endpoints)', async () => {
-		const win = makeWindow({ fetch: (() => Promise.resolve(new Response('{}'))) as unknown as typeof fetch });
+		const win = makeWindow({
+			fetch: (() => Promise.resolve(new Response('{}'))) as unknown as typeof fetch
+		});
 		const capture = captureFor(win);
 		capture.retain();
 		await win.fetch('http://localhost:4723/runtime/hello', { method: 'POST' });
@@ -279,7 +296,13 @@ describe('network capture: XHR wrapper is transparent', () => {
 		capture.retain();
 		expect(proto.open).not.toBe(open);
 
-		const { xhr, event } = await xhrRequest(win.XMLHttpRequest, 'POST', `${origin}/json`, { 'X-Api-Key': 'abcdefgh-fake-key' }, 'a=1');
+		const { xhr, event } = await xhrRequest(
+			win.XMLHttpRequest,
+			'POST',
+			`${origin}/json`,
+			{ 'X-Api-Key': 'abcdefgh-fake-key' },
+			'a=1'
+		);
 		expect(event).toBe('load');
 		expect(xhr.status).toBe(200);
 		expect(JSON.parse(xhr.responseText).ok).toBe(true);
@@ -287,7 +310,12 @@ describe('network capture: XHR wrapper is transparent', () => {
 		await new Promise((r) => setTimeout(r, 0));
 
 		const e = capture.entries().find((x) => x.type === 'xhr')!;
-		expect(e).toMatchObject({ method: 'POST', url: `${origin}/json`, status: 200, requestBody: 'a=1' });
+		expect(e).toMatchObject({
+			method: 'POST',
+			url: `${origin}/json`,
+			status: 200,
+			requestBody: 'a=1'
+		});
 		expect(e.requestHeaders['x-api-key']).toBe('abcdefgh-fake-key');
 		expect(e.initiator?.file).toMatch(/runtime-network\.test\.ts$/);
 
@@ -331,7 +359,12 @@ describe('network capture: sendBeacon, WebSocket, EventSource', () => {
 		expect(Object.prototype.hasOwnProperty.call(nav, 'sendBeacon')).toBe(true);
 		expect(nav.sendBeacon!('/collect', 'a=1')).toBe(false);
 		expect(beacon).toHaveBeenCalledWith('/collect', 'a=1');
-		expect(capture.entries()[0]).toMatchObject({ type: 'beacon', method: 'POST', status: 0, requestBody: 'a=1' });
+		expect(capture.entries()[0]).toMatchObject({
+			type: 'beacon',
+			method: 'POST',
+			status: 0,
+			requestBody: 'a=1'
+		});
 		capture.release();
 		expect(Object.prototype.hasOwnProperty.call(nav, 'sendBeacon')).toBe(false);
 		expect(nav.sendBeacon).toBe(beacon);
@@ -366,7 +399,11 @@ describe('network capture: sendBeacon, WebSocket, EventSource', () => {
 		class Sub extends WS {}
 		expect(new Sub('ws://x/y')).toBeInstanceOf(Sub);
 		const e = capture.entries()[0];
-		expect(e).toMatchObject({ type: 'websocket', method: 'WS', messages: { sent: 1, received: 1, bytesSent: 5, bytesReceived: 3 } });
+		expect(e).toMatchObject({
+			type: 'websocket',
+			method: 'WS',
+			messages: { sent: 1, received: 1, bytesSent: 5, bytesReceived: 3 }
+		});
 		capture.release();
 		expect(win.WebSocket).toBe(FakeWS);
 		expect(FakeWS.prototype.send).toBeTypeOf('function');
@@ -396,29 +433,83 @@ describe('network capture: buffer, resource timing, lifecycle', () => {
 	it('ring buffer keeps the last N', () => {
 		const capture = captureFor(makeWindow(), 5);
 		for (let i = 0; i < 8; i++) capture.record({ type: 'fetch', url: `${origin}/r${i}` });
-		expect(capture.entries().map((e) => e.url.split('/').pop())).toEqual(['r3', 'r4', 'r5', 'r6', 'r7']);
+		expect(capture.entries().map((e) => e.url.split('/').pop())).toEqual([
+			'r3',
+			'r4',
+			'r5',
+			'r6',
+			'r7'
+		]);
 		expect(NETWORK_BUFFER_SIZE).toBe(500);
 	});
 
 	it('merges resource timing into the wrapper entry; adds other resources once', () => {
 		const resources: unknown[] = [];
-		const win = makeWindow({ fetch: (() => Promise.resolve(new Response('{}'))) as unknown as typeof fetch });
+		const win = makeWindow({
+			fetch: (() => Promise.resolve(new Response('{}'))) as unknown as typeof fetch
+		});
 		win.performance.getEntriesByType = (t: string) => (t === 'resource' ? resources : []);
 		const capture = captureFor(win);
 		capture.retain();
 		const fetched = capture.record({ type: 'fetch', url: `${origin}/api/a`, start: 100 });
 		resources.push(
-			{ name: `${origin}/api/a`, initiatorType: 'fetch', startTime: 101, duration: 50, responseEnd: 151, transferSize: 900, encodedBodySize: 600, decodedBodySize: 800, responseStatus: 200 },
-			{ name: `${origin}/assets/app.css`, initiatorType: 'link', startTime: 5, duration: 10, responseEnd: 15, transferSize: 300, encodedBodySize: 280, decodedBodySize: 280 },
-			{ name: 'https://fonts.example/f.woff2', initiatorType: 'css', startTime: 20, duration: 10, responseEnd: 30, transferSize: 0, encodedBodySize: 0, decodedBodySize: 0 },
-			{ name: 'http://localhost:4723/runtime/result', initiatorType: 'fetch', startTime: 30, duration: 1, responseEnd: 31, transferSize: 10, encodedBodySize: 2, decodedBodySize: 2 }
+			{
+				name: `${origin}/api/a`,
+				initiatorType: 'fetch',
+				startTime: 101,
+				duration: 50,
+				responseEnd: 151,
+				transferSize: 900,
+				encodedBodySize: 600,
+				decodedBodySize: 800,
+				responseStatus: 200
+			},
+			{
+				name: `${origin}/assets/app.css`,
+				initiatorType: 'link',
+				startTime: 5,
+				duration: 10,
+				responseEnd: 15,
+				transferSize: 300,
+				encodedBodySize: 280,
+				decodedBodySize: 280
+			},
+			{
+				name: 'https://fonts.example/f.woff2',
+				initiatorType: 'css',
+				startTime: 20,
+				duration: 10,
+				responseEnd: 30,
+				transferSize: 0,
+				encodedBodySize: 0,
+				decodedBodySize: 0
+			},
+			{
+				name: 'http://localhost:4723/runtime/result',
+				initiatorType: 'fetch',
+				startTime: 30,
+				duration: 1,
+				responseEnd: 31,
+				transferSize: 10,
+				encodedBodySize: 2,
+				decodedBodySize: 2
+			}
 		);
 		const list = capture.entries();
 		capture.entries(); // idempotent
 		expect(capture.entries()).toHaveLength(3);
 		const merged = list.find((e) => e.id === fetched.id)!;
-		expect(merged).toMatchObject({ timed: true, transferSize: 900, bodySize: 800, end: 151, status: 200 });
-		expect(list.find((e) => e.url.endsWith('app.css'))).toMatchObject({ type: 'stylesheet', wrapped: false });
+		expect(merged).toMatchObject({
+			timed: true,
+			transferSize: 900,
+			bodySize: 800,
+			end: 151,
+			status: 200
+		});
+		expect(list.find((e) => e.url.endsWith('app.css'))).toMatchObject({
+			type: 'stylesheet',
+			wrapped: false
+		});
 		expect(list.find((e) => e.url.endsWith('f.woff2'))).toMatchObject({ type: 'font' });
 		capture.release();
 	});
@@ -460,7 +551,9 @@ describe('network capture: buffer, resource timing, lifecycle', () => {
 
 describe('network helpers', () => {
 	it('urlTags: SvelteKit 3 data, route resolution, remote functions, Vite internals', () => {
-		expect(urlTags('http://x/blog/__data.json?x-sveltekit-invalidated=01')).toEqual(['sveltekit-data']);
+		expect(urlTags('http://x/blog/__data.json?x-sveltekit-invalidated=01')).toEqual([
+			'sveltekit-data'
+		]);
 		expect(urlTags('http://x/about.html__data.json')).toEqual(['sveltekit-data']);
 		expect(urlTags('http://x/blog/__route.js')).toEqual(['sveltekit-route']);
 		expect(urlTags('http://x/_app/remote/abc123/getPosts')).toEqual(['remote-function']);
@@ -486,8 +579,15 @@ describe('network helpers', () => {
 			'    at api (http://localhost:5173/src/lib/api.ts?t=123:12:9)',
 			'    at HTMLButtonElement.save (http://localhost:5173/src/components/Profile.svelte:40:5)'
 		].join('\n');
-		expect(initiatorFromStack(stack)).toEqual({ file: 'src/lib/api.ts', line: 12, column: 9, component: 'Profile' });
-		expect(initiatorFromStack('Error\n    at x (http://localhost:5173/src/lib/runtime/network.ts:1:1)')).toBeNull();
+		expect(initiatorFromStack(stack)).toEqual({
+			file: 'src/lib/api.ts',
+			line: 12,
+			column: 9,
+			component: 'Profile'
+		});
+		expect(
+			initiatorFromStack('Error\n    at x (http://localhost:5173/src/lib/runtime/network.ts:1:1)')
+		).toBeNull();
 		expect(initiatorFromStack(undefined)).toBeNull();
 	});
 
@@ -501,7 +601,9 @@ describe('network helpers', () => {
 	});
 
 	it('redactedBodyExcerpt redacts sensitive keys and secret-shaped values', () => {
-		const out = redactedBodyExcerpt(JSON.stringify({ user: { name: 'Ada', password: 'fake-pass-1234' }, t: FAKE_JWT }));
+		const out = redactedBodyExcerpt(
+			JSON.stringify({ user: { name: 'Ada', password: 'fake-pass-1234' }, t: FAKE_JWT })
+		);
 		expect(out).toContain('"name":"Ada"');
 		expect(out).not.toContain('fake-pass-1234');
 		expect(out).not.toContain(FAKE_JWT);
@@ -537,25 +639,57 @@ function entry(partial: Partial<NetworkEntry> & Pick<NetworkEntry, 'id' | 'url'>
 
 describe('summarizeNetwork / ui_network', () => {
 	const page = 'http://localhost:5173/';
-	const init = { file: 'src/components/LeakyRequests.svelte', line: 12, column: 3, component: 'LeakyRequests' };
+	const init = {
+		file: 'src/components/LeakyRequests.svelte',
+		line: 12,
+		column: 3,
+		component: 'LeakyRequests'
+	};
 	const list = [
 		entry({ id: 1, type: 'document', url: page, start: 0, end: 5 }),
-		entry({ id: 2, url: `http://localhost:5173/api/mock?api_key=${FAKE_STRIPE}`, start: 10, end: 40, initiator: init }),
+		entry({
+			id: 2,
+			url: `http://localhost:5173/api/mock?api_key=${FAKE_STRIPE}`,
+			start: 10,
+			end: 40,
+			initiator: init
+		}),
 		entry({ id: 3, url: 'http://localhost:5173/api/items', start: 41, end: 80, initiator: init }),
 		entry({ id: 4, url: 'http://localhost:5173/api/items', start: 81, end: 300, initiator: init }),
-		entry({ id: 5, method: 'POST', url: 'https://third-party.example/collect', start: 70, end: 95, status: 500, transferSize: 0, bodySize: 20 }),
-		entry({ id: 6, url: 'http://localhost:5173/blog/__data.json', start: 400, end: 420, tags: ['sveltekit-data'] })
+		entry({
+			id: 5,
+			method: 'POST',
+			url: 'https://third-party.example/collect',
+			start: 70,
+			end: 95,
+			status: 500,
+			transferSize: 0,
+			bodySize: 20
+		}),
+		entry({
+			id: 6,
+			url: 'http://localhost:5173/blog/__data.json',
+			start: 400,
+			end: 420,
+			tags: ['sveltekit-data']
+		})
 	];
 
 	it('totals, origins, duplicates, slowest, waterfall, failed, per-request lines; URLs redacted', () => {
 		const { text, data } = summarizeNetwork(list, page);
-		expect(text).toMatch(/^NETWORK 6 requests, 520B transferred, 5 first-party \/ 1 third-party \(fetch 5, document 1\)/);
+		expect(text).toMatch(
+			/^NETWORK 6 requests, 520B transferred, 5 first-party \/ 1 third-party \(fetch 5, document 1\)/
+		);
 		expect(text).toContain('third-party https://third-party.example 1 req 20B');
-		expect(text).toMatch(/DUPLICATES 1\n {2}x2 GET http:\/\/localhost:5173\/api\/items <- src\/components\/LeakyRequests\.svelte:12 \(LeakyRequests\)/);
+		expect(text).toMatch(
+			/DUPLICATES 1\n {2}x2 GET http:\/\/localhost:5173\/api\/items <- src\/components\/LeakyRequests\.svelte:12 \(LeakyRequests\)/
+		);
 		expect(text).toMatch(/SLOWEST\n {2}#4 219ms GET/);
 		expect(text).toMatch(/WATERFALL sequential chain of 3/);
 		expect(text).toMatch(/FAILED 1\n {2}#5 500 POST https:\/\/third-party\.example\/collect/);
-		expect(text).toMatch(/#2 GET 200 fetch 100B 30ms http:\/\/localhost:5173\/api\/mock\?api_key=stripe-secret-key:sk_t…\(len \d+, sha [0-9a-f]{6}\) <- src\/components\/LeakyRequests\.svelte:12 \(LeakyRequests\)/);
+		expect(text).toMatch(
+			/#2 GET 200 fetch 100B 30ms http:\/\/localhost:5173\/api\/mock\?api_key=stripe-secret-key:sk_t…\(len \d+, sha [0-9a-f]{6}\) <- src\/components\/LeakyRequests\.svelte:12 \(LeakyRequests\)/
+		);
 		expect(text).toContain('[sveltekit-data]');
 		expect(text).toContain('(third-party)');
 		expect(text).not.toContain(FAKE_STRIPE);
@@ -574,8 +708,21 @@ describe('summarizeNetwork / ui_network', () => {
 		const win = makeWindow();
 		const capture = captureFor(win);
 		capture.retain();
-		capture.record({ type: 'fetch', url: `${origin}/api/a`, start: 10, end: 20, status: 200, responseBody: JSON.stringify({ secret: 'fake-secret-value' }) });
-		capture.record({ type: 'fetch', url: 'https://other.example/x', start: 2_000, end: 2_010, status: 404 });
+		capture.record({
+			type: 'fetch',
+			url: `${origin}/api/a`,
+			start: 10,
+			end: 20,
+			status: 200,
+			responseBody: JSON.stringify({ secret: 'fake-secret-value' })
+		});
+		capture.record({
+			type: 'fetch',
+			url: 'https://other.example/x',
+			start: 2_000,
+			end: 2_010,
+			status: 404
+		});
 		const pageUrl = `${origin}/page`;
 		const sleep = vi.fn(async () => {});
 
@@ -583,14 +730,26 @@ describe('summarizeNetwork / ui_network', () => {
 		expect(all.data!.totals).toMatchObject({ count: 2 });
 		expect(sleep).not.toHaveBeenCalled();
 
-		const late = await uiNetwork({ since: capture.timeOrigin + 1_000, waitMs: 50 }, { capture, pageUrl, sleep });
+		const late = await uiNetwork(
+			{ since: capture.timeOrigin + 1_000, waitMs: 50 },
+			{ capture, pageUrl, sleep }
+		);
 		expect(late.data!.totals).toMatchObject({ count: 1 });
 		expect(sleep).toHaveBeenCalledWith(50);
 
-		expect((await uiNetwork({ filter: { origin: 'third-party' } }, { capture, pageUrl })).data!.totals).toMatchObject({ count: 1 });
-		expect((await uiNetwork({ filter: { status: 'failed' } }, { capture, pageUrl })).data!.totals).toMatchObject({ count: 1 });
-		expect((await uiNetwork({ filter: { status: '4xx', type: ['fetch'] } }, { capture, pageUrl })).data!.totals).toMatchObject({ count: 1 });
-		await expect(uiNetwork({ filter: { type: ['nope'] } }, { capture, pageUrl })).rejects.toThrow(/Unknown filter.type/);
+		expect(
+			(await uiNetwork({ filter: { origin: 'third-party' } }, { capture, pageUrl })).data!.totals
+		).toMatchObject({ count: 1 });
+		expect(
+			(await uiNetwork({ filter: { status: 'failed' } }, { capture, pageUrl })).data!.totals
+		).toMatchObject({ count: 1 });
+		expect(
+			(await uiNetwork({ filter: { status: '4xx', type: ['fetch'] } }, { capture, pageUrl })).data!
+				.totals
+		).toMatchObject({ count: 1 });
+		await expect(uiNetwork({ filter: { type: ['nope'] } }, { capture, pageUrl })).rejects.toThrow(
+			/Unknown filter.type/
+		);
 
 		const bodies = await uiNetwork({ includeBodies: true }, { capture, pageUrl });
 		expect(bodies.text).toMatch(/body: \{"secret":"secret:fake…\(len 17, sha [0-9a-f]{6}\)"\}/);
@@ -598,10 +757,19 @@ describe('summarizeNetwork / ui_network', () => {
 		expect(bodies.text).toContain('Bodies are captured from now on');
 		expect(capture.bodies).toBe(true);
 
-		await expect(uiNetwork({ reload: true }, { capture, pageUrl })).rejects.toThrow(/orchestrated by the MCP server/);
-		await expect(uiNetwork({ afterTimeOrigin: capture.timeOrigin }, { capture, pageUrl })).rejects.toThrow('page has not reloaded yet');
-		expect((await uiNetwork({ afterTimeOrigin: capture.timeOrigin - 1 }, { capture, pageUrl })).data!.timeOrigin).toBe(capture.timeOrigin);
-		await expect(uiNetwork({ since: 'yesterday' }, { capture, pageUrl })).rejects.toThrow(/"since"/);
+		await expect(uiNetwork({ reload: true }, { capture, pageUrl })).rejects.toThrow(
+			/orchestrated by the MCP server/
+		);
+		await expect(
+			uiNetwork({ afterTimeOrigin: capture.timeOrigin }, { capture, pageUrl })
+		).rejects.toThrow('page has not reloaded yet');
+		expect(
+			(await uiNetwork({ afterTimeOrigin: capture.timeOrigin - 1 }, { capture, pageUrl })).data!
+				.timeOrigin
+		).toBe(capture.timeOrigin);
+		await expect(uiNetwork({ since: 'yesterday' }, { capture, pageUrl })).rejects.toThrow(
+			/"since"/
+		);
 		capture.release();
 	});
 

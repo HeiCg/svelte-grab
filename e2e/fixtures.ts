@@ -30,10 +30,12 @@ export { expect };
  * `path` may carry query params (e.g. `/?mcp=1&mcpPort=4799`).
  */
 export async function gotoPlayground(page: Page, path = '/'): Promise<void> {
-	const devKitReady = page.waitForEvent('console', {
-		predicate: (msg) => msg.text().includes('[SvelteGrab] Active'),
-		timeout: 15_000
-	}).catch(() => undefined);
+	const devKitReady = page
+		.waitForEvent('console', {
+			predicate: (msg) => msg.text().includes('[SvelteGrab] Active'),
+			timeout: 15_000
+		})
+		.catch(() => undefined);
 
 	await page.goto(path);
 	await expect(page.getByTestId('app-root')).toBeVisible();

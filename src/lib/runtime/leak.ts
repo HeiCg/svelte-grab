@@ -85,7 +85,8 @@ export interface LeakReport {
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 function weakRef(el: Element): WeakElementRef {
-	if (typeof WeakRef !== 'function') throw new Error('Leak tracking needs WeakRef (not available in this browser)');
+	if (typeof WeakRef !== 'function')
+		throw new Error('Leak tracking needs WeakRef (not available in this browser)');
 	return new WeakRef(el);
 }
 
@@ -161,7 +162,10 @@ export class LeakTracker {
 			group.count++;
 			group.rootSet.add(top);
 		}
-		const list: RetainedGroup[] = [...groups.values()].map(({ rootSet, ...g }) => ({ ...g, roots: rootSet.size }));
+		const list: RetainedGroup[] = [...groups.values()].map(({ rootSet, ...g }) => ({
+			...g,
+			roots: rootSet.size
+		}));
 		return {
 			tracked: this.tracked.length,
 			retained: alive.length,
@@ -221,7 +225,10 @@ function stopActive(): LeakTracker | null {
 }
 
 /** `ui_leak_track_start`: start (or restart) recording removed Svelte elements. */
-export function uiLeakTrackStart(_args: Record<string, unknown> = {}, doc: Document = document): RuntimeToolResult {
+export function uiLeakTrackStart(
+	_args: Record<string, unknown> = {},
+	doc: Document = document
+): RuntimeToolResult {
 	const restarted = stopActive() !== null;
 	const tracker = new LeakTracker(doc);
 	tracker.start();
@@ -246,9 +253,12 @@ export function uiLeakTrackReport(): RuntimeToolResult {
 			(report.truncated ? ` (tracking capped at ${MAX_TRACKED_ELEMENTS})` : '')
 	];
 	for (const g of report.groups.slice(0, MAX_TEXT_GROUPS)) {
-		lines.push(`  ${g.component ?? '?'} ${g.source} ${g.count} element${g.count === 1 ? '' : 's'} in ${g.roots} subtree${g.roots === 1 ? '' : 's'}`);
+		lines.push(
+			`  ${g.component ?? '?'} ${g.source} ${g.count} element${g.count === 1 ? '' : 's'} in ${g.roots} subtree${g.roots === 1 ? '' : 's'}`
+		);
 	}
-	if (report.groups.length > MAX_TEXT_GROUPS) lines.push(`  ... ${report.groups.length - MAX_TEXT_GROUPS} more locations`);
+	if (report.groups.length > MAX_TEXT_GROUPS)
+		lines.push(`  ... ${report.groups.length - MAX_TEXT_GROUPS} more locations`);
 	return { text: lines.join('\n'), data: { ...report } };
 }
 
@@ -283,7 +293,8 @@ function parseActions(args: Record<string, unknown>): ParsedAction[] {
 	const raw = args.actions;
 	if (raw === undefined || raw === null) return [];
 	if (!Array.isArray(raw)) throw new Error('"actions" must be an array of { ref, type, value? }');
-	if (raw.length > MAX_RUN_ACTIONS) throw new Error(`"actions" takes at most ${MAX_RUN_ACTIONS} actions per iteration`);
+	if (raw.length > MAX_RUN_ACTIONS)
+		throw new Error(`"actions" takes at most ${MAX_RUN_ACTIONS} actions per iteration`);
 	return raw.map((a, i) => parseActionObject(a, `actions[${i}]`));
 }
 
@@ -351,7 +362,11 @@ export async function uiRunActions(
 		text: lines.join('\n'),
 		data: {
 			iterations: actions.length > 0 ? iterations : 0,
-			actions: actions.map((a) => ({ ref: a.ref, type: a.type, ...(a.value !== undefined ? { value: a.value } : {}) })),
+			actions: actions.map((a) => ({
+				ref: a.ref,
+				type: a.type,
+				...(a.value !== undefined ? { value: a.value } : {})
+			})),
 			performed,
 			expected: actions.length * (actions.length > 0 ? iterations : 0),
 			skipped,

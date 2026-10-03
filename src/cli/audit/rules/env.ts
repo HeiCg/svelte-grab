@@ -7,7 +7,14 @@
  * a `service_role` JWT is high. Example files (`.env.example`, `.sample`,
  * `.template`) are reported as needs_validation (often placeholders).
  */
-import { decodeJwt, findSecrets, isHighEntropyToken, isMeaningfulSecretValue, redact, sensitiveKeyKind } from '../secrets.js';
+import {
+	decodeJwt,
+	findSecrets,
+	isHighEntropyToken,
+	isMeaningfulSecretValue,
+	redact,
+	sensitiveKeyKind
+} from '../secrets.js';
 import type { SourceFile } from '../types.js';
 import { FindingSink } from './shared.js';
 
@@ -40,7 +47,12 @@ export function envRules(file: SourceFile): FindingSink {
 		const value = unquote(raw.replace(/\r$/, ''));
 		if (!value) continue;
 		const at = lineStart + line.indexOf(key);
-		const report = (severity: 'high' | 'medium' | 'low', confirmed: boolean, title: string, redacted: string) => {
+		const report = (
+			severity: 'high' | 'medium' | 'low',
+			confirmed: boolean,
+			title: string,
+			redacted: string
+		) => {
 			sink.add(
 				'env/public-secret',
 				at,
@@ -61,7 +73,12 @@ export function envRules(file: SourceFile): FindingSink {
 				continue;
 			}
 			const weak = shaped.kind === 'bearer';
-			report(weak ? 'medium' : 'high', !weak, `${shaped.label} in client-exposed env var ${key}`, shaped.redacted);
+			report(
+				weak ? 'medium' : 'high',
+				!weak,
+				`${shaped.label} in client-exposed env var ${key}`,
+				shaped.redacted
+			);
 			continue;
 		}
 		const nameKind = sensitiveKeyKind(key.slice(prefix[1].length));
@@ -70,7 +87,12 @@ export function envRules(file: SourceFile): FindingSink {
 			continue;
 		}
 		if ((nameKind === 'token' || nameKind === 'api-key') && isHighEntropyToken(value)) {
-			report('low', false, `Possible credential in client-exposed env var ${key}`, redact(value, nameKind));
+			report(
+				'low',
+				false,
+				`Possible credential in client-exposed env var ${key}`,
+				redact(value, nameKind)
+			);
 		}
 	}
 	return sink;

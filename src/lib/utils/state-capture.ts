@@ -20,7 +20,9 @@ import { getInspectableInstances, getInspectableIds } from './inspectable.svelte
 
 /** Read access to the `inspectable()` registry. */
 export interface InspectableLookup {
-	getInstances(name: string): { label: string; instance: number; values: Record<string, unknown> }[];
+	getInstances(
+		name: string
+	): { label: string; instance: number; values: Record<string, unknown> }[];
 	getIds(): string[];
 }
 
@@ -43,7 +45,7 @@ export function findInspectableInstances(
 	let name: string | undefined = componentName;
 	if (lookup.getInstances(name).length === 0) {
 		const lower = componentName.toLowerCase();
-		name = lookup.getIds().find(id => id.toLowerCase() === lower);
+		name = lookup.getIds().find((id) => id.toLowerCase() === lower);
 	}
 	if (!name) return undefined;
 	const found = lookup.getInstances(name).map(({ label, instance, values }) => ({
@@ -105,7 +107,9 @@ export function extractComponentState(
 						props[key] = p[key];
 					}
 				}
-			} catch { /* props not accessible */ }
+			} catch {
+				/* props not accessible */
+			}
 		}
 		// Try to read context/state
 		if (svelteInternals.ctx) {
@@ -118,7 +122,9 @@ export function extractComponentState(
 						}
 					});
 				}
-			} catch { /* ctx not accessible */ }
+			} catch {
+				/* ctx not accessible */
+			}
 		}
 	}
 
@@ -142,7 +148,7 @@ export function extractComponentState(
 
 	// Collect child components with details
 	const childMap = new Map<string, { name: string; file: string; count: number }>();
-	element.querySelectorAll('*').forEach(child => {
+	element.querySelectorAll('*').forEach((child) => {
 		const childLoc = getSvelteLoc(child);
 		if (childLoc) {
 			const childFile = childLoc.file;
@@ -191,9 +197,7 @@ export function formatStateForAgent(
 	diffs: StateDiff[] = [],
 	snapshots: StateSnapshot[] = []
 ): string {
-	const parts: string[] = [
-		`=== Component State: ${info.componentName || info.elementTag} ===\n`
-	];
+	const parts: string[] = [`=== Component State: ${info.componentName || info.elementTag} ===\n`];
 
 	if (Object.keys(info.props).length > 0) {
 		parts.push('\u{1F4E5} OBSERVABLE PROPS/ATTRIBUTES:');
@@ -246,7 +250,9 @@ export function formatStateForAgent(
 	}
 
 	if (info.childComponents.length > 0) {
-		parts.push(`\u{1F333} CHILD COMPONENTS (${info.childComponentCount} total, ${info.childComponents.length} unique):`);
+		parts.push(
+			`\u{1F333} CHILD COMPONENTS (${info.childComponentCount} total, ${info.childComponents.length} unique):`
+		);
 		for (const child of info.childComponents) {
 			parts.push(`  <${child.name}> ${child.file}${child.count > 1 ? ` (x${child.count})` : ''}`);
 		}
@@ -264,11 +270,15 @@ export function formatStateForAgent(
 	}
 
 	if (snapshots.length > 1) {
-		const componentSnapshots = snapshots.filter(s => s.file === info.file);
+		const componentSnapshots = snapshots.filter((s) => s.file === info.file);
 		if (componentSnapshots.length > 1) {
-			parts.push(`\u{1F4F8} SNAPSHOT HISTORY (${componentSnapshots.length} captures for this component):`);
+			parts.push(
+				`\u{1F4F8} SNAPSHOT HISTORY (${componentSnapshots.length} captures for this component):`
+			);
 			for (const snap of componentSnapshots.slice(0, 5)) {
-				parts.push(`  [${new Date(snap.timestamp).toLocaleTimeString()}] ${Object.keys(snap.state).length} values`);
+				parts.push(
+					`  [${new Date(snap.timestamp).toLocaleTimeString()}] ${Object.keys(snap.state).length} values`
+				);
 			}
 			parts.push('');
 		}
@@ -297,7 +307,10 @@ export function collectStateValues(info: ComponentStateInfo): Record<string, unk
 /**
  * Compare two snapshots and return the diffs
  */
-export function computeStateDiffs(prev: Record<string, unknown>, curr: Record<string, unknown>): StateDiff[] {
+export function computeStateDiffs(
+	prev: Record<string, unknown>,
+	curr: Record<string, unknown>
+): StateDiff[] {
 	const result: StateDiff[] = [];
 	const allKeys = new Set([...Object.keys(prev), ...Object.keys(curr)]);
 	for (const key of allKeys) {

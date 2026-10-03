@@ -8,7 +8,8 @@
 <div data-testid="fx-snippet-host">
 	{#snippet row(name: string, index: number)}
 		<li class="fx-snippet-row" data-testid={`fx-snippet-row-${index}`}>
-			<strong>{index + 1}.</strong> {name}
+			<strong>{index + 1}.</strong>
+			{name}
 		</li>
 	{/snippet}
 

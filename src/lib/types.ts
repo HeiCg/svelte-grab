@@ -105,7 +105,16 @@ export interface SvelteGrabProps {
 	/** Include HTML preview in output. Default: true */
 	includeHtml?: boolean;
 	/** Editor to open files in. Default: 'vscode' */
-	editor?: 'vscode' | 'cursor' | 'webstorm' | 'zed' | 'sublime' | 'idea' | 'phpstorm' | 'pycharm' | 'none';
+	editor?:
+		| 'vscode'
+		| 'cursor'
+		| 'webstorm'
+		| 'zed'
+		| 'sublime'
+		| 'idea'
+		| 'phpstorm'
+		| 'pycharm'
+		| 'none';
 	/** Enable Cmd+C / Ctrl+C to copy in selection mode. Default: true */
 	copyOnKeyboard?: boolean;
 	/** Enable screenshot capture (requires html-to-image). Default: true */
@@ -189,6 +198,31 @@ export interface SvelteGrabProps {
 	 * Alt+? and the right-click menu are off. Default: 'full'
 	 */
 	hotkeys?: HotkeysMode;
+	/**
+	 * Extra modifiers that belong to other tools. A modifier+click (or
+	 * right-click / drag start) that also holds one of these is ignored: no
+	 * grab, no popup, no multi-select, no preventDefault, so e.g. Alt+Ctrl+Click
+	 * reaches only StyleGrab. Shift keeps multi-selecting unless listed. An
+	 * entry equal to `modifier` is ignored. SvelteDevKit sets this from the
+	 * StateGrab / StyleGrab triggers in `hotkeys="full"`. Default: []
+	 */
+	reservedModifiers?: ('ctrl' | 'meta' | 'shift')[];
+	/**
+	 * Extra modifiers that belong to another tool's right-click trigger, on top
+	 * of `reservedModifiers`: a right-click holding one of these opens no
+	 * context menu (and is not preventDefault-ed). SvelteDevKit sets `['shift']`
+	 * while SvelteA11yReporter's element audit is Alt+Shift+RightClick.
+	 * Default: []
+	 */
+	reservedContextMenuModifiers?: ('ctrl' | 'meta' | 'shift')[];
+	/**
+	 * Ignore the second click of a double-click (`event.detail >= 2`) so
+	 * Modifier+DoubleClick reaches only SveltePropsTracer. The first click still
+	 * grabs at once (no click delay); SvelteDevKit then calls `dismiss()` when
+	 * the tracer opens. SvelteDevKit sets it while the tracer's trigger is live.
+	 * Default: false
+	 */
+	yieldDoubleClick?: boolean;
 }
 
 // ============================================================
@@ -358,6 +392,11 @@ export interface SveltePropsTracerProps {
 	modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';
 	/** Secondary modifier (unused for PropsTracer, which triggers on DoubleClick). Default: 'shift' */
 	secondaryModifier?: 'shift' | 'ctrl' | 'meta';
+	/**
+	 * Called after Alt+DoubleClick builds a trace. SvelteDevKit uses it to close
+	 * the SvelteGrab popup the double-click's first click opened.
+	 */
+	onTrace?: (trace: PropTrace) => void;
 	/** Force enable even if Svelte dev metadata is not detected. Default: false */
 	forceEnable?: boolean;
 	/** Show visual popup with the component trace. Default: true */
@@ -404,7 +443,12 @@ export interface A11yReport {
 export interface SvelteA11yReporterProps {
 	/** Primary modifier key to activate accessibility audit. Default: 'alt' */
 	modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';
-	/** Secondary modifier for element-level audit (Alt+RightClick). Default: 'shift' */
+	/**
+	 * Extra modifier the element-level audit also requires, e.g. `'shift'` for
+	 * Alt+Shift+RightClick. Unset: plain Alt+RightClick. Alt+A (full page) is
+	 * unaffected. SvelteDevKit sets `'shift'` while SvelteGrab's selection-mode
+	 * context menu (Alt+RightClick) is on. Default: undefined
+	 */
 	secondaryModifier?: 'shift' | 'ctrl' | 'meta';
 	/** Force enable even if Svelte dev metadata is not detected. Default: false */
 	forceEnable?: boolean;
@@ -545,7 +589,16 @@ export interface SvelteDevKitProps {
 	theme?: ThemeConfig;
 	lightTheme?: boolean;
 	enabledTools?: DevKitTool[];
-	editor?: 'vscode' | 'cursor' | 'webstorm' | 'zed' | 'sublime' | 'idea' | 'phpstorm' | 'pycharm' | 'none';
+	editor?:
+		| 'vscode'
+		| 'cursor'
+		| 'webstorm'
+		| 'zed'
+		| 'sublime'
+		| 'idea'
+		| 'phpstorm'
+		| 'pycharm'
+		| 'none';
 	projectRoot?: string;
 	/** Plugins to register. Default: [] */
 	plugins?: SvelteGrabPlugin[];
@@ -649,11 +702,15 @@ export interface SvelteDevKitProps {
 	/**
 	 * Shortcut set. `'full'`: every tool's shortcuts (current behavior).
 	 * `'minimal'`: only Alt+Click (point), Shift+Alt+Click (multi), Alt+Drag
-	 * (region), Escape and N (annotate). The other tools' triggers (Alt+Shift+
-	 * Click state, Alt+Ctrl+Click style, Alt+DoubleClick tracer, Alt+RightClick /
-	 * Alt+A a11y, Alt+E errors, Alt+P profiler) and DevKit's Alt+Shift+C / Alt+?
-	 * are off; those tools stay mounted so the MCP runtime can still use them.
-	 * Default: 'full'
+	 * (region), Escape and N (annotate). The other tools' triggers (Alt+Meta+
+	 * Click state, Alt+Ctrl+Click style, Alt+DoubleClick tracer,
+	 * Alt+Shift+RightClick / Alt+A a11y, Alt+E errors, Alt+P profiler) and
+	 * DevKit's Alt+Shift+C / Alt+? are off; those tools stay mounted so the MCP
+	 * runtime can still use them. In `'full'` mode DevKit keeps the tools apart:
+	 * Alt+DoubleClick does not leave a SvelteGrab popup open, and the A11y
+	 * element audit is Alt+Shift+RightClick (Alt+RightClick is SvelteGrab's
+	 * selection-mode context menu; plain Alt+RightClick when SvelteGrab or its
+	 * context menu is off). Default: 'full'
 	 */
 	hotkeys?: HotkeysMode;
 }

@@ -13,7 +13,11 @@ const noState: InspectableLookup = { getInstances: () => [], getIds: () => [] };
 function lookup(entries: Record<string, Record<string, unknown>[]>): InspectableLookup {
 	return {
 		getInstances: (name) =>
-			(entries[name] ?? []).map((values, i) => ({ label: `${name} #${i + 1}`, instance: i + 1, values })),
+			(entries[name] ?? []).map((values, i) => ({
+				label: `${name} #${i + 1}`,
+				instance: i + 1,
+				values
+			})),
 		getIds: () => Object.keys(entries)
 	};
 }
@@ -66,7 +70,9 @@ describe('ui_inspect', () => {
 		const lines = text.split('\n');
 		expect(lines[0]).toBe(`${ref} button "b" Button src/lib/Button.svelte:2`);
 		expect(lines[1]).toBe(`Locator: [${REF_ATTR}="${ref}"]`);
-		expect(lines[2]).toMatch(/^Stable key: ui:\/\/\/src\/lib\/Button\.svelte:2:1#Button\[role=button,name=b\]\[0\]$/);
+		expect(lines[2]).toMatch(
+			/^Stable key: ui:\/\/\/src\/lib\/Button\.svelte:2:1#Button\[role=button,name=b\]\[0\]$/
+		);
 
 		expect(section(text, 'COMPONENT')).toEqual([
 			'<Button> defined in src/lib/Button.svelte',
@@ -83,13 +89,19 @@ describe('ui_inspect', () => {
 		const usage = section(text, 'USAGE');
 		expect(usage[0]).toBe('2 instances of <Button> on the page:');
 		expect(usage[1]).toMatch(/^ {2}e\d+ used at src\/lib\/Card\.svelte:7:1 box=/);
-		expect(usage[2]).toMatch(new RegExp(`^ {2}${ref} \\(this\\) used at src/lib/Card\\.svelte:7:1 box=`));
+		expect(usage[2]).toMatch(
+			new RegExp(`^ {2}${ref} \\(this\\) used at src/lib/Card\\.svelte:7:1 box=`)
+		);
 
 		expect(data).toMatchObject({
 			ref,
 			locator: `[${REF_ATTR}="${ref}"]`,
 			element: { tag: 'button', role: 'button', name: 'b' },
-			component: { name: 'Button', instance: 'Button', usedAt: { file: '/src/lib/Card.svelte', line: 7 } },
+			component: {
+				name: 'Button',
+				instance: 'Button',
+				usedAt: { file: '/src/lib/Card.svelte', line: 7 }
+			},
 			source: { file: '/src/lib/Button.svelte', line: 2, column: 1 },
 			usage: { component: 'Button', count: 2 },
 			truncated: false
@@ -99,7 +111,10 @@ describe('ui_inspect', () => {
 
 	it('include limits the sections (COMPONENT and SOURCE always stay)', () => {
 		const { buttons } = buildFixture();
-		const { text, data } = inspect({ ref: registry.refFor(buttons[0]), include: ['usage', 'layout'] });
+		const { text, data } = inspect({
+			ref: registry.refFor(buttons[0]),
+			include: ['usage', 'layout']
+		});
 		expect(headings(text)).toEqual(['COMPONENT', 'SOURCE', 'LAYOUT', 'USAGE']);
 		expect(data).not.toHaveProperty('styles');
 		expect(data).toHaveProperty('layout');
@@ -109,11 +124,19 @@ describe('ui_inspect', () => {
 		const { cards, buttons } = buildFixture();
 		const ref = registry.refFor(buttons[0]);
 		const key = registry.stableKeyOf(ref)!;
-		expect(inspect({ ref: key, include: [] }).text.split('\n')[0]).toMatch(new RegExp(`^${ref} button`));
+		expect(inspect({ ref: key, include: [] }).text.split('\n')[0]).toMatch(
+			new RegExp(`^${ref} button`)
+		);
 
 		// Re-render: the button is replaced by an equivalent element.
 		const old = buttons[0];
-		const fresh = meta(h('button', {}, 'a'), '/src/lib/Button.svelte', 2, 1, (old as any).__svelte_meta.parent);
+		const fresh = meta(
+			h('button', {}, 'a'),
+			'/src/lib/Button.svelte',
+			2,
+			1,
+			(old as any).__svelte_meta.parent
+		);
 		old.replaceWith(fresh);
 		expect(cards[0].contains(fresh)).toBe(true);
 
@@ -182,7 +205,10 @@ describe('ui_inspect', () => {
 		]);
 		// structuredContent stays JSON-safe.
 		expect(JSON.parse(JSON.stringify(data))).toMatchObject({
-			state: { component: 'Button', instances: [{ values: { count: 1, fn: '[Function: fn]' } }, { values: { count: 2 } }] }
+			state: {
+				component: 'Button',
+				instances: [{ values: { count: 1, fn: '[Function: fn]' } }, { values: { count: 2 } }]
+			}
 		});
 	});
 
@@ -221,7 +247,9 @@ describe('ui_inspect', () => {
 		const { text, data } = inspect({ ref: registry.refFor(cards[0]), include: ['styles'] });
 		const body = section(text, 'STYLES');
 		expect(body[0]).toBe('matched rules: 1 (stylesheet 1)');
-		expect(body[1]).toBe('classes: card svelte-abc123; svelte-scoped: svelte-abc123; tailwind: none');
+		expect(body[1]).toBe(
+			'classes: card svelte-abc123; svelte-scoped: svelte-abc123; tailwind: none'
+		);
 		expect(body).toContain('  .card → stylesheet (.card)');
 		expect(body).toContain('  color: rgb(255, 0, 0) -> stylesheet (.card)');
 		expect(data!.styles).toMatchObject({ matchedRuleCount: 1, declarationsTruncated: false });
@@ -229,20 +257,46 @@ describe('ui_inspect', () => {
 
 	it('STYLES caps the declaration list and says so', () => {
 		const props = [
-			'width: 10px', 'height: 10px', 'min-width: 1px', 'min-height: 1px', 'max-width: 99px',
-			'max-height: 99px', 'padding-top: 1px', 'padding-right: 1px', 'padding-bottom: 1px',
-			'padding-left: 1px', 'margin-top: 1px', 'margin-right: 1px', 'margin-bottom: 1px',
-			'margin-left: 1px', 'color: red', 'opacity: 0.5', 'cursor: pointer', 'font-size: 12px',
-			'font-weight: 700', 'line-height: 2', 'letter-spacing: 1px', 'text-align: center',
-			'text-transform: uppercase', 'white-space: nowrap', 'position: relative', 'top: 1px',
-			'left: 1px', 'z-index: 3', 'float: left'
+			'width: 10px',
+			'height: 10px',
+			'min-width: 1px',
+			'min-height: 1px',
+			'max-width: 99px',
+			'max-height: 99px',
+			'padding-top: 1px',
+			'padding-right: 1px',
+			'padding-bottom: 1px',
+			'padding-left: 1px',
+			'margin-top: 1px',
+			'margin-right: 1px',
+			'margin-bottom: 1px',
+			'margin-left: 1px',
+			'color: red',
+			'opacity: 0.5',
+			'cursor: pointer',
+			'font-size: 12px',
+			'font-weight: 700',
+			'line-height: 2',
+			'letter-spacing: 1px',
+			'text-align: center',
+			'text-transform: uppercase',
+			'white-space: nowrap',
+			'position: relative',
+			'top: 1px',
+			'left: 1px',
+			'z-index: 3',
+			'float: left'
 		];
 		const style = document.createElement('style');
 		style.textContent = `.card { ${props.join('; ')} }`;
 		document.head.append(style);
 		const { cards } = buildFixture();
 		const { text, data } = inspect({ ref: registry.refFor(cards[0]), include: ['styles'] });
-		const styles = data!.styles as { declarationCount: number; declarationsTruncated: boolean; declarations: unknown[] };
+		const styles = data!.styles as {
+			declarationCount: number;
+			declarationsTruncated: boolean;
+			declarations: unknown[];
+		};
 		expect(styles.declarationCount).toBeGreaterThan(25);
 		expect(styles.declarations).toHaveLength(25);
 		expect(styles.declarationsTruncated).toBe(true);
@@ -269,7 +323,9 @@ describe('ui_inspect', () => {
 
 		const b = inspect({ ref: registry.refFor(text), include: ['a11y'] });
 		const pBody = section(b.text, 'A11Y');
-		expect(pBody[1]).toMatch(/^contrast: 4\.48:1 \(needs 4\.5:1\) FAIL, fg rgb\(119, 119, 119\) on bg rgb\(255, 255, 255\)$/);
+		expect(pBody[1]).toMatch(
+			/^contrast: 4\.48:1 \(needs 4\.5:1\) FAIL, fg rgb\(119, 119, 119\) on bg rgb\(255, 255, 255\)$/
+		);
 		expect(b.data!.a11y).toMatchObject({ contrast: { pass: false, required: 4.5 } });
 	});
 

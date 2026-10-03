@@ -4,7 +4,17 @@
  * runtime (prefix + body), so the repository never holds a literal that
  * secret scanners / push protection would flag. None of them is a real key.
  */
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	statSync,
+	writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,7 +69,10 @@ export function makeFixtureApp(): string {
 		writeFileSync(join(dir, ignored, 'index.js'), `eval(x);\nexport const k = '${FAKE.stripe}';\n`);
 	}
 	// Over the 1 MB limit: skipped, not scanned.
-	writeFileSync(join(dir, 'src', 'lib', 'huge.ts'), `eval(x);\n// ${'x'.repeat(1024 * 1024 + 10)}\n`);
+	writeFileSync(
+		join(dir, 'src', 'lib', 'huge.ts'),
+		`eval(x);\n// ${'x'.repeat(1024 * 1024 + 10)}\n`
+	);
 	return dir;
 }
 

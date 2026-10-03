@@ -1,11 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 
-	let {
-		items,
-		row,
-		empty
-	}: { items: string[]; row: Snippet<[string, number]>; empty?: Snippet } = $props();
+	let { items, row, empty }: { items: string[]; row: Snippet<[string, number]>; empty?: Snippet } =
+		$props();
 </script>
 
 <!-- Child that renders snippets passed in by its parent ({@render}). -->

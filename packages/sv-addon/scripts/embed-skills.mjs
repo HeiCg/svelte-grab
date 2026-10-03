@@ -17,7 +17,9 @@ const outFile = fileURLToPath(new URL('../src/skills.generated.ts', import.meta.
 export function collectSkillFiles(dir) {
 	const out = [];
 	const skills = readdirSync(dir)
-		.filter((name) => statSync(join(dir, name)).isDirectory() && existsSync(join(dir, name, 'SKILL.md')))
+		.filter(
+			(name) => statSync(join(dir, name)).isDirectory() && existsSync(join(dir, name, 'SKILL.md'))
+		)
 		.sort();
 	for (const skill of skills) {
 		const walk = (rel) => {
@@ -25,7 +27,8 @@ export function collectSkillFiles(dir) {
 				if (name.startsWith('.')) continue;
 				const childRel = `${rel}/${name}`;
 				if (statSync(join(dir, childRel)).isDirectory()) walk(childRel);
-				else out.push({ skill, path: childRel, content: readFileSync(join(dir, childRel), 'utf-8') });
+				else
+					out.push({ skill, path: childRel, content: readFileSync(join(dir, childRel), 'utf-8') });
 			}
 		};
 		walk(skill);

@@ -69,7 +69,10 @@ export class ProfilerTracker {
 	private burstThreshold: number;
 	private burstWindow: number;
 
-	private mutationTypeCounts = new Map<string, { childList: number; attributes: number; characterData: number }>();
+	private mutationTypeCounts = new Map<
+		string,
+		{ childList: number; attributes: number; characterData: number }
+	>();
 	private userEvents: { type: string; timestamp: number }[] = [];
 	private userEventCleanup: (() => void) | null = null;
 
@@ -162,7 +165,11 @@ export class ProfilerTracker {
 		const trackEvent = (type: string) => (e: Event) => {
 			// Ignore our own UI
 			const target = e.target as HTMLElement;
-			if (target?.closest?.('[class*="svelte-grab-"]') || target?.closest?.('[class*="svelte-devkit-"]')) return;
+			if (
+				target?.closest?.('[class*="svelte-grab-"]') ||
+				target?.closest?.('[class*="svelte-devkit-"]')
+			)
+				return;
 			this.userEvents.push({ type, timestamp: performance.now() });
 			// Ring-buffer cap for long live sessions.
 			if (this.userEvents.length > MAX_USER_EVENTS) {
@@ -188,17 +195,20 @@ export class ProfilerTracker {
 		const now = performance.now();
 
 		// Group mutations by their closest Svelte component, tracking type breakdown
-		const componentMutations = new Map<string, {
-			file: string;
-			name: string;
-			count: number;
-			type: 'childList' | 'attributes' | 'characterData';
-			childList: number;
-			attributes: number;
-			characterData: number;
-			/** A representative mutated element, for the live overlay rect. */
-			element: HTMLElement;
-		}>();
+		const componentMutations = new Map<
+			string,
+			{
+				file: string;
+				name: string;
+				count: number;
+				type: 'childList' | 'attributes' | 'characterData';
+				childList: number;
+				attributes: number;
+				characterData: number;
+				/** A representative mutated element, for the live overlay rect. */
+				element: HTMLElement;
+			}
+		>();
 
 		for (const mutation of mutations) {
 			// For characterData mutations, the target is a Text node — use parentElement
@@ -253,8 +263,11 @@ export class ProfilerTracker {
 		for (const [, comp] of componentMutations) {
 			// Determine dominant mutation type
 			const dominant: 'childList' | 'attributes' | 'characterData' =
-				comp.attributes >= comp.childList && comp.attributes >= comp.characterData ? 'attributes' :
-				comp.childList >= comp.characterData ? 'childList' : 'characterData';
+				comp.attributes >= comp.childList && comp.attributes >= comp.characterData
+					? 'attributes'
+					: comp.childList >= comp.characterData
+						? 'childList'
+						: 'characterData';
 
 			this.addEvent({
 				componentFile: comp.file,
@@ -265,7 +278,11 @@ export class ProfilerTracker {
 			});
 
 			// Accumulate totals per component
-			const existing = this.mutationTypeCounts.get(comp.file) || { childList: 0, attributes: 0, characterData: 0 };
+			const existing = this.mutationTypeCounts.get(comp.file) || {
+				childList: 0,
+				attributes: 0,
+				characterData: 0
+			};
 			existing.childList += comp.childList;
 			existing.attributes += comp.attributes;
 			existing.characterData += comp.characterData;
@@ -364,8 +381,7 @@ export class ProfilerTracker {
 			profile.burstCount = this.detectBursts(file).length;
 		}
 
-		return Array.from(profileMap.values())
-			.sort((a, b) => b.renderCount - a.renderCount);
+		return Array.from(profileMap.values()).sort((a, b) => b.renderCount - a.renderCount);
 	}
 
 	/**
@@ -382,9 +398,7 @@ export class ProfilerTracker {
 			return this._allBurstsCache;
 		}
 
-		const events = componentFile
-			? (this._eventsByFile.get(componentFile) || [])
-			: this.events;
+		const events = componentFile ? this._eventsByFile.get(componentFile) || [] : this.events;
 
 		const bursts: RenderBurst[] = [];
 		const byComponent = new Map<string, RenderEvent[]>();
@@ -410,7 +424,10 @@ export class ProfilerTracker {
 			// Sliding window burst detection
 			let windowStart = 0;
 			for (let windowEnd = 0; windowEnd < compEvents.length; windowEnd++) {
-				while (compEvents[windowEnd].timestamp - compEvents[windowStart].timestamp > this.burstWindow) {
+				while (
+					compEvents[windowEnd].timestamp - compEvents[windowStart].timestamp >
+					this.burstWindow
+				) {
 					windowStart++;
 				}
 
@@ -419,7 +436,9 @@ export class ProfilerTracker {
 					const name = compEvents[0].componentName;
 					// Avoid duplicate bursts
 					const existingBurst = bursts.find(
-						b => b.file === file && Math.abs(b.startTime - compEvents[windowStart].timestamp) < this.burstWindow
+						(b) =>
+							b.file === file &&
+							Math.abs(b.startTime - compEvents[windowStart].timestamp) < this.burstWindow
 					);
 					if (!existingBurst) {
 						bursts.push({
@@ -529,29 +548,35 @@ export class ProfilerTracker {
 		const parts: string[] = [`=== Render Profile: last ${duration.toFixed(1)} seconds ===\n`];
 
 		// Hot components
-		const hot = profiles.filter(p => p.renderCount > 10 || p.burstCount > 0);
+		const hot = profiles.filter((p) => p.renderCount > 10 || p.burstCount > 0);
 		if (hot.length > 0) {
 			parts.push(`\u{1F534} HOT COMPONENTS (excessive re-renders):\n`);
 			for (const profile of hot.slice(0, 10)) {
 				const breakdown = this.getMutationBreakdown(profile.file);
-				parts.push(`  ${profile.name} - ${profile.renderCount} mutations${breakdown ? ` (${breakdown})` : ''}`);
+				parts.push(
+					`  ${profile.name} - ${profile.renderCount} mutations${breakdown ? ` (${breakdown})` : ''}`
+				);
 				parts.push(`     \u2502 \u{1F4CD} ${shortenPath(profile.file)}`);
 				if (profile.burstCount > 0) {
 					parts.push(`     \u2502 \u26A0\uFE0F ${profile.burstCount} burst(s) detected`);
 				}
 				if (profile.averageInterval > 0 && profile.averageInterval < 100) {
-					parts.push(`     \u2502 \u23F1\uFE0F Average interval: ${profile.averageInterval.toFixed(0)}ms (too frequent)`);
+					parts.push(
+						`     \u2502 \u23F1\uFE0F Average interval: ${profile.averageInterval.toFixed(0)}ms (too frequent)`
+					);
 				}
 				parts.push('');
 			}
 		}
 
 		// Healthy components
-		const healthy = profiles.filter(p => p.renderCount <= 10 && p.burstCount === 0);
+		const healthy = profiles.filter((p) => p.renderCount <= 10 && p.burstCount === 0);
 		if (healthy.length > 0) {
 			parts.push(`\u{1F7E2} HEALTHY COMPONENTS:\n`);
 			for (const profile of healthy.slice(0, 10)) {
-				parts.push(`  <${profile.name}> - ${profile.renderCount} render${profile.renderCount !== 1 ? 's' : ''} \u2713`);
+				parts.push(
+					`  <${profile.name}> - ${profile.renderCount} render${profile.renderCount !== 1 ? 's' : ''} \u2713`
+				);
 			}
 			parts.push('');
 		}
@@ -560,7 +585,9 @@ export class ProfilerTracker {
 		if (bursts.length > 0) {
 			parts.push(`\u{1F4CA} DETECTED BURSTS:\n`);
 			for (const burst of bursts) {
-				parts.push(`  \u256D\u2500 ${burst.componentName} (burst: ${burst.count} renders in ${burst.duration.toFixed(0)}ms)`);
+				parts.push(
+					`  \u256D\u2500 ${burst.componentName} (burst: ${burst.count} renders in ${burst.duration.toFixed(0)}ms)`
+				);
 				parts.push(`  \u2570\u2500 ${shortenPath(burst.file)}`);
 				parts.push('');
 			}
@@ -576,11 +603,15 @@ export class ProfilerTracker {
 		const suggestions: string[] = [];
 
 		if (totalMutations > 50 && duration < 10) {
-			suggestions.push('High mutation count in short time. Consider using $derived() to memoize computed values.');
+			suggestions.push(
+				'High mutation count in short time. Consider using $derived() to memoize computed values.'
+			);
 		}
 
 		if (bursts.length > 2) {
-			suggestions.push('Multiple bursts detected. Check for $effect loops or cascading reactive updates.');
+			suggestions.push(
+				'Multiple bursts detected. Check for $effect loops or cascading reactive updates.'
+			);
 		}
 
 		// Check if a component has mostly attribute mutations (CSS/class reactivity, not data re-renders)
@@ -589,7 +620,9 @@ export class ProfilerTracker {
 			if (counts && counts.attributes > 0) {
 				const total = counts.attributes + counts.childList + counts.characterData;
 				if (counts.attributes / total > 0.8) {
-					suggestions.push(`${profile.name}: mostly attribute mutations — likely CSS/class reactivity, not data re-renders.`);
+					suggestions.push(
+						`${profile.name}: mostly attribute mutations — likely CSS/class reactivity, not data re-renders.`
+					);
 				}
 			}
 		}
@@ -600,7 +633,9 @@ export class ProfilerTracker {
 				for (let j = i + 1; j < bursts.length; j++) {
 					const gap = Math.abs(bursts[j].startTime - bursts[i].endTime);
 					if (gap < 5 && bursts[i].componentName !== bursts[j].componentName) {
-						suggestions.push(`Possible cascade: ${bursts[i].componentName} \u2192 ${bursts[j].componentName} (${gap.toFixed(1)}ms gap). Check shared store subscriptions.`);
+						suggestions.push(
+							`Possible cascade: ${bursts[i].componentName} \u2192 ${bursts[j].componentName} (${gap.toFixed(1)}ms gap). Check shared store subscriptions.`
+						);
 					}
 				}
 			}
@@ -608,11 +643,11 @@ export class ProfilerTracker {
 
 		// Correlate bursts with user events
 		for (const burst of bursts) {
-			const trigger = this.userEvents.find(
-				ue => Math.abs(ue.timestamp - burst.startTime) < 200
-			);
+			const trigger = this.userEvents.find((ue) => Math.abs(ue.timestamp - burst.startTime) < 200);
 			if (trigger) {
-				suggestions.push(`${burst.componentName} burst triggered by user ${trigger.type} event (within ${Math.abs(trigger.timestamp - burst.startTime).toFixed(0)}ms).`);
+				suggestions.push(
+					`${burst.componentName} burst triggered by user ${trigger.type} event (within ${Math.abs(trigger.timestamp - burst.startTime).toFixed(0)}ms).`
+				);
 			}
 		}
 

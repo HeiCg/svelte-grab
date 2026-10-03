@@ -98,7 +98,7 @@ describe('analyzeA11y - effective background compositing (bug fix)', () => {
 
 	function contrastIssues(root: HTMLElement) {
 		const report = analyzeA11y(root, true);
-		return [...report.critical, ...report.warnings].filter(i => i.rule === 'contrast');
+		return [...report.critical, ...report.warnings].filter((i) => i.rule === 'contrast');
 	}
 
 	it('flags muted (translucent) text that fails once composited', () => {
@@ -159,7 +159,7 @@ describe('analyzeA11y - contrast dedup', () => {
 		}
 
 		const report = analyzeA11y(document.body, true);
-		const issues = [...report.critical, ...report.warnings].filter(i => i.rule === 'contrast');
+		const issues = [...report.critical, ...report.warnings].filter((i) => i.rule === 'contrast');
 		expect(issues).toHaveLength(1);
 	});
 });

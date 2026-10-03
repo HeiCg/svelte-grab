@@ -1,4 +1,10 @@
-import type { StylePropertyInfo, StyleSource, StyleCategory, StyleConflict, StyleConflictRule } from '../types.js';
+import type {
+	StylePropertyInfo,
+	StyleSource,
+	StyleCategory,
+	StyleConflict,
+	StyleConflictRule
+} from '../types.js';
 
 /**
  * CSS property categories for organized display
@@ -8,50 +14,126 @@ const CATEGORY_MAP: Record<string, { name: string; icon: string; properties: str
 		name: 'Box Model',
 		icon: '\u{1F4D0}',
 		properties: [
-			'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
-			'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-			'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
-			'border', 'border-width', 'border-style', 'border-color',
-			'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
-			'border-radius', 'border-top-left-radius', 'border-top-right-radius',
-			'border-bottom-left-radius', 'border-bottom-right-radius',
-			'box-sizing', 'overflow', 'overflow-x', 'overflow-y'
+			'width',
+			'height',
+			'min-width',
+			'min-height',
+			'max-width',
+			'max-height',
+			'padding',
+			'padding-top',
+			'padding-right',
+			'padding-bottom',
+			'padding-left',
+			'margin',
+			'margin-top',
+			'margin-right',
+			'margin-bottom',
+			'margin-left',
+			'border',
+			'border-width',
+			'border-style',
+			'border-color',
+			'border-top-width',
+			'border-right-width',
+			'border-bottom-width',
+			'border-left-width',
+			'border-radius',
+			'border-top-left-radius',
+			'border-top-right-radius',
+			'border-bottom-left-radius',
+			'border-bottom-right-radius',
+			'box-sizing',
+			'overflow',
+			'overflow-x',
+			'overflow-y'
 		]
 	},
 	visual: {
 		name: 'Visual',
 		icon: '\u{1F3A8}',
 		properties: [
-			'background', 'background-color', 'background-image', 'background-size',
-			'background-position', 'background-repeat',
-			'color', 'opacity', 'visibility',
-			'border-color', 'border-style',
-			'box-shadow', 'outline', 'outline-color', 'outline-style', 'outline-width',
-			'cursor', 'filter', 'backdrop-filter', 'mix-blend-mode'
+			'background',
+			'background-color',
+			'background-image',
+			'background-size',
+			'background-position',
+			'background-repeat',
+			'color',
+			'opacity',
+			'visibility',
+			'border-color',
+			'border-style',
+			'box-shadow',
+			'outline',
+			'outline-color',
+			'outline-style',
+			'outline-width',
+			'cursor',
+			'filter',
+			'backdrop-filter',
+			'mix-blend-mode'
 		]
 	},
 	typography: {
 		name: 'Typography',
 		icon: '\u{1F4DD}',
 		properties: [
-			'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant',
-			'line-height', 'letter-spacing', 'word-spacing', 'text-align', 'text-decoration',
-			'text-transform', 'text-indent', 'text-overflow', 'text-shadow',
-			'white-space', 'word-break', 'word-wrap', 'overflow-wrap'
+			'font-family',
+			'font-size',
+			'font-weight',
+			'font-style',
+			'font-variant',
+			'line-height',
+			'letter-spacing',
+			'word-spacing',
+			'text-align',
+			'text-decoration',
+			'text-transform',
+			'text-indent',
+			'text-overflow',
+			'text-shadow',
+			'white-space',
+			'word-break',
+			'word-wrap',
+			'overflow-wrap'
 		]
 	},
 	layout: {
 		name: 'Layout',
 		icon: '\u{1F4E6}',
 		properties: [
-			'display', 'position', 'top', 'right', 'bottom', 'left',
-			'z-index', 'float', 'clear',
-			'flex', 'flex-direction', 'flex-wrap', 'flex-grow', 'flex-shrink', 'flex-basis',
-			'justify-content', 'align-items', 'align-self', 'align-content',
-			'gap', 'row-gap', 'column-gap',
-			'grid-template-columns', 'grid-template-rows', 'grid-column', 'grid-row',
-			'grid-area', 'grid-gap',
-			'transform', 'transition', 'animation'
+			'display',
+			'position',
+			'top',
+			'right',
+			'bottom',
+			'left',
+			'z-index',
+			'float',
+			'clear',
+			'flex',
+			'flex-direction',
+			'flex-wrap',
+			'flex-grow',
+			'flex-shrink',
+			'flex-basis',
+			'justify-content',
+			'align-items',
+			'align-self',
+			'align-content',
+			'gap',
+			'row-gap',
+			'column-gap',
+			'grid-template-columns',
+			'grid-template-rows',
+			'grid-column',
+			'grid-row',
+			'grid-area',
+			'grid-gap',
+			'transform',
+			'transition',
+			'animation'
 		]
 	}
 };
@@ -71,7 +153,7 @@ const TAILWIND_PATTERNS: RegExp[] = [
 	/^(block|inline|hidden|visible|invisible|static|fixed|absolute|relative|sticky)$/,
 	/^(sr-only|not-sr-only)$/,
 	/^-?(translate|rotate|scale|skew)-/,
-	/^(transition|duration|ease|delay|animate)-/,
+	/^(transition|duration|ease|delay|animate)-/
 ];
 
 /**
@@ -107,7 +189,7 @@ export function calculateSpecificity(selector: string): [number, number, number]
 	// (comma-separated). Replace each with its contribution removed from the
 	// string so the inner tokens aren't double-counted by the simple matches.
 	for (const name of ['is', 'has', 'not']) {
-		working = stripFunctionalPseudo(working, name, inner => {
+		working = stripFunctionalPseudo(working, name, (inner) => {
 			const [i, c, t] = maxSpecificityOfList(inner);
 			ids += i;
 			classes += c;
@@ -222,7 +304,10 @@ function splitTopLevel(input: string, delimiter: string): string[] {
 /**
  * Compare specificity values: returns positive if a wins, negative if b wins, 0 if equal
  */
-export function compareSpecificity(a: [number, number, number], b: [number, number, number]): number {
+export function compareSpecificity(
+	a: [number, number, number],
+	b: [number, number, number]
+): number {
 	for (let i = 0; i < 3; i++) {
 		if (a[i] !== b[i]) return a[i] - b[i];
 	}
@@ -233,7 +318,7 @@ export function compareSpecificity(a: [number, number, number], b: [number, numb
  * Check if a class name looks like a Tailwind utility class
  */
 export function isTailwindClass(className: string): boolean {
-	return TAILWIND_PATTERNS.some(re => re.test(className));
+	return TAILWIND_PATTERNS.some((re) => re.test(className));
 }
 
 /**
@@ -270,7 +355,7 @@ export function detectRuleSource(rule: CSSStyleRule, sheet: CSSStyleSheet): Styl
 
 	// Tailwind: check if selector classes are Tailwind-like
 	const selectorClasses = selector.match(/\.[\w-[\]/]+/g) || [];
-	const hasTailwind = selectorClasses.some(c => isTailwindClass(c.slice(1)));
+	const hasTailwind = selectorClasses.some((c) => isTailwindClass(c.slice(1)));
 	if (hasTailwind) {
 		return {
 			type: 'tailwind',
@@ -301,7 +386,10 @@ export function detectRuleSource(rule: CSSStyleRule, sheet: CSSStyleSheet): Styl
  * Recursively collect CSSStyleRules from a rule list, descending into @media rules
  * that match the current viewport
  */
-function collectStyleRules(ruleList: CSSRuleList, sheet: CSSStyleSheet): { rule: CSSStyleRule; sheet: CSSStyleSheet }[] {
+function collectStyleRules(
+	ruleList: CSSRuleList,
+	sheet: CSSStyleSheet
+): { rule: CSSStyleRule; sheet: CSSStyleSheet }[] {
 	const results: { rule: CSSStyleRule; sheet: CSSStyleSheet }[] = [];
 
 	for (let i = 0; i < ruleList.length; i++) {
@@ -333,7 +421,9 @@ function collectStyleRules(ruleList: CSSRuleList, sheet: CSSStyleSheet): { rule:
 /**
  * Get all CSS rules that apply to an element
  */
-export function getMatchingRules(element: HTMLElement): { rule: CSSStyleRule; source: StyleSource; order: number }[] {
+export function getMatchingRules(
+	element: HTMLElement
+): { rule: CSSStyleRule; source: StyleSource; order: number }[] {
 	const results: { rule: CSSStyleRule; source: StyleSource; order: number }[] = [];
 	let order = 0;
 
@@ -376,14 +466,19 @@ export function getMatchingRules(element: HTMLElement): { rule: CSSStyleRule; so
 /**
  * Generate a suggestion for a CSS conflict based on the rule types involved
  */
-function generateConflictSuggestion(property: string, rules: StyleConflictRule[]): string | undefined {
-	const hasImportant = rules.some(r => r.important);
-	const types = new Set(rules.map(r => {
-		if (r.selector === '(inline)') return 'inline';
-		if (r.selector.match(/\.s-[\w-]+|\.svelte-[\w]+/)) return 'scoped';
-		if (TAILWIND_PATTERNS.some(re => re.test(r.selector.replace(/^\./, '')))) return 'tailwind';
-		return 'stylesheet';
-	}));
+function generateConflictSuggestion(
+	property: string,
+	rules: StyleConflictRule[]
+): string | undefined {
+	const hasImportant = rules.some((r) => r.important);
+	const types = new Set(
+		rules.map((r) => {
+			if (r.selector === '(inline)') return 'inline';
+			if (r.selector.match(/\.s-[\w-]+|\.svelte-[\w]+/)) return 'scoped';
+			if (TAILWIND_PATTERNS.some((re) => re.test(r.selector.replace(/^\./, '')))) return 'tailwind';
+			return 'stylesheet';
+		})
+	);
 
 	if (hasImportant) {
 		return `!important is used on "${property}". Avoid !important — increase specificity or restructure CSS instead.`;
@@ -420,7 +515,10 @@ export function analyzeStyles(element: HTMLElement): {
 	}
 
 	// Build property -> rules map for conflict detection, tracking !important and order
-	const propertyRules: Record<string, { value: string; source: StyleSource; important: boolean; order: number }[]> = {};
+	const propertyRules: Record<
+		string,
+		{ value: string; source: StyleSource; important: boolean; order: number }[]
+	> = {};
 	for (const { rule, source, order } of matchingRules) {
 		for (let i = 0; i < rule.style.length; i++) {
 			const prop = rule.style[i];
@@ -445,7 +543,7 @@ export function analyzeStyles(element: HTMLElement): {
 	// Detect conflicts (properties defined in multiple rules with different values)
 	const conflicts: StyleConflict[] = [];
 	for (const [prop, rules] of Object.entries(propertyRules)) {
-		const uniqueValues = new Set(rules.map(r => r.value));
+		const uniqueValues = new Set(rules.map((r) => r.value));
 		if (uniqueValues.size > 1) {
 			// Sort rules: !important first, then by specificity descending, then by order descending
 			const sorted = [...rules].sort((a, b) => {
@@ -478,7 +576,8 @@ export function analyzeStyles(element: HTMLElement): {
 
 		for (const propName of catDef.properties) {
 			const value = computed.getPropertyValue(propName);
-			if (!value || (value === 'none' && !['display', 'border', 'outline'].includes(propName))) continue;
+			if (!value || (value === 'none' && !['display', 'border', 'outline'].includes(propName)))
+				continue;
 
 			// Determine source
 			let source: StyleSource = { type: 'user-agent' };
@@ -499,7 +598,7 @@ export function analyzeStyles(element: HTMLElement): {
 			}
 
 			const isOverridden = conflicts.some(
-				c => c.property === propName && c.rules.some(r => !r.won)
+				(c) => c.property === propName && c.rules.some((r) => !r.won)
 			);
 
 			properties.push({ name: propName, value, source, isOverridden });
@@ -563,12 +662,19 @@ export function formatStylesForAgent(
 /** ` → <source>` suffix used after a property value (StyleGrab, ui_inspect). */
 export function formatSourceStr(source: StyleSource): string {
 	switch (source.type) {
-		case 'inline': return ' \u2192 inline style';
-		case 'svelte-scoped': return ` \u2192 Svelte scoped${source.file ? ' (' + source.file + ')' : ''}`;
-		case 'tailwind': return ` \u2192 Tailwind (${source.selector || ''})`;
-		case 'stylesheet': return ` \u2192 ${source.file || 'stylesheet'}${source.selector ? ' (' + source.selector + ')' : ''}`;
-		case 'inherited': return ' \u2192 inherited';
-		case 'user-agent': return ' \u2192 user-agent default';
-		default: return '';
+		case 'inline':
+			return ' \u2192 inline style';
+		case 'svelte-scoped':
+			return ` \u2192 Svelte scoped${source.file ? ' (' + source.file + ')' : ''}`;
+		case 'tailwind':
+			return ` \u2192 Tailwind (${source.selector || ''})`;
+		case 'stylesheet':
+			return ` \u2192 ${source.file || 'stylesheet'}${source.selector ? ' (' + source.selector + ')' : ''}`;
+		case 'inherited':
+			return ' \u2192 inherited';
+		case 'user-agent':
+			return ' \u2192 user-agent default';
+		default:
+			return '';
 	}
 }

@@ -122,7 +122,9 @@ async function finishWait(page: Page): Promise<Outcome> {
 
 test.describe('svelte-grab/vite plugin in the playground', () => {
 	test('marks the page and serves module-graph importers', async ({ activated: page }) => {
-		const marker = await page.evaluate(() => (window as unknown as Record<string, unknown>).__SVELTE_GRAB_VITE__);
+		const marker = await page.evaluate(
+			() => (window as unknown as Record<string, unknown>).__SVELTE_GRAB_VITE__
+		);
 		expect(marker).toMatchObject({
 			root: PLAYGROUND_ROOT.replace(/\/$/, ''),
 			hmrBridge: true,
@@ -133,7 +135,10 @@ test.describe('svelte-grab/vite plugin in the playground', () => {
 		const res = await page.request.get('/__svelte-grab/importers?file=FixtureCard.svelte');
 		expect(res.status()).toBe(200);
 		const body = await res.json();
-		expect(body).toMatchObject({ found: true, matches: ['src/components/fixtures/FixtureCard.svelte'] });
+		expect(body).toMatchObject({
+			found: true,
+			matches: ['src/components/fixtures/FixtureCard.svelte']
+		});
 		expect(body.importers.map((i: { file: string }) => i.file)).toContain('src/App.svelte');
 
 		const cross = await page.request.get('/__svelte-grab/importers?file=FixtureCard.svelte', {
@@ -156,7 +161,9 @@ test.describe('ui_wait_for_hmr in the page', () => {
 		await page.exposeFunction('__bridged', (type: string) => bridged.push(type));
 		await page.evaluate(() =>
 			window.addEventListener('svelte-grab:hmr', (e) =>
-				(window as unknown as { __bridged: (t: string) => void }).__bridged((e as CustomEvent).detail.type)
+				(window as unknown as { __bridged: (t: string) => void }).__bridged(
+					(e as CustomEvent).detail.type
+				)
 			)
 		);
 
@@ -184,7 +191,10 @@ test.describe('ui_wait_for_hmr in the page', () => {
 			expect(data.lost).toEqual([]);
 
 			const toA = data.rebound.find((r) => r.from === cards[0].ref)!.to;
-			await expect(page.locator(`[data-sg-ref="${toA}"]`)).toHaveAttribute('data-testid', 'fx-card-a');
+			await expect(page.locator(`[data-sg-ref="${toA}"]`)).toHaveAttribute(
+				'data-testid',
+				'fx-card-a'
+			);
 			await expect(page.locator(`[data-sg-ref="${toA}"] p`)).toHaveText(`Card a${EDIT_MARK}`);
 
 			// The stale ref still resolves, to the new element.
@@ -237,10 +247,17 @@ test.describe('ui_wait_for_hmr in the page', () => {
 		await expect(page.getByTestId('fx-card-text-a')).toHaveText('Card a', { timeout: 15_000 });
 	});
 
-	test('times out with a clear message when the file never updates', async ({ activated: page }) => {
-		const out = await callTool(page, 'ui_wait_for_hmr', { files: ['NotEdited.svelte'], timeoutMs: 300 });
+	test('times out with a clear message when the file never updates', async ({
+		activated: page
+	}) => {
+		const out = await callTool(page, 'ui_wait_for_hmr', {
+			files: ['NotEdited.svelte'],
+			timeoutMs: 300
+		});
 		expect(out.ok).toBe(false);
-		expect(out.error).toMatch(/^No HMR update touching NotEdited\.svelte within 0\.3s \(source: vite-hmr\)/);
+		expect(out.error).toMatch(
+			/^No HMR update touching NotEdited\.svelte within 0\.3s \(source: vite-hmr\)/
+		);
 	});
 });
 
@@ -286,7 +303,9 @@ test.describe('ui_wait_for_hmr through a real MCP client', () => {
 			const data = out.data as unknown as WaitData;
 			expect(data.status).toBe('updated');
 			expect(data.updated).toContain('/src/components/fixtures/FixtureCard.svelte');
-			expect(data.rebound.map((r) => r.from)).toEqual(expect.arrayContaining([cards[0].ref, cards[1].ref]));
+			expect(data.rebound.map((r) => r.from)).toEqual(
+				expect.arrayContaining([cards[0].ref, cards[1].ref])
+			);
 			expect(out.text).toMatch(/Refs: \d+ kept, \d+ rebound/);
 
 			const toB = data.rebound.find((r) => r.from === cards[1].ref)!.to;
@@ -303,7 +322,11 @@ test.describe('ui_wait_for_hmr through a real MCP client', () => {
 		await waitForActiveTab(client!, tabId);
 
 		try {
-			const waiting = call(client!, 'ui_wait_for_hmr', { files: ['main.ts'], timeoutMs: 20_000, tabId });
+			const waiting = call(client!, 'ui_wait_for_hmr', {
+				files: ['main.ts'],
+				timeoutMs: 20_000,
+				tabId
+			});
 			await page.waitForTimeout(200);
 			// main.ts has no HMR boundary: Vite fully reloads the page.
 			writeFileSync(MAIN_FILE, mainOriginal + MAIN_MARK);

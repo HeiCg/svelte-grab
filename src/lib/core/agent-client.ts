@@ -174,7 +174,10 @@ export class AgentClient {
 	/**
 	 * Send a request to an agent via the relay.
 	 */
-	sendRequest(agentId: string, context: { content: string[]; prompt: string; selectedCount: number }): void {
+	sendRequest(
+		agentId: string,
+		context: { content: string[]; prompt: string; selectedCount: number }
+	): void {
 		if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
 			this.onError?.('Not connected to relay server');
 			return;

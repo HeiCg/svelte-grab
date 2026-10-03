@@ -16,7 +16,12 @@ const ANSI = {
 	green: '\x1b[32m'
 };
 
-const SEVERITY_COLOR: Record<Severity, string> = { high: ANSI.red, medium: ANSI.yellow, low: ANSI.blue, info: ANSI.gray };
+const SEVERITY_COLOR: Record<Severity, string> = {
+	high: ANSI.red,
+	medium: ANSI.yellow,
+	low: ANSI.blue,
+	info: ANSI.gray
+};
 
 export interface TextReportOptions {
 	color?: boolean;
@@ -41,13 +46,20 @@ export function gateLine(result: AuditResult): string {
 export function formatText(result: AuditResult, options: TextReportOptions = {}): string {
 	const c = (code: string, text: string) => (options.color ? `${code}${text}${ANSI.reset}` : text);
 	const lines: string[] = [];
-	lines.push(c(ANSI.bold, `svelte-grab audit: ${result.filesScanned} files scanned in ${result.root} (${result.durationMs} ms)`));
+	lines.push(
+		c(
+			ANSI.bold,
+			`svelte-grab audit: ${result.filesScanned} files scanned in ${result.root} (${result.durationMs} ms)`
+		)
+	);
 	lines.push('');
 	if (result.findings.length === 0) lines.push(c(ANSI.green, 'No findings.'));
 	for (const severity of SEVERITIES) {
 		const group = result.findings.filter((f) => f.severity === severity);
 		if (group.length === 0) continue;
-		lines.push(c(ANSI.bold + SEVERITY_COLOR[severity], `${severity.toUpperCase()} (${group.length})`));
+		lines.push(
+			c(ANSI.bold + SEVERITY_COLOR[severity], `${severity.toUpperCase()} (${group.length})`)
+		);
 		for (const f of group) {
 			lines.push(`  [${f.verdict}] ${c(ANSI.bold, f.rule)}  ${f.title}`);
 			lines.push(`    ${c(ANSI.dim, f.source)}`);
@@ -92,7 +104,8 @@ function findingRow(f: AuditFinding): string {
 export function formatHtml(result: AuditResult): string {
 	const s = result.summary;
 	const cards = SEVERITIES.map(
-		(sev) => `<div class="card sev-${sev}"><div class="n">${s.bySeverity[sev]}</div><div>${sev}</div></div>`
+		(sev) =>
+			`<div class="card sev-${sev}"><div class="n">${s.bySeverity[sev]}</div><div>${sev}</div></div>`
 	).join('');
 	const sections = SEVERITIES.map((sev) => {
 		const group = result.findings.filter((f) => f.severity === sev);
