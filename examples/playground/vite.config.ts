@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { fileURLToPath } from 'node:url';
+// The repo's own Vite plugin source (what `svelte-grab/vite` ships): HMR
+// bridge, /__svelte-grab/importers and the editor-link root marker.
+import { svelteGrab } from '../../src/vite/index.ts';
 
 // Resolve the library's REAL source so e2e exercises the actual code in src/lib,
 // not the published dist. The `@sveltejs/vite-plugin-svelte` dev build is what
@@ -18,7 +21,8 @@ export default defineConfig({
 			compilerOptions: {
 				experimental: { async: true }
 			}
-		})
+		}),
+		svelteGrab()
 	],
 	resolve: {
 		alias: {
