@@ -68,8 +68,7 @@ export interface AgentRuntimeOptions {
 
 /** Messages on RUNTIME_TAB_CHANNEL. `from` / `to` are per-runtime instance ids. */
 type TabChannelMessage =
-	| { type: 'ping'; tabId: string; from: string }
-	| { type: 'pong'; tabId: string; to: string };
+	{ type: 'ping'; tabId: string; from: string } | { type: 'pong'; tabId: string; to: string };
 
 export interface AgentRuntimeHandle {
 	/** `false` when the runtime decided to stay off (SSR / production / no EventSource). */

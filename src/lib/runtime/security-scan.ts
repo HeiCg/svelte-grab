@@ -802,8 +802,7 @@ function checkSvelteKit(
 function viteClientEnv(win: Window): Record<string, unknown> | null {
 	try {
 		const info = (win as unknown as Record<string, unknown>)[VITE_PLUGIN_GLOBAL] as
-			| { env?: unknown }
-			| undefined;
+			{ env?: unknown } | undefined;
 		return info?.env && typeof info.env === 'object' ? (info.env as Record<string, unknown>) : null;
 	} catch {
 		return null;

@@ -36,7 +36,7 @@
 	"devDependencies": {
 		"sv": "^1.0.1",
 		"tsdown": "^0.22.1",
-		"typescript": "^5.0.0"
+		"typescript": "^6.0.3"
 	},
 	"keywords": [
 		"sv-add",

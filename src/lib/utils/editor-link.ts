@@ -14,15 +14,7 @@ import { OPEN_IN_EDITOR_PATH, getVitePluginInfo } from './vite-plugin-info.js';
 
 /** Editor identifiers supported by {@link buildEditorUrl}. */
 export type EditorId =
-	| 'vscode'
-	| 'cursor'
-	| 'webstorm'
-	| 'zed'
-	| 'sublime'
-	| 'idea'
-	| 'phpstorm'
-	| 'pycharm'
-	| 'none';
+	'vscode' | 'cursor' | 'webstorm' | 'zed' | 'sublime' | 'idea' | 'phpstorm' | 'pycharm' | 'none';
 
 /**
  * Cached Vite project root.

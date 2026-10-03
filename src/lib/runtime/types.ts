@@ -11,8 +11,7 @@ export interface RuntimeToolResult {
 
 /** Outcome of one command, before the `id`/`tabId` envelope is added. */
 export type RuntimeCommandOutcome =
-	| { ok: true; result: RuntimeToolResult }
-	| { ok: false; error: string };
+	{ ok: true; result: RuntimeToolResult } | { ok: false; error: string };
 
 /** A page-side tool. Throw to report an error (`ok: false`, message as `error`). */
 export type RuntimeToolHandler = (
