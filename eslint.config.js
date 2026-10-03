@@ -28,7 +28,11 @@ export default tseslint.config(
 			'**/cloned-*/',
 			// Agent worktrees; demo app has its own Svelte/async compiler config
 			'.claude/',
-			'examples/'
+			'examples/',
+			// Standalone packages (sv add-on): build output and their own demo/deps
+			'packages/*/dist/',
+			'packages/*/node_modules/',
+			'packages/*/demo/'
 		]
 	},
 	js.configs.recommended,

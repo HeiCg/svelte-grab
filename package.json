@@ -1,13 +1,18 @@
 {
   "name": "svelte-grab",
   "version": "1.4.2",
-  "description": "Click any element to get component stack with source locations. Makes coding agents 3x faster for UI changes.",
+  "description": "Give coding agents eyes into your Svelte app: an MCP server that lets agents snapshot, find, inspect and verify live Svelte 5 UI with component and source locations, plus Alt+Click dev tools for humans.",
   "keywords": [
     "svelte",
     "svelte5",
+    "sveltekit",
     "devtools",
     "developer-experience",
+    "mcp",
+    "model-context-protocol",
+    "agent",
     "coding-agent",
+    "playwright",
     "claude",
     "cursor",
     "ai-coding"

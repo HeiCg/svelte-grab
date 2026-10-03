@@ -4,16 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-svelte-grab is a Svelte 5 dev tool suite (published to npm) that captures and formats context for LLMs working with frontend code. The core tool (SvelteGrab) lets you Alt+Click any element to get component stack with source locations. Additional tools inspect state, styles, accessibility, errors, props hierarchy, and render performance. All tools read `__svelte_meta` metadata that Svelte 5 attaches to DOM elements in dev builds and auto-disable in production.
+svelte-grab (published to npm) gives coding agents eyes into a Svelte 5 app. Since 2.0 it is an **agent runtime**: an in-page runtime answers the MCP server's `ui_*` tools, so the agent queries the live UI itself (component, source `file:line`, props, state, styles, a11y, HMR, verification). The human tools are still there: Alt+Click any element for its component stack, plus state, styles, accessibility, errors, props hierarchy and render profiling. Everything reads the `__svelte_meta` that Svelte 5 attaches to DOM elements in dev builds and auto-disables in production.
 
-Beyond the browser components, svelte-grab includes a CLI (`svelte-grab init|relay|mcp`), a WebSocket agent relay server, and an MCP server for direct coding agent integration.
+The agent loop the tools are designed for (spec: `docs/agent-runtime-spec.md`):
+
+```
+ui_snapshot -> ui_find -> ui_inspect -> (agent edits code) -> ui_wait_for_hmr -> ui_verify
+```
+
+Beyond the browser components: a CLI (`svelte-grab init|mcp|relay`), the MCP server (main integration surface), a Vite plugin (`svelte-grab/vite`), an `sv` add-on (`packages/sv-addon`) and the WebSocket relay (maintenance mode).
 
 ## Commands
 
-- **Build:** `npm run build` — runs `svelte-package -i src/lib -o dist` then `tsc -p tsconfig.server.json` (for relay/cli/mcp)
+- **Build:** `npm run build` — runs `svelte-package -i src/lib -o dist` then `tsc -p tsconfig.server.json` (for relay/cli/mcp/vite)
 - **Type check:** `npm run check` — runs `svelte-check --tsconfig ./tsconfig.json`
 - **Unit tests:** `npm run test` (watch) / `npm run test:run` (CI) — Vitest, tests live in `tests/`
-- **E2E:** `npm run test:e2e` — Playwright against the `examples/playground` demo app (run with `npm run dev:demo`)
+- **E2E:** `npm run test:e2e` — Playwright against the `examples/playground` demo app (run with `npm run dev:demo`). Dev server port: `SG_E2E_PORT` (default 5189; read by `playwright.config.ts` and the playground's `vite.config.ts`), so parallel runs can use their own port. Runners use at most 2 workers.
 - **Lint / format:** `npm run lint` (ESLint flat config) / `npm run format` (Prettier)
 
 CI (`.github/workflows/ci.yml`) runs build + check + unit + e2e on every PR.
@@ -31,15 +37,16 @@ The relay (WS) and MCP (HTTP) servers are **dev-only, loopback-only** (bind `127
 ### Two Build Targets
 
 1. **Svelte components** (`src/lib/`) — built by `svelte-package`, uses `tsconfig.json`. Browser-side code.
-2. **Server/Node code** (`src/relay/`, `src/cli/`, `src/mcp/`) — built by `tsc -p tsconfig.server.json`. Node.js code.
+2. **Server/Node code** (`src/relay/`, `src/cli/`, `src/mcp/`, `src/vite/`, `src/utils/`) — built by `tsc -p tsconfig.server.json`. Node.js code.
 
-These are separate TypeScript projects. `src/lib/` uses Svelte's compiler; the rest use plain `tsc`.
+These are separate TypeScript projects. `src/lib/` uses Svelte's compiler; the rest use plain `tsc`. `packages/sv-addon/` is a third, standalone npm package (see below) outside both builds; root `files: ["dist"]` does not ship it.
 
 ### Package Exports
 
 - `svelte-grab` — main entry, all Svelte components + core utilities + types
-- `svelte-grab/relay` — relay server, providers, protocol types (Node.js)
 - `svelte-grab/mcp` — MCP server (Node.js)
+- `svelte-grab/vite` — optional Vite plugin (Node.js)
+- `svelte-grab/relay` — relay server, providers, protocol types (Node.js, maintenance mode)
 - CLI binaries: `svelte-grab` and `svelte-grab-mcp`
 
 ### Components (`src/lib/*.svelte`)
@@ -84,19 +91,31 @@ These are separate TypeScript projects. `src/lib/` uses Svelte's compiler; the r
 
 `index.server.ts` exports noop stubs for all components (dev tools are client-only) and re-exports SSR-safe utilities. The `"node"` export condition in `package.json` points here.
 
-### Agent Relay (`src/relay/`)
+### Agent Runtime, page side (`src/lib/runtime/`)
 
-WebSocket relay server that bridges browser → relay → coding agent. Protocol uses typed messages (`agent-request`, `agent-status`, `agent-done`, `agent-error`, `handlers`). The provider pattern (`providers/base.ts`) defines the agent interface; `providers/claude-code.ts` implements it using `@anthropic-ai/claude-agent-sdk`.
+Mounted by SvelteGrab/DevKit when `enableMcp` (and `enableAgentRuntime`, default on). `connection.ts` listens for `runtime-command` on the MCP server's SSE `/events`, announces the tab with `POST /runtime/hello` and answers via `POST /runtime/result`; `commands.ts` dispatches to one module per tool: `snapshot.ts`, `find.ts`, `inspect.ts`, `hmr.ts` (`ui_wait_for_hmr`: `import.meta.hot`, then the Vite plugin bridge, then a DOM heuristic; must keep the literal `import.meta.hot`), `verify.ts`, `impact.ts`, `annotations.ts`. `refs.ts` holds the ref registry: session refs `eN` stamped as `data-sg-ref` (a locator for Playwright/chrome-devtools MCP) plus stable `ui://file:line:col#Component...` keys that re-resolve after re-render/HMR. `console-capture.ts` buffers console errors while connected; `server-probe.ts` finds the MCP port (4723-4732 via `GET /health`).
 
 ### MCP Server (`src/mcp/`)
 
-HTTP + stdio MCP server. Exposes tools: `get_element_context` (reads last browser grab), `undo_last_action`, `get_session_history`. The browser POSTs context to `/context`; MCP clients read it via the standard MCP protocol on `/mcp`.
+HTTP + stdio MCP server (`server.ts`, `cli.ts`; stdio mode also runs the HTTP sidecar the page talks to). Human-handoff tools: `watch_for_grab`, `get_element_context`, `get_*_report/context`, `undo_last_action`, `get_session_history`, `list_available_tools`. `runtime/` holds the agent-runtime side: `tools.ts` registers `ui_tabs`, `ui_snapshot`, `ui_find`, `ui_inspect`, `ui_annotations`, `ui_verify`, `ui_component_impact` (`hmr-tool.ts`: `ui_wait_for_hmr`); `command-channel.ts` (pending map + timeouts for SSE commands), `tab-registry.ts` (active tab), `validate.ts`. The wire contract is in the spec; every endpoint goes through the same `checkAccess` and body cap.
+
+### Vite plugin (`src/vite/`)
+
+`svelte-grab/vite`, dev server only: HMR bridge (`svelte-grab:hmr` window events, injected via `transformIndexHtml` and into modules importing `svelte-grab`), `GET /__svelte-grab/importers` from the module graph (used by `ui_component_impact`), and `window.__SVELTE_GRAB_VITE__` so open-in-editor uses Vite's `/__open-in-editor`.
+
+### Agent Relay (`src/relay/`) — maintenance mode
+
+Still supported, no new providers/features; new integrations use MCP. WebSocket relay server that bridges browser → relay → coding agent. Protocol uses typed messages (`agent-request`, `agent-status`, `agent-done`, `agent-error`, `handlers`). The provider pattern (`providers/base.ts`) defines the agent interface; `providers/claude-code.ts` implements it using `@anthropic-ai/claude-agent-sdk`.
 
 ### CLI (`src/cli/`)
 
-- `svelte-grab init` — Adds SvelteGrab to a SvelteKit project's layout
-- `svelte-grab relay` — Starts the WebSocket relay server
+- `svelte-grab init` — merges `.mcp.json` (svelte-grab + `@sveltejs/mcp`, optional `@playwright/mcp`), adds `svelteGrab()` to `vite.config`, injects `<SvelteDevKit />` (with `enableMcp` when `.mcp.json` declares svelte-grab). Flags: `--dry-run`, `--no-mcp-json`, `--no-svelte-mcp`, `--with-playwright-mcp`, `--no-vite-plugin`. The file edits are pure string transforms in `transforms.ts` (no fs, idempotent), shared with the sv add-on.
 - `svelte-grab mcp` — Starts the MCP server
+- `svelte-grab relay` / `add` / `remove` — relay (maintenance mode)
+
+### sv add-on (`packages/sv-addon/`)
+
+`@svelte-grab/sv`, the `sv` community add-on (`npx sv add @svelte-grab`). Its own package (peer `sv`, built with tsdown, not published by the root). `src/plan.ts` holds the logic against a minimal sv-like interface and imports `src/cli/transforms.ts`; `src/index.ts` only wires `defineAddon`. Root Vitest covers it (`tests/sv-addon.test.ts`) with a fake `sv`; never install `sv` in the root.
 
 ### Key Patterns
 
@@ -111,7 +130,8 @@ HTTP + stdio MCP server. Exposes tools: `get_element_context` (reads last browse
 - `html-to-image` — Screenshot feature in SvelteGrab
 - `ws` — WebSocket server for the relay
 - `@anthropic-ai/claude-agent-sdk` — Claude Code agent provider
-- `@modelcontextprotocol/sdk` — MCP protocol support
+- `@modelcontextprotocol/sdk` (+ `zod`) — MCP protocol support
+- `vite` — the `svelte-grab/vite` plugin
 
 ## Svelte 5 Patterns Used
 
