@@ -416,7 +416,16 @@ describe('runtime MCP tools', () => {
 			fakeZ,
 			{ registry: new TabRegistry(), channel: new CommandChannel({ registry: new TabRegistry(), broadcast: () => 1 }) }
 		);
-		expect([...tools.keys()]).toEqual(['ui_tabs', 'ui_snapshot', 'ui_find', 'ui_inspect', 'ui_annotations', 'ui_wait_for_hmr']);
+		expect([...tools.keys()]).toEqual([
+			'ui_tabs',
+			'ui_snapshot',
+			'ui_find',
+			'ui_inspect',
+			'ui_annotations',
+			'ui_wait_for_hmr',
+			'ui_verify',
+			'ui_component_impact'
+		]);
 		for (const name of ['ui_snapshot', 'ui_find', 'ui_inspect']) {
 			const { config } = tools.get(name)!;
 			expect(config.title).toBeTruthy();
@@ -525,6 +534,61 @@ describe('runtime MCP tools', () => {
 		// No args: forwarded as {} to the active tab
 		await tool.handler({}, {});
 		expect(sent[1]).toMatchObject({ targetTabId: 'a', tool: 'ui_annotations', args: {} });
+	});
+
+	it('ui_verify and ui_component_impact are listed and forward their args to the page (tabId stripped)', async () => {
+		const registry = new TabRegistry();
+		registry.hello(hello('a', true));
+		registry.hello(hello('b'));
+		const sent: RuntimeCommandMessage[] = [];
+		const channel: CommandChannel = new CommandChannel({
+			registry,
+			broadcast: (msg) => {
+				sent.push(msg);
+				queueMicrotask(() =>
+					channel.settle({
+						id: msg.id,
+						tabId: msg.targetTabId,
+						ok: true,
+						result: { text: `${msg.tool} ok`, data: { tool: msg.tool } }
+					})
+				);
+				return 1;
+			}
+		});
+		const chain: any = new Proxy(() => chain, { get: () => () => chain, apply: () => chain });
+		const fakeZ: any = new Proxy({}, { get: () => () => chain });
+		const tools = new Map<string, { config: McpToolConfig; handler: McpToolHandler }>();
+		registerRuntimeTools({ registerTool: (name, config, handler) => tools.set(name, { config, handler }) }, fakeZ, {
+			registry,
+			channel
+		});
+
+		const verify = tools.get('ui_verify')!;
+		expect(verify.config.title).toBeTruthy();
+		expect(Object.keys(verify.config.inputSchema!)).toEqual(['ref', 'checks', 'since', 'tabId']);
+		expect(verify.config.description).toContain('after ui_wait_for_hmr');
+		expect(verify.config.description).toContain('[data-sg-ref="e12"]');
+		const out = await verify.handler({ ref: 'e4', checks: ['overflow', 'console'], since: 123, tabId: 'b' }, {});
+		expect(sent[0]).toMatchObject({
+			targetTabId: 'b',
+			tool: 'ui_verify',
+			args: { ref: 'e4', checks: ['overflow', 'console'], since: 123 }
+		});
+		expect(sent[0].args).not.toHaveProperty('tabId');
+		expect(out).toEqual({ content: [{ type: 'text', text: 'ui_verify ok' }], structuredContent: { tool: 'ui_verify' } });
+
+		const impact = tools.get('ui_component_impact')!;
+		expect(impact.config.title).toBeTruthy();
+		expect(Object.keys(impact.config.inputSchema!)).toEqual(['ref', 'tabId']);
+		expect(impact.config.description).toMatch(/BEFORE editing a component/);
+		const out2 = await impact.handler({ ref: 'ui://src/lib/Button.svelte:2:1#Button[role=button,name=a][0]' }, {});
+		expect(sent[1]).toMatchObject({
+			targetTabId: 'a',
+			tool: 'ui_component_impact',
+			args: { ref: 'ui://src/lib/Button.svelte:2:1#Button[role=button,name=a][0]' }
+		});
+		expect(out2.structuredContent).toEqual({ tool: 'ui_component_impact' });
 	});
 });
 
