@@ -11,7 +11,7 @@
 		DARK_THEME,
 		LIGHT_THEME
 	} from './utils/shared.js';
-	import type { SvelteElement } from './utils/shared.js';
+	import { getSvelteLoc } from './utils/component-stack.js';
 	import { analyzeStyles, formatStylesForAgent } from './utils/css-analyzer.js';
 	import { registerToolOutput } from './utils/unified-export.js';
 	import { createCopyFeedback } from './utils/copy-with-feedback.js';
@@ -281,9 +281,9 @@
 		const cls = svelteEl.className ? ` class="${String(svelteEl.className).slice(0, 40)}"` : '';
 		elementTag = `<${tag}${cls}>`;
 
-		const meta = (svelteEl as SvelteElement).__svelte_meta;
-		elementFile = meta?.loc ? shortenPath(meta.loc.file) : undefined;
-		elementLine = meta?.loc?.line;
+		const loc = getSvelteLoc(svelteEl);
+		elementFile = loc ? shortenPath(loc.file) : undefined;
+		elementLine = loc?.line;
 
 		capturedElement = svelteEl;
 		const result = analyzeStyles(svelteEl);

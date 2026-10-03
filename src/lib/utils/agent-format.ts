@@ -60,8 +60,8 @@ export function formatForAgent(
 		}
 	}
 
-	// Component name from first entry
-	const componentName = extractComponentName(entries[0].file);
+	// Component name from first entry (the grabbed element's own component)
+	const componentName = entries[0].componentName ?? extractComponentName(entries[0].file);
 	if (componentName) {
 		parts.push(`Component: <${componentName}>`);
 	}
@@ -71,7 +71,9 @@ export function formatForAgent(
 		parts.push('Component Stack:');
 		for (let i = 0; i < entries.length; i++) {
 			const entry = entries[i];
-			const name = extractComponentName(entry.file) || entry.file.split('/').pop() || 'unknown';
+			// Component entries carry the child's tag; their file is the usage site.
+			const name =
+				entry.componentName || extractComponentName(entry.file) || entry.file.split('/').pop() || 'unknown';
 			parts.push(`  ${i + 1}. ${name} (${shortenPath(entry.file)}:${entry.line})`);
 		}
 	} else {

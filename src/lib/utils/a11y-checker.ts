@@ -1,5 +1,6 @@
 import type { A11yIssue, A11yReport } from '../types.js';
-import { shortenPath, type SvelteElement } from './shared.js';
+import { shortenPath } from './shared.js';
+import { getSvelteLoc } from './component-stack.js';
 
 /**
  * Educational "why this matters" text for each a11y rule
@@ -69,9 +70,9 @@ function elementHtml(el: HTMLElement, maxLen = 80): string {
  * Get element's svelte source location
  */
 function getElementSource(el: HTMLElement): { file?: string; line?: number } {
-	const meta = (el as SvelteElement).__svelte_meta;
-	if (meta?.loc) {
-		return { file: shortenPath(meta.loc.file), line: meta.loc.line };
+	const loc = getSvelteLoc(el);
+	if (loc) {
+		return { file: shortenPath(loc.file), line: loc.line };
 	}
 	return {};
 }
@@ -1001,9 +1002,9 @@ export function analyzeA11y(element: HTMLElement, includeSubtree: boolean): A11y
 
 	const tag = element.tagName.toLowerCase();
 	const cls = element.className ? ` class="${String(element.className).slice(0, 40)}"` : '';
-	const meta = (element as SvelteElement).__svelte_meta;
-	const file = meta?.loc ? shortenPath(meta.loc.file) : undefined;
-	const line = meta?.loc?.line;
+	const loc = getSvelteLoc(element);
+	const file = loc ? shortenPath(loc.file) : undefined;
+	const line = loc?.line;
 
 	return {
 		critical,

@@ -1,9 +1,18 @@
-import type { SvelteMeta, ThemeConfig } from '../types.js';
+import type { ThemeConfig } from '../types.js';
+import {
+	type SvelteMetaElement,
+	extractComponentName,
+	findMetaElement,
+	getSvelteMeta
+} from './component-stack.js';
 
 /**
  * Element with possible Svelte metadata
  */
-export type SvelteElement = HTMLElement & { __svelte_meta?: SvelteMeta };
+export type SvelteElement = SvelteMetaElement;
+
+// Re-exported for existing importers; implemented next to the meta walker.
+export { extractComponentName };
 
 /**
  * Dark theme preset
@@ -56,24 +65,10 @@ export function shortenPath(fullPath: string): string {
 }
 
 /**
- * Extract component name from file path
- */
-export function extractComponentName(filePath: string): string | null {
-	const match = filePath.match(/\/([^/]+)\.svelte$/);
-	return match ? match[1] : null;
-}
-
-/**
- * Find the closest element with __svelte_meta
+ * Find the closest element (itself or an ancestor) with Svelte meta.loc
  */
 export function findSvelteElement(target: HTMLElement): SvelteElement | null {
-	let current: HTMLElement | null = target;
-	while (current) {
-		const meta = (current as SvelteElement).__svelte_meta;
-		if (meta?.loc) return current as SvelteElement;
-		current = current.parentElement;
-	}
-	return null;
+	return findMetaElement(target);
 }
 
 /**
@@ -85,7 +80,7 @@ export function detectDevMode(forceEnable: boolean): boolean {
 	if (forceEnable) return true;
 	if (_devModeCache !== null) return _devModeCache;
 
-	if ((document.body as SvelteElement).__svelte_meta) {
+	if (getSvelteMeta(document.body)) {
 		_devModeCache = true;
 		return true;
 	}
@@ -93,7 +88,7 @@ export function detectDevMode(forceEnable: boolean): boolean {
 	const selectors = ['#app', '#root', 'main', '[data-sveltekit-hydrate]', '[data-svelte]'];
 	for (const selector of selectors) {
 		const el = document.querySelector(selector);
-		if (el && (el as SvelteElement).__svelte_meta) {
+		if (getSvelteMeta(el)) {
 			_devModeCache = true;
 			return true;
 		}
@@ -102,7 +97,7 @@ export function detectDevMode(forceEnable: boolean): boolean {
 	const bodyChildren = document.body.children;
 	const maxCheck = Math.min(bodyChildren.length, 10);
 	for (let i = 0; i < maxCheck; i++) {
-		if ((bodyChildren[i] as SvelteElement).__svelte_meta) {
+		if (getSvelteMeta(bodyChildren[i])) {
 			_devModeCache = true;
 			return true;
 		}
@@ -111,7 +106,7 @@ export function detectDevMode(forceEnable: boolean): boolean {
 	const allEls = document.querySelectorAll('*');
 	const maxBroad = Math.min(allEls.length, 50);
 	for (let i = 0; i < maxBroad; i++) {
-		if ((allEls[i] as SvelteElement).__svelte_meta) {
+		if (getSvelteMeta(allEls[i])) {
 			_devModeCache = true;
 			return true;
 		}
