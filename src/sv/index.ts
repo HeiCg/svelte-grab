@@ -1,55 +1,86 @@
 /**
- * `sv` community add-on for svelte-grab: `npx sv add @svelte-grab`.
+ * `sv` community add-on for svelte-grab: `npx sv add svelte-grab`.
  *
  * Does what `npx svelte-grab init` does: svelte-grab dev dependency, `.mcp.json`
  * (svelte-grab + optional @sveltejs/mcp and @playwright/mcp), `svelteGrab()` in
  * the Vite config, `<SvelteDevKit />` in the root layout and the agent skills
  * in `.claude/skills/`.
+ *
+ * sv (1.x) loads it as the `./sv` export of the svelte-grab package: it unpacks
+ * the npm tarball into its own node_modules (no dependency install) and
+ * `import('svelte-grab/sv')`s the default export. package.json must list `sv`
+ * in peerDependencies (sv refuses the package otherwise; optional here, so
+ * regular svelte-grab installs do not pull it in).
+ *
+ * No runtime import from `sv`: `defineAddon` and `defineAddonOptions` only
+ * return the object they are given, and importing `sv` would fail with
+ * `sv add file:<path>`, where Node resolves the symlinked add-on from its real
+ * path, outside sv's node_modules. The shape below follows sv's `Addon` type.
  */
-import { defineAddon, defineAddonOptions } from 'sv';
 import {
 	ADDON_ID,
 	DEFAULT_OPTIONS,
 	nextStepsFor,
 	runSvelteGrabAddon,
-	type AddonReport
+	type AddonReport,
+	type AddonRunContext,
+	type SvelteGrabAddonOptions
 } from './plan.js';
 
-const options = defineAddonOptions()
-	.add('mcpJson', {
+/** sv's boolean question (`defineAddonOptions().add(key, question)`). */
+export interface SvBooleanQuestion {
+	question: string;
+	type: 'boolean';
+	default: boolean;
+	/** Asked only when this returns true; otherwise the answer is undefined. */
+	condition?: (answers: Partial<SvelteGrabAddonOptions>) => boolean;
+}
+
+/** The subset of sv's `Addon` definition this add-on uses. */
+export interface SvelteGrabSvAddon {
+	id: string;
+	shortDescription: string;
+	homepage: string;
+	options: Record<keyof SvelteGrabAddonOptions, SvBooleanQuestion>;
+	run: (workspace: AddonRunContext) => void;
+	nextSteps: () => string[];
+}
+
+const options: SvelteGrabSvAddon['options'] = {
+	mcpJson: {
 		question: 'Write .mcp.json so your coding agent starts the svelte-grab MCP server?',
 		type: 'boolean',
 		default: DEFAULT_OPTIONS.mcpJson
-	})
-	.add('svelteMcp', {
+	},
+	svelteMcp: {
 		question: 'Also add the official Svelte MCP (@sveltejs/mcp: docs + autofixer)?',
 		type: 'boolean',
 		default: DEFAULT_OPTIONS.svelteMcp,
 		condition: ({ mcpJson }) => mcpJson === true
-	})
-	.add('playwrightMcp', {
+	},
+	playwrightMcp: {
 		question: 'Also add Playwright MCP (@playwright/mcp: real clicks, screenshots, viewports)?',
 		type: 'boolean',
 		default: DEFAULT_OPTIONS.playwrightMcp,
 		condition: ({ mcpJson }) => mcpJson === true
-	})
-	.add('vitePlugin', {
+	},
+	vitePlugin: {
 		question: 'Add the svelte-grab Vite plugin (HMR file list, importers, open-in-editor)?',
 		type: 'boolean',
 		default: DEFAULT_OPTIONS.vitePlugin
-	})
-	.add('skills', {
+	},
+	skills: {
 		question:
 			'Install the svelte-grab agent skills into .claude/skills/ (UI loop + security/performance audit)?',
 		type: 'boolean',
 		default: DEFAULT_OPTIONS.skills
-	})
-	.build();
+	}
+};
 
 // nextSteps runs after run(); keep the report to tell the user about manual steps.
 let lastReport: AddonReport | undefined;
 
-export default defineAddon({
+const addon: SvelteGrabSvAddon = {
 	id: ADDON_ID,
 	shortDescription: 'give coding agents eyes into your Svelte app',
 	homepage: 'https://github.com/HeiCg/svelte-grab',
@@ -68,4 +99,6 @@ export default defineAddon({
 	},
 
 	nextSteps: () => nextStepsFor(lastReport)
-});
+};
+
+export default addon;

@@ -12,7 +12,7 @@ The agent loop the tools are designed for (spec: `docs/agent-runtime-spec.md`):
 ui_snapshot -> ui_find -> ui_inspect -> (agent edits code) -> ui_wait_for_hmr -> ui_verify
 ```
 
-Beyond the browser components: a CLI (`svelte-grab init|mcp|relay`), the MCP server (main integration surface), a Vite plugin (`svelte-grab/vite`), an `sv` add-on (`packages/sv-addon`) and the WebSocket relay (maintenance mode).
+Beyond the browser components: a CLI (`svelte-grab init|mcp|relay`), the MCP server (main integration surface), a Vite plugin (`svelte-grab/vite`), an `sv` add-on (`svelte-grab/sv`, `npx sv add svelte-grab`) and the WebSocket relay (maintenance mode).
 
 ## Commands
 
@@ -37,15 +37,16 @@ The relay (WS) and MCP (HTTP) servers are **dev-only, loopback-only** (bind `127
 ### Two Build Targets
 
 1. **Svelte components** (`src/lib/`) — built by `svelte-package`, uses `tsconfig.json`. Browser-side code.
-2. **Server/Node code** (`src/relay/`, `src/cli/`, `src/mcp/`, `src/vite/`, `src/utils/`) — built by `tsc -p tsconfig.server.json`. Node.js code.
+2. **Server/Node code** (`src/relay/`, `src/cli/`, `src/mcp/`, `src/vite/`, `src/sv/`, `src/utils/`) — built by `tsc -p tsconfig.server.json`. Node.js code.
 
-These are separate TypeScript projects. `src/lib/` uses Svelte's compiler; the rest use plain `tsc`. `packages/sv-addon/` is a third, standalone npm package (see below) outside both builds; root `files: ["dist"]` does not ship it.
+These are separate TypeScript projects. `src/lib/` uses Svelte's compiler; the rest use plain `tsc`.
 
 ### Package Exports
 
 - `svelte-grab` — main entry, all Svelte components + core utilities + types
 - `svelte-grab/mcp` — MCP server (Node.js)
 - `svelte-grab/vite` — optional Vite plugin (Node.js)
+- `svelte-grab/sv` — `sv` community add-on (`npx sv add svelte-grab`; Node.js)
 - `svelte-grab/relay` — relay server, providers, protocol types (Node.js, maintenance mode)
 - CLI binaries: `svelte-grab` and `svelte-grab-mcp`
 
@@ -114,9 +115,9 @@ Still supported, no new providers/features; new integrations use MCP. WebSocket 
 - `svelte-grab audit` — Static security scanner (`src/cli/audit/`: walker, rules, text/JSON/HTML reporters, `finding-schema.json` + zero-dep validator); reuses `src/lib/security/secret-rules.ts` (pure, emitted by the server tsc as `dist/lib/security/`); fixtures in `tests/fixtures/audit-app/` keep secret placeholders filled at test time
 - `svelte-grab relay` / `add` / `remove` — relay (maintenance mode)
 
-### sv add-on (`packages/sv-addon/`)
+### sv add-on (`src/sv/`)
 
-`@svelte-grab/sv`, the `sv` community add-on (`npx sv add @svelte-grab`). Its own package (peer `sv`, built with tsdown, not published by the root). `src/plan.ts` holds the logic against a minimal sv-like interface and imports `src/cli/transforms.ts`; `src/index.ts` only wires `defineAddon`. Root Vitest covers it (`tests/sv-addon.test.ts`) with a fake `sv`; never install `sv` in the root.
+The `sv` community add-on, shipped in the main package as the `./sv` export (`npx sv add svelte-grab`). sv 1.x unpacks the svelte-grab tarball into its own `node_modules` without installing dependencies and imports `svelte-grab/sv`, so the add-on module graph may only import relative modules and `node:` builtins (no runtime import of `sv`: `defineAddon` is an identity function, and `sv add file:<path>` resolves the symlinked add-on outside sv). sv requires `sv` in `peerDependencies` (optional here) and the keyword `sv-add`. `src/sv/plan.ts` holds the logic against a minimal sv-like interface, reuses `src/cli/transforms.ts` and `src/cli/skills-plan.ts`, and reads the skills and version from the package itself (`src/utils/packaged-skills.ts`); `src/sv/index.ts` is the add-on definition. Built by the server tsc into `dist/sv/`. Root Vitest covers it (`tests/sv-addon.test.ts`) with a fake `sv`; never install `sv` in the root.
 
 ### Key Patterns
 

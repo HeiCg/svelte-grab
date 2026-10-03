@@ -1,6 +1,6 @@
 /**
  * Pure, string-in/string-out project transforms shared by `svelte-grab init`
- * (src/cli/init.ts) and the `sv` community add-on (packages/sv-addon).
+ * (src/cli/init.ts) and the `sv` community add-on (src/sv/plan.ts).
  *
  * No file system access here: callers read the file, pass its content (or
  * null when it does not exist) and write back `content` when `changed`.

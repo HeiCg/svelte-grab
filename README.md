@@ -22,7 +22,17 @@ npm install -D svelte-grab @modelcontextprotocol/sdk zod
 npx svelte-grab init            # --dry-run to preview
 ```
 
-`init` writes or merges `.mcp.json` (the `svelte-grab` server, plus the official Svelte MCP), adds `svelteGrab()` from `svelte-grab/vite` to your Vite config and puts `<SvelteDevKit enableMcp />` in `src/routes/+layout.svelte` (or `src/App.svelte`), gated by `dev`, and copies the [agent skills](#agent-skills) into `.claude/skills/`. It never replaces existing `.mcp.json` entries, shows a diff of what it changes and is safe to run twice. With [`sv`](https://svelte.dev/docs/cli), `npx sv add @svelte-grab` does the same ([packages/sv-addon](packages/sv-addon)).
+`init` writes or merges `.mcp.json` (the `svelte-grab` server, plus the official Svelte MCP), adds `svelteGrab()` from `svelte-grab/vite` to your Vite config and puts `<SvelteDevKit enableMcp />` in `src/routes/+layout.svelte` (or `src/App.svelte`), gated by `dev`, and copies the [agent skills](#agent-skills) into `.claude/skills/`. It never replaces existing `.mcp.json` entries, shows a diff of what it changes and is safe to run twice. With [`sv`](https://svelte.dev/docs/cli), `npx sv add svelte-grab` does the same, and also adds `svelte-grab` (plus `@modelcontextprotocol/sdk` and `zod` when it writes `.mcp.json`) as dev dependencies, so step 1 is not needed. The add-on ships inside the `svelte-grab` package (`svelte-grab/sv`) and asks:
+
+| Option          | Default | Question                                                                  |
+| --------------- | ------- | ------------------------------------------------------------------------- |
+| `mcpJson`       | `yes`   | Write `.mcp.json` so your coding agent starts the svelte-grab MCP server? |
+| `svelteMcp`     | `yes`   | Also add the official Svelte MCP? (asked only with `mcpJson`)             |
+| `playwrightMcp` | `no`    | Also add Playwright MCP? (asked only with `mcpJson`)                      |
+| `vitePlugin`    | `yes`   | Add the svelte-grab Vite plugin?                                          |
+| `skills`        | `yes`   | Install the svelte-grab agent skills into `.claude/skills/`?              |
+
+Skip the prompts with `npx sv add svelte-grab="playwrightMcp:yes+skills:no"`. Running it twice changes nothing. What it cannot do (a Vite config it cannot edit safely, skill files a newer version no longer ships) is listed in the next steps.
 
 The resulting `.mcp.json`:
 
@@ -176,7 +186,7 @@ Ways to get them:
 - **`npx svelte-grab init`** copies both into `.claude/skills/` (Claude Code) by default. `--skills-dir .agents/skills` for other agents, `--no-skills` to skip. If the project has an `AGENTS.md`, a short pointer to the skills is appended once.
 - **`npx svelte-grab skills install`** reinstalls or updates them after an upgrade (`--skills-dir`, `--dry-run`, `--force`). A file you edited is never overwritten: the new version is written next to it as `<file>.new` (or pass `--force` / `init --force-skills`). `svelte-grab skills list` shows what the package ships and, per file, its state in your project (`new`, `up to date`, `will update`, `edited by you`; `--skills-dir` to look elsewhere); `svelte-grab skills path` prints the packaged folder.
 - **The [Skills CLI](https://github.com/vercel-labs/skills)**, straight from GitHub: `npx skills add HeiCg/svelte-grab --skill svelte-grab-audit` (or `--skill svelte-grab`).
-- **`npx sv add @svelte-grab`** installs them too (`skills` option, default yes).
+- **`npx sv add svelte-grab`** installs them too (`skills` option, default yes).
 - **MCP prompts**, zero install, any MCP client: the svelte-grab server exposes `svelte-grab-loop`, `security-audit` (optional `screen` / `url` arguments) and `performance-audit` (optional `screen`). Each returns the skill workflow with the matching checklist inlined (in Claude Code: `/mcp__svelte-grab__security-audit`).
 - **Claude Code plugin**: this repo is a plugin marketplace (`.claude-plugin/`) with a `svelte-grab` plugin that bundles both skills and the MCP server (`npx svelte-grab-mcp --stdio`, so `svelte-grab` must be installed in the project): `/plugin marketplace add HeiCg/svelte-grab`, then `/plugin install svelte-grab@svelte-grab`.
 

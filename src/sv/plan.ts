@@ -5,10 +5,10 @@
  *
  * The string transforms are the same ones `svelte-grab init` uses
  * (src/cli/transforms.ts), and so is the skills planner
- * (src/cli/skills-plan.ts); tsdown bundles them into the add-on. The skill
- * files themselves are embedded at build time (skills.generated.ts, from
- * scripts/embed-skills.mjs): `sv add` runs before svelte-grab is installed,
- * so the package's skills/ folder cannot be read from node_modules yet.
+ * (src/cli/skills-plan.ts). `sv add svelte-grab` unpacks the whole svelte-grab
+ * tarball and imports `svelte-grab/sv` (dist/sv/index.js) from it, so these
+ * relative imports, the package's `skills/` folder and its package.json are
+ * all on disk next to the add-on: no bundling, no embedded copies.
  */
 import {
 	injectAppSvelte,
@@ -17,20 +17,30 @@ import {
 	mergeMcpJson,
 	VITE_PLUGIN_IMPORT,
 	type McpServerName
-} from '../../../src/cli/transforms.js';
+} from '../cli/transforms.js';
 import {
 	appendAgentsMdPointer,
 	DEFAULT_SKILLS_DIR,
 	planSkillsInstall,
 	type SkillFile
-} from '../../../src/cli/skills-plan.js';
-import { SKILL_FILES, SKILLS_VERSION } from './skills.generated.js';
+} from '../cli/skills-plan.js';
+import { packagedSkillsDir, packageVersion, readSkillFiles } from '../utils/packaged-skills.js';
 
-export const ADDON_ID = '@svelte-grab/sv';
+/** Add-on id: the npm package name, so `npx sv add svelte-grab` and the option prefix match. */
+export const ADDON_ID = 'svelte-grab';
+
+/** Used when the package's own version cannot be read (should not happen in a real install). */
+const FALLBACK_SVELTE_GRAB_RANGE = '^2.0.0';
+
+/** `^<version>` of the svelte-grab package the add-on runs from. */
+export function svelteGrabRange(version: string | null = packageVersion()): string {
+	return version ? `^${version}` : FALLBACK_SVELTE_GRAB_RANGE;
+}
 
 /** Dev dependencies the add-on declares (skipped when already present). */
 export const DEV_DEPENDENCIES = {
-	'svelte-grab': '^2.0.0',
+	// The same version as the add-on: sv runs it from the svelte-grab tarball it downloaded.
+	'svelte-grab': svelteGrabRange(),
 	// Needed by `svelte-grab-mcp --stdio` (optional peers of svelte-grab).
 	'@modelcontextprotocol/sdk': '^1.26.0',
 	zod: '^4.0.0'
@@ -67,9 +77,9 @@ export interface AddonRunContext {
 	file: { viteConfig: string };
 	directory: { src: string; kitRoutes: string };
 	dependencyVersion?: (pkg: string) => string | undefined;
-	/** Skill files to install (default: the ones embedded at build time). */
+	/** Skill files to install (default: the package's own `skills/` folder). */
 	skillFiles?: readonly SkillFile[];
-	/** Version recorded in the skills manifest (default: the one embedded at build time). */
+	/** Version recorded in the skills manifest (default: the package's own version). */
 	skillsVersion?: string;
 }
 
@@ -167,7 +177,13 @@ export function runSvelteGrabAddon(ctx: AddonRunContext): AddonReport {
 	// including the install manifest (.claude/skills/.svelte-grab-skills.json):
 	// unedited files from an older version are updated in place, edited ones
 	// get a <file>.new.
-	if (options.skills) {
+	const skillFiles = options.skills ? (ctx.skillFiles ?? packagedSkillFiles()) : null;
+	if (options.skills && !skillFiles) {
+		report.notes.push(
+			'The svelte-grab package has no skills/ folder: run `npx svelte-grab skills install` once it is installed'
+		);
+	}
+	if (skillFiles) {
 		// sv.file passes '' for a missing file, so an empty file reads as missing
 		// (for the manifest too: it is then treated as absent and rewritten).
 		// Returning false leaves the file untouched.
@@ -181,9 +197,9 @@ export function runSvelteGrabAddon(ctx: AddonRunContext): AddonReport {
 		};
 		// sv's file API cannot delete: files no longer shipped stay (as `obsolete`,
 		// still in the manifest) and are listed in nextSteps instead.
-		const plan = planSkillsInstall(ctx.skillFiles ?? SKILL_FILES, read, {
+		const plan = planSkillsInstall(skillFiles, read, {
 			skillsDir: DEFAULT_SKILLS_DIR,
-			version: ctx.skillsVersion ?? SKILLS_VERSION,
+			version: ctx.skillsVersion ?? packageVersion() ?? 'unknown',
 			removeObsolete: false
 		});
 		for (const write of plan.writes) {
@@ -233,6 +249,12 @@ export function nextStepsFor(report: AddonReport | undefined): string[] {
 	}
 	steps.push('Docs: https://github.com/HeiCg/svelte-grab#readme');
 	return steps;
+}
+
+/** The skills shipped in the package's own `skills/` folder, or null when it is missing. */
+export function packagedSkillFiles(): SkillFile[] | null {
+	const dir = packagedSkillsDir();
+	return dir ? readSkillFiles(dir) : null;
 }
 
 function stripUndefined<T extends object>(value: T): Partial<T> {
