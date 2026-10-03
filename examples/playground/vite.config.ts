@@ -12,6 +12,11 @@ import { svelteGrab } from '../../src/vite/index.ts';
 // so this app MUST be served via `vite dev` for the tools to activate.
 const libIndex = fileURLToPath(new URL('../../src/lib/index.ts', import.meta.url));
 
+// e2e port: `SG_E2E_PORT` (set by playwright.config.ts) lets several Playwright
+// runs serve their own playground side by side. strictPort: never drift to
+// another port the tests would not be pointed at.
+const port = Number(process.env.SG_E2E_PORT || 5189);
+
 export default defineConfig({
 	plugins: [
 		svelte({
@@ -31,7 +36,11 @@ export default defineConfig({
 		}
 	},
 	server: {
-		port: 5189,
+		port,
+		strictPort: true
+	},
+	preview: {
+		port,
 		strictPort: true
 	},
 	// The library imports a couple of optional peer deps via dynamic import()

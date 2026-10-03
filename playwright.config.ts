@@ -8,9 +8,14 @@ import { defineConfig, devices } from '@playwright/test';
  * `vite dev` (not a production build) because svelte-grab's dev tools only
  * activate when Svelte's dev-mode `__svelte_meta` is present on DOM nodes, and
  * that metadata is only emitted by the @sveltejs/vite-plugin-svelte dev build.
+ *
+ * Port: `SG_E2E_PORT` (default 5189). The playground's vite.config.ts reads the
+ * same variable, so a second run (`SG_E2E_PORT=5219 npx playwright test`) gets
+ * its own dev server. With a custom port an existing server is never reused:
+ * whatever already listens there is not known to be this playground.
  */
 
-const PORT = 5189;
+const PORT = Number(process.env.SG_E2E_PORT || 5189);
 const BASE_URL = `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -50,8 +55,9 @@ export default defineConfig({
 
 	webServer: {
 		command: 'npm --prefix examples/playground run dev',
+		env: { SG_E2E_PORT: String(PORT) },
 		url: BASE_URL,
-		reuseExistingServer: !process.env.CI,
+		reuseExistingServer: !process.env.CI && !process.env.SG_E2E_PORT,
 		timeout: 120_000,
 		stdout: 'pipe',
 		stderr: 'pipe'

@@ -5,9 +5,9 @@
   "type": "module",
   "description": "Minimal Vite + Svelte 5 demo app used to exercise svelte-grab dev tools in e2e tests.",
   "scripts": {
-    "dev": "vite --port 5189 --strictPort",
+    "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --port 5189 --strictPort"
+    "preview": "vite preview"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
