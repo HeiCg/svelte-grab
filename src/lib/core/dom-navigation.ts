@@ -1,25 +1,11 @@
-import type { SvelteMeta } from '../types.js';
-
-type SvelteElement = HTMLElement & { __svelte_meta?: SvelteMeta };
-
-/**
- * Check if an element has Svelte dev metadata with a location.
- */
-function hasSvelteMeta(el: HTMLElement): el is SvelteElement {
-	return !!(el as SvelteElement).__svelte_meta?.loc;
-}
+import { findMetaElement, hasSvelteLoc as hasSvelteMeta } from '../utils/component-stack.js';
 
 /**
  * Find the nearest parent element with __svelte_meta.loc.
  * Starts from el.parentElement (does not include el itself).
  */
 export function findSvelteParent(el: HTMLElement): HTMLElement | null {
-	let current = el.parentElement;
-	while (current) {
-		if (hasSvelteMeta(current)) return current;
-		current = current.parentElement;
-	}
-	return null;
+	return findMetaElement(el.parentElement);
 }
 
 /**

@@ -11,7 +11,6 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type {
-		SvelteMeta,
 		StackEntry,
 		HistoryEntry,
 		SvelteGrabProps,
@@ -33,7 +32,13 @@
 	import { createElementSelector } from './utils/element-selector.js';
 	import { getElementsInDragRect } from './utils/drag-selection.js';
 	import { hideFromThirdParties } from './utils/hide-from-third-parties.js';
-	import { getComponentStack as getComponentStackPure } from './utils/component-stack.js';
+	import {
+		getComponentStack as getComponentStackPure,
+		findMetaElement,
+		getSvelteMeta,
+		getSvelteLoc,
+		hasSvelteLoc
+	} from './utils/component-stack.js';
 	import {
 		buildEditorUrl as buildEditorUrlPure,
 		detectProjectRoot as detectProjectRootPure
@@ -568,12 +573,7 @@
 		const target = event.target as HTMLElement;
 
 		// Find the actual element with Svelte metadata
-		let elementWithMeta: HTMLElement | null = target;
-		while (elementWithMeta) {
-			const meta = (elementWithMeta as HTMLElement & { __svelte_meta?: SvelteMeta }).__svelte_meta;
-			if (meta?.loc) break;
-			elementWithMeta = elementWithMeta.parentElement;
-		}
+		const elementWithMeta = findMetaElement(target);
 
 		if (!elementWithMeta) {
 			const tag = target.tagName?.toLowerCase() || 'unknown';
@@ -765,11 +765,11 @@
 
 			if (nextEl) {
 				hoveredElement = nextEl;
-				const meta = (nextEl as HTMLElement & { __svelte_meta?: SvelteMeta }).__svelte_meta;
-				if (meta?.loc) {
+				const loc = getSvelteLoc(nextEl);
+				if (loc) {
 					hoveredInfo = {
-						file: shortenPath(meta.loc.file),
-						line: meta.loc.line
+						file: shortenPath(loc.file),
+						line: loc.line
 					};
 				}
 				nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -870,8 +870,7 @@
 			);
 			// Find elements with svelte meta that intersect
 			for (const el of elementsInBox) {
-				const meta = (el as HTMLElement & { __svelte_meta?: SvelteMeta }).__svelte_meta;
-				if (meta?.loc) {
+				if (hasSvelteLoc(el)) {
 					hoveredElement = el as HTMLElement;
 					break;
 				}
@@ -888,23 +887,20 @@
 
 		const target = event.target as HTMLElement;
 
-		// Find the closest element with __svelte_meta
-		let current: HTMLElement | null = target;
-		while (current) {
-			const meta = (current as HTMLElement & { __svelte_meta?: SvelteMeta }).__svelte_meta;
-			if (meta?.loc) {
-				if (hoveredElement !== current) {
-					hoveredElement = current;
-					hoveredInfo = {
-						file: shortenPath(meta.loc.file),
-						line: meta.loc.line
-					};
-					pluginRegistry.executeHook('onElementHover', current);
-				}
-				hoverPosition = { x: event.clientX, y: event.clientY };
-				return;
+		// Find the closest element with Svelte meta.loc
+		const current = findMetaElement(target);
+		const loc = getSvelteLoc(current);
+		if (current && loc) {
+			if (hoveredElement !== current) {
+				hoveredElement = current;
+				hoveredInfo = {
+					file: shortenPath(loc.file),
+					line: loc.line
+				};
+				pluginRegistry.executeHook('onElementHover', current);
 			}
-			current = current.parentElement;
+			hoverPosition = { x: event.clientX, y: event.clientY };
+			return;
 		}
 
 		// No svelte element found
@@ -921,7 +917,7 @@
 		event.preventDefault();
 		event.stopPropagation();
 
-		const meta = (hoveredElement as HTMLElement & { __svelte_meta?: SvelteMeta }).__svelte_meta || null;
+		const meta = getSvelteMeta(hoveredElement);
 		const elementStack = getComponentStack(hoveredElement);
 
 		const ctx: ActionContext = {
@@ -1035,10 +1031,7 @@
 			width: selectionBox.width,
 			height: selectionBox.height
 		};
-		const isValidElement = (el: Element): boolean => {
-			return !!(el as HTMLElement & { __svelte_meta?: SvelteMeta }).__svelte_meta?.loc;
-		};
-		const elements = getElementsInDragRect(dragRect, isValidElement);
+		const elements = getElementsInDragRect(dragRect, hasSvelteLoc);
 		for (const el of elements) {
 			selectedElementsSet.add(el as HTMLElement);
 		}

@@ -1,6 +1,35 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
+/** Minimum Svelte version: `__svelte_meta.parent` (component stack) starts here. */
+export const MIN_SVELTE_VERSION = '5.35.1';
+
+/**
+ * Parse the first `major[.minor[.patch]]` out of a version or range string
+ * (`^5.35.1`, `~5.2`, `>=5.0.0`, `workspace:^5.40.0`). Returns null if none.
+ */
+export function parseSvelteVersion(range: string): [number, number, number] | null {
+	const match = range.match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+	if (!match) return null;
+	return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)];
+}
+
+/**
+ * Classify a declared svelte version: `'error'` below 5, `'warn'` for
+ * 5.x below {@link MIN_SVELTE_VERSION}, `'ok'` otherwise (including
+ * unparseable specs like `latest` or `workspace:*`).
+ */
+export function checkSvelteVersion(range: string): 'ok' | 'warn' | 'error' {
+	const version = parseSvelteVersion(range);
+	if (!version) return 'ok';
+	const [major, minor, patch] = version;
+	if (major < 5) return 'error';
+	const [minMajor, minMinor, minPatch] = parseSvelteVersion(MIN_SVELTE_VERSION)!;
+	if (major > minMajor) return 'ok';
+	if (minor !== minMinor) return minor > minMinor ? 'ok' : 'warn';
+	return patch >= minPatch ? 'ok' : 'warn';
+}
+
 export interface InitOptions {
 	dryRun?: boolean;
 }
@@ -35,15 +64,20 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): vo
 		process.exit(1);
 	}
 
-	// Check Svelte version (requires 5+)
+	// Check Svelte version (requires 5.35.1+ for the __svelte_meta.parent chain)
 	const allDeps = packageJson.dependencies || {};
 	const allDevDeps = packageJson.devDependencies || {};
 	const svelteVersion = allDeps['svelte'] || allDevDeps['svelte'];
 	if (svelteVersion) {
-		const majorVersion = parseInt(svelteVersion.replace(/[\^~>=<\s]/g, '') || '0');
-		if (majorVersion > 0 && majorVersion < 5) {
-			console.error(`[svelte-grab] svelte-grab requires Svelte 5+. Found: ${svelteVersion}`);
+		const status = checkSvelteVersion(svelteVersion);
+		if (status === 'error') {
+			console.error(`[svelte-grab] svelte-grab requires Svelte ${MIN_SVELTE_VERSION}+. Found: ${svelteVersion}`);
 			process.exit(1);
+		} else if (status === 'warn') {
+			console.warn(
+				`[svelte-grab] Svelte ${MIN_SVELTE_VERSION}+ is required for component stacks. Found: ${svelteVersion}. ` +
+					'Upgrade svelte or component names/parents will be missing.'
+			);
 		}
 	}
 

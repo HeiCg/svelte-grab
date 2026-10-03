@@ -35,6 +35,8 @@ export type {
 	ThemeConfig,
 	SvelteMeta,
 	DevStackEntry,
+	DevStackEntryType,
+	SvelteSourceLocation,
 
 	// Plugin system types
 	SvelteGrabPlugin,

@@ -1,5 +1,6 @@
 import type { RenderEvent, ComponentProfile, RenderBurst } from '../types.js';
-import { type SvelteElement, shortenPath, extractComponentName } from './shared.js';
+import { shortenPath } from './shared.js';
+import { extractComponentName, findMetaElement, getSvelteLoc } from './component-stack.js';
 
 /**
  * Live mutation attribution emitted to {@link ProfilerTracker.onMutation} each
@@ -143,13 +144,11 @@ export class ProfilerTracker {
 					target.closest('[data-svelte-grab-outline]')
 				) continue;
 
-				const svelteEl = this.findClosestSvelteElement(target);
-				if (!svelteEl) continue;
+				const svelteEl = findMetaElement(target);
+				const loc = getSvelteLoc(svelteEl);
+				if (!svelteEl || !loc) continue;
 
-				const meta = svelteEl.__svelte_meta;
-				if (!meta?.loc) continue;
-
-				const file = meta.loc.file;
+				const file = loc.file;
 				const mutType = mutation.type as 'childList' | 'attributes' | 'characterData';
 
 				if (componentMutations.has(file)) {
@@ -246,20 +245,6 @@ export class ProfilerTracker {
 		this.observer = null;
 		this.userEventCleanup?.();
 		this.userEventCleanup = null;
-	}
-
-	/**
-	 * Find closest ancestor with __svelte_meta
-	 */
-	private findClosestSvelteElement(el: HTMLElement): SvelteElement | null {
-		let current: HTMLElement | null = el;
-		while (current) {
-			if ((current as SvelteElement).__svelte_meta?.loc) {
-				return current as SvelteElement;
-			}
-			current = current.parentElement;
-		}
-		return null;
 	}
 
 	/**

@@ -1,34 +1,65 @@
 /**
- * Svelte internal metadata attached to elements in dev mode
+ * A source location as Svelte reports it in dev metadata.
  */
-export interface SvelteMeta {
-	loc?: {
-		file: string;
-		line: number;
-		column: number;
-	};
-	parent?: DevStackEntry;
+export interface SvelteSourceLocation {
+	file: string;
+	line: number;
+	column: number;
 }
 
 /**
- * Internal stack entry from Svelte's dev metadata
+ * Svelte internal metadata attached to elements in dev mode (Svelte >= 5.35.1).
+ *
+ * `loc` is where the element is written; `parent` is the dev stack (nearest
+ * block/component first), `null` at the root.
+ */
+export interface SvelteMeta {
+	loc: SvelteSourceLocation;
+	parent: DevStackEntry | null;
+}
+
+/**
+ * Kind of a dev stack entry. `'component'` marks a component boundary; the
+ * others are template blocks. Open-ended so newer Svelte types still type-check.
+ */
+export type DevStackEntryType =
+	| 'component'
+	| 'if'
+	| 'each'
+	| 'await'
+	| 'key'
+	| 'render'
+	| (string & {});
+
+/**
+ * Internal stack entry from Svelte's dev metadata.
+ *
+ * For `type: 'component'`, `file/line/column` is the USAGE SITE (the parent
+ * file where `<Child />` is written) and `componentTag` is the child's tag name.
  */
 export interface DevStackEntry {
-	type?: string;
-	file?: string;
-	line?: number;
-	column?: number;
-	parent?: DevStackEntry;
+	type: DevStackEntryType;
+	file: string;
+	line: number;
+	column: number;
+	parent: DevStackEntry | null;
+	componentTag?: string;
 }
 
 /**
  * Processed stack entry with component location info
  */
 export interface StackEntry {
+	/** `'element'` for the grabbed element, otherwise the dev stack entry type. */
 	type: string;
 	file: string;
 	line: number;
 	column: number;
+	/**
+	 * Component name for this entry: the tag of a component entry, otherwise
+	 * the component whose file contains the location.
+	 */
+	componentName?: string;
 }
 
 /**
@@ -259,7 +290,12 @@ export interface PropTraceNode {
 	line: number;
 	column: number;
 	componentName: string | null;
+	/** Component depth (block nodes share the depth of their enclosing node). */
 	depth: number;
+	/** `'element'` (DOM element), `'component'` (component boundary) or `'block'` (if/each/...). */
+	kind?: 'element' | 'component' | 'block';
+	/** Dev stack type for block nodes (`'if'`, `'each'`, ...). */
+	blockType?: string;
 	propsProxy?: Record<string, string>;
 }
 

@@ -8,6 +8,7 @@
 		StateDiff
 	} from './types.js';
 	import type { SvelteElement } from './utils/shared.js';
+	import { getSvelteLoc } from './utils/component-stack.js';
 	import {
 		findSvelteElement,
 		shortenPath,
@@ -64,9 +65,9 @@
 	 * Extract component state from an element
 	 */
 	function extractState(element: SvelteElement): ComponentStateInfo {
-		const meta = element.__svelte_meta;
-		const file = meta?.loc?.file || 'unknown';
-		const line = meta?.loc?.line || 0;
+		const loc = getSvelteLoc(element);
+		const file = loc?.file || 'unknown';
+		const line = loc?.line || 0;
 		const componentName = extractComponentName(file);
 		const tag = element.tagName.toLowerCase();
 
@@ -145,9 +146,9 @@
 		// Collect child components with details
 		const childMap = new Map<string, { name: string; file: string; count: number }>();
 		element.querySelectorAll('*').forEach(child => {
-			const childMeta = (child as SvelteElement).__svelte_meta;
-			if (childMeta?.loc) {
-				const childFile = childMeta.loc.file;
+			const childLoc = getSvelteLoc(child);
+			if (childLoc) {
+				const childFile = childLoc.file;
 				if (childFile !== file) {
 					const existing = childMap.get(childFile);
 					if (existing) {
