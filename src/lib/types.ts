@@ -145,6 +145,13 @@ export interface SvelteGrabProps {
 	enableMcp?: boolean;
 	/** Port for MCP HTTP server. Default: 4723 */
 	mcpPort?: number;
+	/**
+	 * Let coding agents query this page through the MCP server (`ui_snapshot`,
+	 * `ui_find`): the page listens for `runtime-command` events on the server's
+	 * SSE stream and stamps `data-sg-ref` on the elements it reports. Only
+	 * active together with `enableMcp`, and only in dev builds. Default: true
+	 */
+	enableAgentRuntime?: boolean;
 	/** Freeze CSS animations/transitions while selection mode is active. Default: true */
 	freezeAnimations?: boolean;
 	/** Freeze :hover/:focus pseudo-states while selection mode is active. Default: true */
@@ -497,6 +504,13 @@ export interface SvelteDevKitProps {
 	enableMcp?: boolean;
 	/** Port for MCP HTTP server. Default: 4723 */
 	mcpPort?: number;
+	/**
+	 * Let coding agents query this page through the MCP server (`ui_snapshot`,
+	 * `ui_find`): the page listens for `runtime-command` events on the server's
+	 * SSE stream and stamps `data-sg-ref` on the elements it reports. Only
+	 * active together with `enableMcp`, and only in dev builds. Default: true
+	 */
+	enableAgentRuntime?: boolean;
 
 	// SvelteGrab props forwarding
 	/** Auto-copy format when element is grabbed. Default: 'agent' */

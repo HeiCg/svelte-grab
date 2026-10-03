@@ -137,6 +137,9 @@ export class ProfilerTracker {
 				}
 				if (!target || !(target instanceof HTMLElement)) continue;
 
+				// Ref stamps from the agent runtime (runtime/refs.ts) are not renders.
+				if (mutation.type === 'attributes' && mutation.attributeName === 'data-sg-ref') continue;
+
 				// Skip our own UI elements (incl. the live outline overlay)
 				if (
 					target.closest('[class*="svelte-grab-"]') ||

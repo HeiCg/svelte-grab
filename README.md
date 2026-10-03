@@ -196,6 +196,7 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 | `agentId` | `string` | `'claude-code'` | Agent identifier |
 | `enableMcp` | `boolean` | `false` | Enable MCP bridge to Claude Code |
 | `mcpPort` | `number` | `4723` | MCP server port |
+| `enableAgentRuntime` | `boolean` | `true` | With `enableMcp`, let coding agents query the page (`ui_snapshot`, `ui_find`) through the MCP server |
 | `freezeAnimations` | `boolean` | `true` | Freeze CSS animations during selection |
 | `freezePseudoStates` | `boolean` | `true` | Preserve :hover/:focus states during selection |
 | `enableHistoryPersistence` | `boolean` | `true` | Persist history to sessionStorage |
@@ -400,6 +401,16 @@ The recommended way to connect svelte-grab to Claude Code. Select a component, t
 | `undo_last_action` | Returns an undo instruction with the original context. |
 | `get_session_history` | Returns recent interactions (up to 20) with timestamps and prompts. |
 | `list_available_tools` | Lists which tools have data available and when it was captured. |
+
+### Agent runtime (page side)
+
+With `enableMcp` (and `enableAgentRuntime`, on by default), the page also answers agent queries relayed by the MCP server: it listens for `runtime-command` events on `/events`, announces itself with `POST /runtime/hello` (on connect, focus/blur/visibility change and every 15s) and replies with `POST /runtime/result`. Dev builds only; it stays off when Svelte dev metadata is absent.
+
+- `ui_snapshot` returns an indented outline of the page, one line per element with Svelte source info or a useful role/name: `e12 button "Save" Button src/lib/Button.svelte:11`.
+- `ui_find` locates elements by `text`, `role`, `name`, `component`, `file` or `selector`.
+- Every reported element gets a session ref (`e12`) stamped as `data-sg-ref`, so other tools (Playwright MCP, chrome-devtools-mcp) can act on it with the locator `[data-sg-ref="e12"]`. Each result also carries a stable key (`ui://<file>:<line>:<col>#<Component>[role=..,name=..][i]`) that re-resolves after re-renders.
+
+Set `enableAgentRuntime={false}` to keep the MCP bridge without the runtime.
 
 ### HTTP Endpoints
 

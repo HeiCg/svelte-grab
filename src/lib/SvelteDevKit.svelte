@@ -53,6 +53,7 @@
 		enableDragSelect = true,
 		enableMcp = false,
 		mcpPort = 4723,
+		enableAgentRuntime = true,
 		freezeAnimations = true,
 		freezePseudoStates = true,
 		enableHistoryPersistence = true,
@@ -168,6 +169,7 @@
 		{enableDragSelect}
 		{enableMcp}
 		{mcpPort}
+		{enableAgentRuntime}
 		{autoCopyFormat}
 		{showPopup}
 		{includeHtml}
