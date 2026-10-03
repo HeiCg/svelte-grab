@@ -15,6 +15,10 @@
 	import FixtureForm from './components/fixtures/FixtureForm.svelte';
 	import OverflowFixture from './components/fixtures/OverflowFixture.svelte';
 	import HotFixture from './components/fixtures/HotFixture.svelte';
+	import LeakToggle from './components/fixtures/LeakToggle.svelte';
+	import LeakyFixture from './components/fixtures/LeakyFixture.svelte';
+	import CleanFixture from './components/fixtures/CleanFixture.svelte';
+	import LeakyRequests from './components/fixtures/LeakyRequests.svelte';
 
 	const items = ['Apples', 'Bananas', 'Cherries', 'Dates'];
 
@@ -118,6 +122,8 @@
 
 		<Section title="Overflow" testid="fx-overflow-section"><OverflowFixture /></Section>
 		<Section title="Hot updates" testid="fx-hot-section"><HotFixture /></Section>
+		<Section title="Leaks" testid="fx-leak-section"><LeakToggle id="leaky" label="Leaky"><LeakyFixture /></LeakToggle><LeakToggle id="clean" label="Clean"><CleanFixture /></LeakToggle></Section>
+		<Section title="Network leaks (fake credentials)" testid="fx-leaky-section"><LeakyRequests /></Section>
 	</section>
 </main>
 

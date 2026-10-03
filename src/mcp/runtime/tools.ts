@@ -1,7 +1,9 @@
 /**
  * MCP tools of the agent runtime: `ui_tabs` (server-only) and the page-forwarded
  * `ui_snapshot` / `ui_find` / `ui_inspect` / `ui_annotations` / `ui_wait_for_hmr`
- * / `ui_verify` / `ui_component_impact` / `ui_profile`.
+ * / `ui_verify` / `ui_component_impact` / `ui_profile` / `ui_network` (server-orchestrated
+ * reload) / `ui_security_scan`, and the CDP-mode `ui_perf_metrics` / `ui_leak_check`
+ * (cdp-tools.ts).
  *
  * `zod` is passed in by the caller (it is loaded lazily together with the
  * optional `@modelcontextprotocol/sdk` peer, which requires it), so this module
@@ -13,6 +15,10 @@ import { NO_TAB_MESSAGE, type CommandChannel } from './command-channel.js';
 import type { RuntimeResultData } from './validate.js';
 import { registerWaitForHmrTool } from './hmr-tool.js';
 import { registerProfileTool } from './profile-tool.js';
+import { registerCdpTools } from './cdp-tools.js';
+import type { CdpConfig } from '../cdp/client.js';
+import { registerNetworkTool } from './network-tool.js';
+import { registerSecurityScanTool } from './security-tool.js';
 
 /** Structural subset of a zod schema (v3.25+ and v4) used for tool schemas. */
 export interface ZodSchemaLike {
@@ -57,6 +63,8 @@ export interface RuntimeToolDeps {
 	registry: TabRegistry;
 	channel: CommandChannel;
 	now?: () => number;
+	/** CDP mode config (`--cdp` / SVELTE_GRAB_CDP), read per call; absent or null = off. */
+	cdp?: () => CdpConfig | null;
 }
 
 const REF_RECIPE =
@@ -316,4 +324,14 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 	);
 
 	registerProfileTool(server, z, { channel: deps.channel, tabIdHint: TAB_ID_HINT });
+
+	// Phase 8b: ui_perf_metrics / ui_leak_check (CDP mode, opt-in).
+	registerCdpTools(server, z, {
+		registry: deps.registry,
+		channel: deps.channel,
+		cdp: deps.cdp ?? (() => null),
+		tabIdHint: TAB_ID_HINT
+	});
+	registerNetworkTool(server, z, { channel: deps.channel, registry: deps.registry, tabIdHint: TAB_ID_HINT });
+	registerSecurityScanTool(server, z, { channel: deps.channel, tabIdHint: TAB_ID_HINT });
 }

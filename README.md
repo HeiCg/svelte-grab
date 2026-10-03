@@ -22,7 +22,7 @@ npm install -D svelte-grab @modelcontextprotocol/sdk zod
 npx svelte-grab init            # --dry-run to preview
 ```
 
-`init` writes or merges `.mcp.json` (the `svelte-grab` server, plus the official Svelte MCP), adds `svelteGrab()` from `svelte-grab/vite` to your Vite config and puts `<SvelteDevKit enableMcp />` in `src/routes/+layout.svelte` (or `src/App.svelte`), gated by `dev`. It never replaces existing `.mcp.json` entries, shows a diff of what it changes and is safe to run twice. With [`sv`](https://svelte.dev/docs/cli), `npx sv add @svelte-grab` does the same ([packages/sv-addon](packages/sv-addon)).
+`init` writes or merges `.mcp.json` (the `svelte-grab` server, plus the official Svelte MCP), adds `svelteGrab()` from `svelte-grab/vite` to your Vite config and puts `<SvelteDevKit enableMcp />` in `src/routes/+layout.svelte` (or `src/App.svelte`), gated by `dev`, and copies the [agent skills](#agent-skills) into `.claude/skills/`. It never replaces existing `.mcp.json` entries, shows a diff of what it changes and is safe to run twice. With [`sv`](https://svelte.dev/docs/cli), `npx sv add @svelte-grab` does the same ([packages/sv-addon](packages/sv-addon)).
 
 The resulting `.mcp.json`:
 
@@ -110,6 +110,8 @@ All tools are served by the same local MCP server (`svelte-grab-mcp`). The `ui_*
 | `ui_verify` | PASS/WARN/FAIL checks on one element after an edit: visible, overflow, console errors, a11y, contrast. |
 | `ui_component_impact` | Before editing a shared component: its instances on the page, importers from the Vite module graph and whether to edit it or the usage site. |
 | `ui_annotations` | The comments the human left on elements with annotation mode, with refs ready for `ui_inspect`. |
+| `ui_perf_metrics` | CDP mode (`--cdp`): Chrome counters (DOM nodes, listeners, heap, layouts, style recalcs, script/task time) before and after an in-page action, as deltas. |
+| `ui_leak_check` | Repeats actions (e.g. open then close) and reports detached elements still alive after a forced GC, by component and `file:line`. Without `--cdp` the result is `INCONCLUSIVE`. |
 | `watch_for_grab` | Block until the human Alt+Clicks an element and sends a prompt from the page; returns stack, HTML preview and the instruction. |
 | `get_element_context` | Last grabbed context, non-blocking (cleared after reading). |
 | `get_a11y_report` | Last accessibility audit from SvelteA11yReporter. |
@@ -159,6 +161,30 @@ Refs live as long as the element. After a re-render or HMR, pass the old ref to 
 ## Pairs with the official Svelte MCP (`@sveltejs/mcp`)
 
 The [official Svelte MCP](https://svelte.dev/docs/mcp) works on code: it serves the Svelte and SvelteKit docs and runs `svelte-autofixer` on components the agent writes. svelte-grab works on the running page: what rendered, where it came from, and how it looks after the change. They do not overlap, which is why `init` adds both to `.mcp.json` (`--no-svelte-mcp` to skip it). A typical split: svelte-grab finds `SettingsCard.svelte:27` and verifies the result; the Svelte MCP answers "how do snippets work" and checks the edited component before it is saved.
+
+## Agent skills
+
+svelte-grab ships two [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) in the npm package (`skills/`), so the agent knows the workflow without you explaining it:
+
+| Skill | Use it for |
+|-------|-----------|
+| `svelte-grab` | The core loop: `ui_snapshot -> ui_find -> ui_inspect -> ui_component_impact -> edit -> ui_wait_for_hmr -> ui_verify -> ui_profile`, refs as `[data-sg-ref]` locators for Playwright / chrome-devtools MCP, annotations, which tool when. |
+| `svelte-grab-audit` | "Security audit", "performance audit", "what does screen X load", "is anything leaking credentials", "why is this page slow", "memory leak". A phased, per-screen workflow (recon with `npx svelte-grab audit`, then `ui_network({ reload: true })`, `ui_security_scan`, `ui_profile`, `ui_verify` and, in CDP mode, `ui_perf_metrics` / `ui_leak_check`), validation rules (`confirmed` needs reproduction evidence, `needs_validation` names the missing fact, secrets stay redacted), default budgets (50 requests, 1.5 MB, 10 third-party per screen) and three supporting files: `CHECKLIST.md` (security and performance checklists, each item mapped to the tool that checks it and its pass criteria), `REPORT-TEMPLATE.md` and `finding-schema.json`. |
+
+Ways to get them:
+
+- **`npx svelte-grab init`** copies both into `.claude/skills/` (Claude Code) by default. `--skills-dir .agents/skills` for other agents, `--no-skills` to skip. If the project has an `AGENTS.md`, a short pointer to the skills is appended once.
+- **`npx svelte-grab skills install`** reinstalls or updates them after an upgrade (`--skills-dir`, `--dry-run`, `--force`). A file you edited is never overwritten: the new version is written next to it as `<file>.new` (or pass `--force` / `init --force-skills`). `svelte-grab skills list` shows what the package ships and, per file, its state in your project (`new`, `up to date`, `will update`, `edited by you`; `--skills-dir` to look elsewhere); `svelte-grab skills path` prints the packaged folder.
+- **The [Skills CLI](https://github.com/vercel-labs/skills)**, straight from GitHub: `npx skills add HeiCg/svelte-grab --skill svelte-grab-audit` (or `--skill svelte-grab`).
+- **`npx sv add @svelte-grab`** installs them too (`skills` option, default yes).
+- **MCP prompts**, zero install, any MCP client: the svelte-grab server exposes `svelte-grab-loop`, `security-audit` (optional `screen` / `url` arguments) and `performance-audit` (optional `screen`). Each returns the skill workflow with the matching checklist inlined (in Claude Code: `/mcp__svelte-grab__security-audit`).
+- **Claude Code plugin**: this repo is a plugin marketplace (`.claude-plugin/`) with a `svelte-grab` plugin that bundles both skills and the MCP server (`npx svelte-grab-mcp --stdio`, so `svelte-grab` must be installed in the project): `/plugin marketplace add HeiCg/svelte-grab`, then `/plugin install svelte-grab@svelte-grab`.
+
+Upgrades: every install writes `.svelte-grab-skills.json` in the skills folder, recording the svelte-grab version and a SHA-256 of each file as installed. After you upgrade svelte-grab, rerunning `skills install` (or `init`, or `sv add`) replaces in place every skill file you have not touched since (its hash still matches) and only falls back to `<file>.new` for files you edited. Files a newer version no longer ships are deleted when unedited and left alone (with a note) when edited; `sv add` cannot delete files, so it lists them for you instead. Without that manifest (skills installed before it existed, or a deleted manifest), a file that differs from the packaged version is treated as edited, as before. Keep the manifest under version control with the skills.
+
+There is deliberately no `postinstall` script that drops the skills into your project: install-time scripts are a supply-chain risk and modern package managers block them by default, so installing them is always an explicit command.
+
+The audit workflow takes ideas from [cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill) (phased audit, verified findings with `confirmed` / `needs_validation` verdicts, a JSON schema for findings) and [adnxy/rnsec](https://github.com/adnxy/rnsec) (zero-config, framework-specific static rules with JSON/HTML reports). To learn how HTTP traffic and its security headers look on the wire, [dstotijn/hetty](https://github.com/dstotijn/hetty) (an HTTP toolkit for security research) is a good companion; svelte-grab does not integrate it.
 
 ## Human handoff: Alt+Click + prompt
 
@@ -529,6 +555,10 @@ The recommended way to connect svelte-grab to Claude Code (and any other MCP cli
 | `ui_verify` | Call after `ui_wait_for_hmr`. PASS/WARN/FAIL checks on one element: `visible` (rendered, in viewport, not covered; names the coverer), `overflow` (clipped or spilling content, page-level horizontal overflow), `console` (errors FAIL, warnings WARN since `since`, else the last HMR update), `a11y` (element-level checks), `contrast` (below 3:1 FAIL, below WCAG AA WARN). Text starts with the verdict line; `structuredContent` is `{ verdict, checks: [{ check, status, summary, details }] }`. Args: `ref`, `checks` (default all), `since`, `tabId`. |
 | `ui_component_impact` | Call before editing a component that may be shared, with a ref to any element it renders. Returns the definition file, instances on the page grouped by usage site, variants (instances grouped by root classes), importers from the Vite module graph (needs `svelte-grab/vite`, else "unknown") and a recommendation: edit the component for a single usage, else prefer a prop/variant or a local class at the usage site. Args: `ref`, `tabId`. |
 | `ui_profile` | Records which components mutate the DOM for `durationMs` (default 3000, max 30000), optionally while performing an in-page `action` (`{ ref, type: "click"\|"input"\|"scroll", value?, repeat? }`, `isTrusted=false`). Verdict `HOT <Component> N mutations in Xs (burst xK)` or `QUIET`, then per component mutations, mutations/sec, bursts, kinds and the top mutated elements as refs, plus FPS and long frames. Scope with `component` or `ref`. See [Profiling with ui_profile](#profiling-with-ui_profile). |
+| `ui_perf_metrics` | CDP mode only (see [CDP mode](#cdp-mode-ui_perf_metrics-and-ui_leak_check)). Reads `Memory.getDOMCounters` + `Performance.getMetrics` of the tab before and after an optional in-page `action` (`{ ref, type, value? }`, or `ref` alone for a click) and a settle (2 frames + `waitMs`, default 300): Nodes, JSEventListeners, Documents, JSHeapUsedSize, LayoutCount, RecalcStyleCount, ScriptDuration, TaskDuration. First line lists the changed counters, then a before/after/delta table. Without `--cdp` it returns an error saying how to enable it. Args: `action`, `ref`, `waitMs`, `tabId`. |
+| `ui_leak_check` | Runs `actions` (or one `action`) `iterations` times (default 5, max 20), e.g. `[open, close]` on a modal toggle. The page records a WeakRef + source of every Svelte element removed meanwhile; with `--cdp` the server forces GC before and after, so whatever is still alive and detached is retained: `LEAK? <Component> <file:line> retains N detached nodes (~N/iteration)`, plus growth of Nodes, JSEventListeners and JSHeapUsedSize per iteration. Verdict `LEAK SUSPECTED`, `NO LEAK DETECTED` or `INCONCLUSIVE` (always without `--cdp`: no forced GC). Args: `actions`, `action`, `iterations`, `waitMs`, `tabId`. |
+| `ui_network` | What a screen loads: fetch, XHR, sendBeacon, WebSocket, EventSource and (from resource timing) scripts, CSS, images and fonts, each with its initiator (`file:line` and component of the app code that made it) and tags for SvelteKit `__data.json` / remote-function calls. Text: totals (count, bytes, by type, first- vs third-party), origins, duplicates, slowest 5, sequential chains, failed requests, one line per request. `reload: true` reloads the tab, waits for it to reconnect plus `waitMs` (default 2000) and reports the initial load. URLs are always redacted (`kind:abcd…(len N, sha xxxxxx)`); bodies only with `includeBodies` (same-origin JSON, redacted, 2 KB). Args: `reload`, `waitMs`, `since`, `filter` (`origin`, `type`, `status`), `includeBodies`, `tabId`. |
+| `ui_security_scan` | Runtime security checks, findings `{ id, check, severity, verdict, title, evidence, source?, fix }` grouped by severity: secrets in URLs and credential headers/bodies sent to third parties (from the `ui_network` buffer), JWTs/keys in Web Storage, JS-readable auth cookies, secrets on `window`, sensitive fields in SvelteKit serialized data, secret-shaped `VITE_`/`PUBLIC_` env values, response headers (CSP, nosniff, Referrer-Policy, frame-ancestors, HSTS; info on a localhost dev server), `{@html}`-style inline handlers, `target=_blank` without `rel=noopener`, mixed content. Evidence is always redacted. Args: `checks`, `tabId`. |
 
 The `ui_*` tools query the page live: the app must be open in dev with `<SvelteGrab/>` mounted (otherwise they return "No browser tab connected"). Refs are stamped on elements as `data-sg-ref`, so `[data-sg-ref="e12"]` works as a locator in Playwright MCP or chrome-devtools MCP for real clicks and screenshots.
 
@@ -558,6 +588,40 @@ COMPONENTS by mutations (2 of 2):
 FPS avg 120, min 120 (1 whole-second sample)
 LONG FRAMES 0 (long-animation-frame, > 50ms)
 ```
+
+### CDP mode: `ui_perf_metrics` and `ui_leak_check`
+
+Some numbers only the browser has: DOM node and event listener counts, heap size, layout and style recalc counts, and a forced garbage collection to tell a real leak from garbage that was simply not collected yet. svelte-grab can read them over the Chrome DevTools Protocol (CDP). It is **off by default** and needs two things:
+
+```bash
+# 1. Chrome (or Chromium) with a debugging port on loopback. Recent Chrome requires a
+#    non-default profile directory for remote debugging.
+chrome --remote-debugging-port=9222 --user-data-dir=/tmp/svelte-grab-chrome
+
+# 2. The MCP server pointed at it (flag or env var; loopback hosts only)
+npx svelte-grab-mcp --cdp=http://127.0.0.1:9222
+SVELTE_GRAB_CDP=http://127.0.0.1:9222 npx svelte-grab-mcp --stdio
+```
+
+Open the app in that Chrome window. The server talks to the page target whose URL matches the active runtime tab (`ui_tabs`), using Node's built-in `WebSocket` (Node 22+, no extra dependency). A URL whose host is not `127.0.0.1`, `localhost` or `[::1]` is rejected at startup.
+
+- `ui_perf_metrics({ action: { ref, type: "click" } })` measures one interaction: counters before, the in-page action, 2 frames + `waitMs`, counters after.
+- `ui_leak_check({ actions: [{ ref: openRef, type: "click" }, { ref: closeRef, type: "click" }], iterations: 5 })` mounts and unmounts a component 5 times. A component that keeps its elements (a module-level array, a store, a closure in a `window` listener that is never removed) shows up as retained detached nodes after GC, grouped by the root of each detached subtree:
+
+```
+LEAK SUSPECTED: 5 iterations of [click e1 -> click e2], forced GC via CDP
+LEAK? LeakyFixture src/components/fixtures/LeakyFixture.svelte:23 retains 30 detached nodes (~6/iteration)
+LEAK? +5 JS event listeners after GC (~1/iteration): a listener added on mount is not removed on destroy
+COUNTERS after forced GC (baseline -> after, growth per iteration):
+  Nodes             943 -> 1023       +80 (~16/iteration)
+  JSEventListeners  70 -> 75          +5 (~1/iteration)
+  JSHeapUsedSize    5.8 MB -> 6.0 MB  +182.4 KB (~36.5 KB/iteration)
+PAGE TRACKING: 30 Svelte elements removed during the run, 30 still alive and detached after GC
+```
+
+Without `--cdp`, `ui_perf_metrics` returns an error with these instructions, and `ui_leak_check` still runs the page-side tracking but answers `INCONCLUSIVE (no forced GC; enable --cdp)`, listing the alive elements only as unconfirmed candidates.
+
+**A CDP port gives full control of that browser** (every tab, cookies, script execution). Only start Chrome with `--remote-debugging-port` on a throwaway profile, never bind it to a non-loopback address and never expose it. See [Security](#security).
 
 ### Vite plugin (`svelte-grab/vite`)
 
@@ -738,6 +802,40 @@ client.retry();
 client.getHistory();
 ```
 
+## Static audit
+
+`npx svelte-grab audit` is a zero-config static security scanner for Svelte and SvelteKit projects. It is the static half of the `ui_security_scan` runtime checks: same finding shape, same mandatory redaction, no extra dependencies (regex plus the Svelte compiler's `parse`, already a peer).
+
+```bash
+npx svelte-grab audit                          # text report grouped by severity
+npx svelte-grab audit --json                   # JSON report on stdout (for agents)
+npx svelte-grab audit --json audit.json --html audit.html
+npx svelte-grab audit --ci                     # exit 1 on a confirmed high finding
+npx svelte-grab audit --ci --min-severity medium --deps
+```
+
+It walks the project (skipping `node_modules`, `dist`, `build`, `.svelte-kit`, `.git`, `coverage`, `.gitignore` matches, test files and files over 1 MB) and runs these rules:
+
+| Rule | Severity | Verdict | What it flags |
+|------|----------|---------|---------------|
+| `secrets/client-exposure` | high (provider keys), medium (other) | confirmed / needs_validation | Secret-shaped values (Stripe, AWS, GitHub, OpenAI, Anthropic, Slack, Supabase `service_role`, private keys, ...) in client-reachable code. Server-only code (any `server` path segment such as `$lib/server`, `*.server.*`, `+server.*`, `*.remote.*`) is never client exposure |
+| `secrets/hardcoded-server` | medium / low | needs_validation | The same secrets hardcoded in server-only or tooling code |
+| `env/public-secret` | high | confirmed | Secret-shaped values under `PUBLIC_` / `VITE_` keys in `.env*` files (scanned even when gitignored). Supabase `anon` keys are skipped |
+| `svelte/html-non-literal` | medium | needs_validation | `{@html expr}` where `expr` is not a string literal or an obvious sanitizer call |
+| `svelte/target-blank-noopener` | low | confirmed (static href) | `target="_blank"` to an external URL without `rel="noopener"` / `noreferrer` |
+| `svelte/inline-handler-string` | low | confirmed | `on*="..."` string handlers on DOM elements |
+| `kit/load-overexposure` | medium | needs_validation | `+page.server` / `+layout.server` `load` returning (or spreading) a DB row fetched without field selection |
+| `kit/action-no-auth` | medium | needs_validation | Form actions without an obvious auth check (`locals.user`, `getRequestEvent().locals`, `redirect(30x)`, `error(401/403)`, `requireAuth()`-style helpers) |
+| `kit/remote-no-auth` | medium | needs_validation | Remote `command(...)` / `form(...)` from `$app/server` without an obvious auth check |
+| `kit/csrf-trusted-origins-wildcard` | high | confirmed | `csrf.trustedOrigins` containing `'*'` |
+| `kit/csp-missing` | low | confirmed | No `kit.csp` in `svelte.config` and no server file sets `Content-Security-Policy` |
+| `js/eval` | medium | confirmed | `eval(` / `new Function(` |
+| `js/postmessage-no-origin` | medium | confirmed / needs_validation | `message` listeners on `window` (or `<svelte:window onmessage>`) whose handler never reads `origin` |
+| `storage/token-in-web-storage` | medium (localStorage), low (sessionStorage) | confirmed | Tokens written to Web Storage under token-ish keys |
+| `deps/advisory` | npm severity | confirmed for `svelte` / `@sveltejs/*` | Only with `--deps`: `npm audit --json` (60 s timeout); skipped with a note otherwise |
+
+Each finding is `{ id, rule, severity, verdict, title, evidence, file, line, column, source, fix }`; `id` is stable across runs. Evidence never contains a full secret (`stripe-secret-key:sk_l…(len 32, sha 3f9a1c)`). The JSON report is validated against a JSON Schema (draft 2020-12) before it is written; print it with `npx svelte-grab audit --schema`. `needs_validation` findings are leads for an agent or a human to confirm or reject; only `confirmed` ones fail `--ci`.
+
 ## CLI
 
 ```bash
@@ -752,7 +850,23 @@ npx svelte-grab <command> [options]
 | `configure` | Interactive configuration (activation key, editor, ports, theme) |
 | `relay` | Start the WebSocket relay server (maintenance mode) |
 | `mcp` | Start the MCP server |
+| `skills install\|list\|path` | Install or update the [agent skills](#agent-skills) in `.claude/skills/` (`--skills-dir`, `--force`, `--dry-run`), list them, or print the packaged directory |
+| `audit` | Static security scan (see [Static audit](#static-audit) and the flags below) |
 | `help` | Show help |
+
+### `audit`
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--path <dir>` | `.` | Project root to scan |
+| `--json [file]` | | Write the JSON report to `file`; without a file (or `-`), print JSON to stdout instead of the text report |
+| `--html <file>` | | Write a single-file HTML report (inline CSS, no external assets) |
+| `--ci` | off | No colors; exit code 1 when a `confirmed` finding is at or above `--min-severity`, else 0 |
+| `--min-severity <level>` | `high` | CI threshold: `high`, `medium` or `low` |
+| `--deps` | off | Also run `npm audit --json` for dependency advisories |
+| `--schema` | | Print the report JSON Schema and exit |
+
+Without `--ci` the exit code is 0 whatever the findings; usage errors exit 2. The command wraps a library function, `audit(options)` (`src/cli/audit/index.ts`), that returns the report and never exits the process.
 
 ### `init`
 
@@ -762,6 +876,7 @@ npx svelte-grab <command> [options]
 | Playwright MCP | Adds a `playwright` entry (`npx -y @playwright/mcp@latest`). | off unless `--with-playwright-mcp` |
 | `vite.config.(ts\|js)` | Adds `import { svelteGrab } from 'svelte-grab/vite'` and `svelteGrab()` right after `sveltekit(...)` / `svelte(...)` when the config has a plain `plugins: [...]` array. Any other shape is left untouched and the two lines to add are printed. | `--no-vite-plugin` |
 | Root component | SvelteKit: `src/routes/+layout.svelte` (created if missing), wrapped in `{#if dev}` from `$app/environment`. Vite + Svelte: end of `src/App.svelte`. Skipped when the file already imports `svelte-grab`. | |
+| Agent skills | Copies `skills/svelte-grab` and `skills/svelte-grab-audit` into `.claude/skills/`. Identical files are skipped; a file you edited gets the new version next to it as `<file>.new`. Appends a one-time pointer to an existing `AGENTS.md`. | `--no-skills`; `--skills-dir <dir>` to change the target; `--force-skills` to overwrite edited files |
 | `enableMcp` | Set on the injected `<SvelteDevKit />` only when `.mcp.json` declares the `svelte-grab` server after the run (added now or already there). With `--no-mcp-json` or an unreadable `.mcp.json` the page does not try to reach an MCP server. | |
 
 `init` also lists the dev dependencies still missing from `package.json` (`svelte-grab`, plus `@modelcontextprotocol/sdk` and `zod` when MCP is configured) with the install command for your package manager. `--dry-run` prints every diff and writes nothing. Running it again changes nothing.
@@ -770,11 +885,13 @@ npx svelte-grab <command> [options]
 npx svelte-grab init                     # Set up .mcp.json, Vite plugin and layout
 npx svelte-grab init --dry-run           # Preview changes without writing
 npx svelte-grab init --with-playwright-mcp --no-vite-plugin
+npx svelte-grab skills install --skills-dir .agents/skills  # Skills for agents that read .agents/skills
 npx svelte-grab add cursor               # Add Cursor agent provider
 npx svelte-grab remove copilot           # Remove Copilot provider
 npx svelte-grab configure                # Interactive configuration
 npx svelte-grab relay --provider=cursor  # Start relay with Cursor provider
 npx svelte-grab mcp --stdio              # Start MCP server for Claude Code
+npx svelte-grab audit --ci --html audit.html  # Static security scan for CI
 ```
 
 ## Plugin System
@@ -915,6 +1032,7 @@ The servers ship with these protections enabled by default:
 - **Loopback only.** Both servers bind to `127.0.0.1`. They are not reachable from other hosts on your LAN. Do not put them behind a reverse proxy, tunnel, or `0.0.0.0` bind.
 - **Origin allowlist (primary browser defense).** Every browser connection's `Origin` header is checked. By default only `localhost`, `127.0.0.1`, `[::1]`, and `*.localhost` origins (your dev app, on any port) are allowed. Other origins are rejected (WebSocket 403, HTTP `403`/`401`). This stops any random web page you visit from driving your agent. Requests with **no** `Origin` (non-browser local tools like `curl` or an MCP stdio client) are allowed — the token below is the defense against those.
 - **No wildcard CORS.** The MCP server never sends `Access-Control-Allow-Origin: *`. It reflects the request Origin only when it is on the allowlist, with `Vary: Origin`.
+- **CDP mode is opt-in and loopback-only.** `ui_perf_metrics` / `ui_leak_check` talk to Chrome over the DevTools Protocol only when you pass `--cdp=<url>` (or set `SVELTE_GRAB_CDP`). The URL must be `http(s)://` or `ws://` on `127.0.0.1`, `localhost` or `[::1]`; anything else stops the server at startup, and the WebSocket URL Chrome hands back is checked the same way. A CDP port gives full control of the browser, so start Chrome with `--remote-debugging-port` only on a throwaway profile (`--user-data-dir`) and never expose that port.
 - **Payload & resource limits.** WebSocket messages and HTTP bodies are capped at 2 MB, message shapes are validated before use, and session/SSE stores are bounded to prevent unbounded memory growth.
 
 ### Optional bearer token
@@ -945,6 +1063,7 @@ In the browser, pass the MCP token to the component; it is sent on `/context`, `
 |---------|-----|
 | Extend the Origin allowlist | `SVELTE_GRAB_ALLOWED_ORIGINS=https://a.example,https://b.example` (comma-separated), or the `allowedOrigins` option to `createRelayServer` / `startMcpServer` |
 | Enable token auth | `--token[=VALUE]` CLI flag, `SVELTE_GRAB_TOKEN` env var, or the `token` option |
+| Enable CDP mode (off by default) | `--cdp=http://127.0.0.1:9222` CLI flag, `SVELTE_GRAB_CDP` env var, or the `cdp` option to `startMcpServer` (loopback hosts only) |
 
 **Never expose the relay or MCP ports to a network.** If you need remote access, use an SSH tunnel to `127.0.0.1` and keep token auth on.
 

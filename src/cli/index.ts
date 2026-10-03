@@ -60,6 +60,12 @@ async function main() {
 			break;
 		}
 
+		case 'skills': {
+			const { runSkillsCommand } = await import('./skills.js');
+			process.exitCode = runSkillsCommand(args);
+			break;
+		}
+
 		case 'relay': {
 			const { startRelay } = await import('./relay.js');
 			const portArg = args.find((a: string) => a.startsWith('--port='));
@@ -102,7 +108,14 @@ async function main() {
 			const mcpPortArg = args.find((a: string) => a.startsWith('--port='));
 			const mcpPort = parsePortArg(mcpPortArg, DEFAULT_MCP_PORT);
 			const stdio = args.includes('--stdio');
-			await startMcpServer({ port: mcpPort, stdio, token: parseTokenArg(args) });
+			const { cdpArgFromArgv } = await import('../mcp/cdp/client.js');
+			await startMcpServer({ port: mcpPort, stdio, token: parseTokenArg(args), cdp: cdpArgFromArgv(args) });
+			break;
+		}
+
+		case 'audit': {
+			const { runAuditCli } = await import('./audit/cli.js');
+			process.exitCode = runAuditCli(args.slice(1));
 			break;
 		}
 
@@ -131,6 +144,22 @@ Commands:
                                       --with-svelte-mcp=false; default on)
               --with-playwright-mcp   Also add the @playwright/mcp entry (default off)
               --no-vite-plugin        Do not edit vite.config
+              --no-skills             Do not copy the agent skills (default: copy the
+                                      svelte-grab and svelte-grab-audit skills into
+                                      .claude/skills/, plus a pointer in AGENTS.md if
+                                      the project has one)
+              --skills-dir <dir>      Where the skills go (e.g. .agents/skills)
+              --force-skills          Overwrite skill files you edited (default: the
+                                      new version is written next to them as <file>.new)
+
+  skills    Install or update the agent skills shipped in the package.
+            Subcommands:
+              install       Copy skills into .claude/skills/ (idempotent; files you
+                            didn't edit update in place, edited ones get a <file>.new). Options: --skills-dir <dir>,
+                            --force (overwrite edited files), --dry-run
+              list          Per-file status against the project: new, up to date,
+                            will update, edited by you. Option: --skills-dir <dir>
+              path          Print the packaged skills directory
 
   add       Add an agent provider (claude-code, cursor, copilot, codex).
             Options:
@@ -165,6 +194,13 @@ Commands:
                             MCP config: "command": "npx svelte-grab-mcp --stdio")
               --token[=VALUE]  Require a bearer token (auto-generated if no
                             VALUE). Also via SVELTE_GRAB_TOKEN env var.
+              --cdp=URL     Opt-in CDP mode for ui_perf_metrics / ui_leak_check,
+                            e.g. --cdp=http://127.0.0.1:9222 (Chrome started with
+                            --remote-debugging-port). Loopback only. Also via
+                            SVELTE_GRAB_CDP env var.
+
+  audit     Static security scan of a Svelte/SvelteKit project (zero config).
+            Run "svelte-grab audit --help" for options (--json, --html, --ci).
 
   help      Show this help message
 
@@ -186,6 +222,7 @@ Examples:
   npx svelte-grab init                     # Add to your SvelteKit project
   npx svelte-grab init --dry-run           # Preview changes without writing
   npx svelte-grab init --with-playwright-mcp  # Also add Playwright MCP to .mcp.json
+  npx svelte-grab skills install --skills-dir .agents/skills  # Skills for other agents
   npx svelte-grab add cursor               # Add Cursor agent provider
   npx svelte-grab remove copilot           # Remove Copilot provider
   npx svelte-grab configure                # Interactive configuration

@@ -16,6 +16,8 @@ import { TabRegistry } from './runtime/tab-registry.js';
 import { CommandChannel, type RuntimeCommandMessage, type SendOptions } from './runtime/command-channel.js';
 import { parseHelloPayload, parseResultPayload, isPlainObject, type RuntimeResultData } from './runtime/validate.js';
 import { registerRuntimeTools, type McpToolServer, type ZodNamespace } from './runtime/tools.js';
+import { resolveCdpConfig, type CdpConfig } from './cdp/client.js';
+import { registerSkillPrompts, type McpPromptServer } from './prompts.js';
 
 /** Max request body size (2 MB) for POST endpoints. */
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -29,6 +31,12 @@ const MAX_WATCHERS = 100;
 export interface McpServerOptions extends SecurityOptions {
 	port?: number;
 	stdio?: boolean;
+	/**
+	 * Opt-in CDP mode (`ui_perf_metrics`, `ui_leak_check`): the Chrome DevTools
+	 * HTTP endpoint, e.g. `http://127.0.0.1:9222`. Loopback hosts only. Falls
+	 * back to the SVELTE_GRAB_CDP env var; off when neither is set.
+	 */
+	cdp?: string;
 }
 
 /** Port actually bound vs. the one asked for (differs after a fallback). */
@@ -59,6 +67,9 @@ const PACKAGE_VERSION = readPackageVersion();
 // Module-level security config — resolved when the server starts.
 // Defaults to "origin check on, token off" until startMcpServer overrides it.
 let security: SecurityConfig = resolveSecurityConfig();
+
+// CDP mode (Phase 8b) — null (off) unless --cdp / SVELTE_GRAB_CDP is set.
+let cdpConfig: CdpConfig | null = null;
 
 interface ContextPayload {
 	content: string[];
@@ -407,9 +418,9 @@ function extractToolSection(toolName: string): string | null {
 }
 
 /**
- * Register MCP tools on a server instance.
+ * Register MCP tools (and the skill prompts) on a server instance.
  */
-function registerMcpTools(server: McpToolServer, z: ZodNamespace): void {
+function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespace): void {
 	// ============================================================
 	// watch_for_grab — blocks until the browser sends new context
 	// ============================================================
@@ -662,7 +673,10 @@ function registerMcpTools(server: McpToolServer, z: ZodNamespace): void {
 	);
 
 	// Agent runtime: ui_tabs (server-only), ui_snapshot / ui_find / ui_inspect (page round trip).
-	registerRuntimeTools(server, z, { registry: tabRegistry, channel: commandChannel });
+	registerRuntimeTools(server, z, { registry: tabRegistry, channel: commandChannel, cdp: () => cdpConfig });
+
+	// Prompts: the packaged skills (svelte-grab-loop, security-audit, performance-audit).
+	registerSkillPrompts(server, z);
 }
 
 /**
@@ -903,6 +917,15 @@ export async function startMcpServer(options: McpServerOptions = {}): Promise<{ 
 	// Resolve security config (Origin allowlist + optional token) from
 	// options/env before any request can be served.
 	security = resolveSecurityConfig(options);
+	// Throws on a non-loopback / invalid CDP URL: refuse to start rather than
+	// silently ignore it.
+	cdpConfig = resolveCdpConfig(options.cdp);
+	if (cdpConfig) {
+		console.error(
+			`[svelte-grab mcp] CDP mode on: ${cdpConfig.httpUrl} (ui_perf_metrics, ui_leak_check). ` +
+				'A CDP port gives full control of that browser: keep it on loopback, never expose it.'
+		);
+	}
 
 	if (stdio) {
 		await startStdioServer(port);

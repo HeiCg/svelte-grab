@@ -19,6 +19,7 @@ import { detectDevMode } from '../utils/shared.js';
 import { dispatchRuntimeCommand } from './commands.js';
 import { consoleCapture } from './console-capture.js';
 import { hmrTracker } from './hmr.js';
+import { networkCapture } from './network.js';
 import type { RuntimeCommandOutcome, RuntimeHello, RuntimeResultMessage } from './types.js';
 
 export const RUNTIME_TAB_ID_KEY = 'svelte-grab-tab-id';
@@ -290,6 +291,8 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 	// Console errors/warnings are captured for as long as the runtime runs
 	// (ui_verify `console` check); the console is restored on stop().
 	consoleCapture.retain();
+	// Network requests too (ui_network / ui_security_scan); restored on stop().
+	networkCapture.retain();
 	const trackHmr = options.trackHmr !== false;
 	if (trackHmr) hmrTracker.retain();
 
@@ -307,6 +310,7 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 			clearInterval(heartbeat);
 			if (trackHmr) hmrTracker.release();
 			consoleCapture.release();
+			networkCapture.release();
 			if (reconnectTimer) clearTimeout(reconnectTimer);
 			reconnectTimer = null;
 			window.removeEventListener('focus', onFocusChange);

@@ -151,6 +151,8 @@ describe('svelte-grab/vite plugin shape', () => {
 		for (const event of BRIDGED_EVENTS) expect(code).toContain(event);
 		expect(code).toContain(`"${HMR_BRIDGE_EVENT}"`);
 		expect(code).toContain('waitUntil');
+		// The client env (VITE_*) is exposed for ui_security_scan's env check.
+		expect(code).toContain('env: import.meta.env');
 	});
 
 	it('mounts the importers middleware on the dev server (and not when disabled)', () => {

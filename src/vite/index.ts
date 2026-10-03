@@ -5,7 +5,8 @@
  *
  * - HMR bridge: a tiny client module (`virtual:svelte-grab/client`) forwards
  *   Vite HMR events as `svelte-grab:hmr` CustomEvents on `window` and sets
- *   `window.__SVELTE_GRAB_VITE__ = { version, root, hmrBridge, importersEndpoint }`.
+ *   `window.__SVELTE_GRAB_VITE__ = { version, root, hmrBridge, importersEndpoint, env }`
+ *   (`env` = the client's `import.meta.env`, read by `ui_security_scan`).
  *   It is injected into index.html (plain Vite) and prepended to every app
  *   module that imports `svelte-grab` (SvelteKit renders its own HTML, so
  *   `transformIndexHtml` never runs there).
@@ -86,7 +87,8 @@ export function createClientModule(info: ClientInfo): string {
 	return `// svelte-grab/vite client (dev only)
 const info = ${JSON.stringify(info)};
 if (typeof window !== 'undefined') {
-	window[${JSON.stringify(VITE_PLUGIN_GLOBAL)}] = info;
+	// env: the client env Vite already bundles (VITE_*), for ui_security_scan's env check.
+	window[${JSON.stringify(VITE_PLUGIN_GLOBAL)}] = { ...info, env: import.meta.env };
 	const flag = ${JSON.stringify(BRIDGE_FLAG)};
 	if (info.hmrBridge && import.meta.hot && !window[flag]) {
 		window[flag] = true;

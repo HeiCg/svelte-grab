@@ -111,6 +111,7 @@ Still supported, no new providers/features; new integrations use MCP. WebSocket 
 
 - `svelte-grab init` — merges `.mcp.json` (svelte-grab + `@sveltejs/mcp`, optional `@playwright/mcp`), adds `svelteGrab()` to `vite.config`, injects `<SvelteDevKit />` (with `enableMcp` when `.mcp.json` declares svelte-grab). Flags: `--dry-run`, `--no-mcp-json`, `--no-svelte-mcp`, `--with-playwright-mcp`, `--no-vite-plugin`. The file edits are pure string transforms in `transforms.ts` (no fs, idempotent), shared with the sv add-on.
 - `svelte-grab mcp` — Starts the MCP server
+- `svelte-grab audit` — Static security scanner (`src/cli/audit/`: walker, rules, text/JSON/HTML reporters, `finding-schema.json` + zero-dep validator); reuses `src/lib/security/secret-rules.ts` (pure, emitted by the server tsc as `dist/lib/security/`); fixtures in `tests/fixtures/audit-app/` keep secret placeholders filled at test time
 - `svelte-grab relay` / `add` / `remove` — relay (maintenance mode)
 
 ### sv add-on (`packages/sv-addon/`)

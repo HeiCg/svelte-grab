@@ -1,0 +1,4 @@
+# copied to .gitignore by the tests
+ignored-dir/
+.env
+*.log

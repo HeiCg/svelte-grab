@@ -28,7 +28,8 @@ export interface ToolResult {
 	isError: boolean;
 }
 
-function freePort(): Promise<number> {
+/** A free loopback TCP port (also used for Chromium's --remote-debugging-port in e2e/leak.spec.ts). */
+export function freePort(): Promise<number> {
 	return new Promise((resolve, reject) => {
 		const srv = createServer();
 		srv.once('error', reject);
@@ -42,14 +43,19 @@ function freePort(): Promise<number> {
 /**
  * Start `node dist/mcp/cli.js --port=<free>`; resolves with the port it really bound.
  * `env` is merged over process.env; SVELTE_GRAB_TOKEN is dropped unless `env` sets it.
+ * `extraArgs` are appended to the CLI args (e.g. `--cdp=http://127.0.0.1:9222`).
  */
-export async function startMcpServer(env: Record<string, string> = {}): Promise<McpServerProcess> {
+export async function startMcpServer(
+	env: Record<string, string> = {},
+	extraArgs: string[] = []
+): Promise<McpServerProcess> {
 	// CI builds on `npm ci` (prepare); locally build the server half if missing.
 	if (!existsSync(CLI)) execSync('npm run build:server', { cwd: ROOT, stdio: 'ignore' });
 	const requested = await freePort();
 	const childEnv: NodeJS.ProcessEnv = { ...process.env, ...env };
 	if (!env.SVELTE_GRAB_TOKEN) delete childEnv.SVELTE_GRAB_TOKEN;
-	const proc = spawn(process.execPath, [CLI, `--port=${requested}`], {
+	if (!env.SVELTE_GRAB_CDP) delete childEnv.SVELTE_GRAB_CDP;
+	const proc = spawn(process.execPath, [CLI, `--port=${requested}`, ...extraArgs], {
 		cwd: ROOT,
 		env: childEnv,
 		stdio: ['ignore', 'pipe', 'pipe']

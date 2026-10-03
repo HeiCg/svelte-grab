@@ -10,6 +10,8 @@ import {
 	VITE_PLUGIN_IMPORT,
 	type McpServerName
 } from './transforms.js';
+import { installSkills, parseSkillsFlags, type SkillsInstallResult } from './skills.js';
+import { DEFAULT_SKILLS_DIR } from './skills-plan.js';
 
 /** Minimum Svelte version: `__svelte_meta.parent` (component stack) starts here. */
 export const MIN_SVELTE_VERSION = '5.35.1';
@@ -51,6 +53,12 @@ export interface InitOptions {
 	playwrightMcp?: boolean;
 	/** Add `svelteGrab()` from `svelte-grab/vite` to the Vite config (default true). */
 	vitePlugin?: boolean;
+	/** Copy the agent skills into `skillsDir` (default true). */
+	skills?: boolean;
+	/** Project-relative directory for the skills (default `.claude/skills`). */
+	skillsDir?: string;
+	/** Overwrite skill files that differ instead of writing `<file>.new` (default false). */
+	forceSkills?: boolean;
 }
 
 export interface InitResult {
@@ -63,6 +71,8 @@ export interface InitResult {
 	mcpServersAdded: McpServerName[];
 	vitePlugin: 'added' | 'already-present' | 'manual' | 'skipped' | 'missing';
 	layout: 'created' | 'modified' | 'already-present' | 'manual';
+	/** Agent skills install, or null with `skills: false`. Its writes are also in `written`. */
+	skills: SkillsInstallResult | null;
 }
 
 /** Boolean flag: `--name` / `--name=true` -> true, `--name=false|no|0|off` -> false. */
@@ -81,7 +91,8 @@ export function parseInitArgs(args: string[]): Required<InitOptions> {
 		mcpJson: !args.includes('--no-mcp-json'),
 		svelteMcp: args.includes('--no-svelte-mcp') ? false : boolFlag(args, 'with-svelte-mcp', true),
 		playwrightMcp: boolFlag(args, 'with-playwright-mcp', false),
-		vitePlugin: !args.includes('--no-vite-plugin')
+		vitePlugin: !args.includes('--no-vite-plugin'),
+		...parseSkillsFlags(args)
 	};
 }
 
@@ -113,18 +124,31 @@ function printDiff(before: string, after: string): void {
  * 3. Root layout (`src/routes/+layout.svelte`) or `src/App.svelte`: inject
  *    `<SvelteDevKit />`, with `enableMcp` only when `.mcp.json` declares the
  *    `svelte-grab` server after this run (added now or already there).
+ * 4. Agent skills: copy the packaged `skills/` into `.claude/skills/` (or
+ *    `skillsDir`); user-modified files get a `<file>.new` instead, and an
+ *    existing AGENTS.md gets a one-time pointer.
  *
  * Never exits the process: returns `ok: false` on fatal problems.
  */
 export function init(cwd: string = process.cwd(), options: InitOptions = {}): InitResult {
-	const { dryRun = false, mcpJson = true, svelteMcp = true, playwrightMcp = false, vitePlugin = true } = options;
+	const {
+		dryRun = false,
+		mcpJson = true,
+		svelteMcp = true,
+		playwrightMcp = false,
+		vitePlugin = true,
+		skills = true,
+		skillsDir = DEFAULT_SKILLS_DIR,
+		forceSkills = false
+	} = options;
 	const result: InitResult = {
 		ok: false,
 		written: [],
 		enableMcp: false,
 		mcpServersAdded: [],
 		vitePlugin: 'skipped',
-		layout: 'manual'
+		layout: 'manual',
+		skills: null
 	};
 
 	if (dryRun) console.log('[svelte-grab] Dry run mode - no files will be written\n');
@@ -262,6 +286,12 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 			save(rel, after);
 			console.log(`[svelte-grab] ${before ? 'Added SvelteDevKit to' : 'Created'} ${rel}`);
 		}
+	}
+
+	// 4. Agent skills (.claude/skills/ by default)
+	if (skills) {
+		result.skills = installSkills(cwd, { skillsDir, force: forceSkills, dryRun });
+		result.written.push(...result.skills.written);
 	}
 
 	// Next steps

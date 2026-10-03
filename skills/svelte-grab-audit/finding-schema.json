@@ -1,0 +1,45 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/HeiCg/svelte-grab/skills/svelte-grab-audit/finding-schema.json",
+	"title": "svelte-grab audit findings",
+	"description": "Findings of a svelte-grab security/performance audit. The finding shape is the one ui_security_scan returns (docs/agent-runtime-spec.md 9b) and svelte-grab audit emits (9c). Static findings from `svelte-grab audit` (src/cli/audit/finding-schema.json) also carry rule, file, line and column and validate here too.",
+	"type": "object",
+	"required": ["findings"],
+	"properties": {
+		"generatedAt": { "type": "string", "description": "ISO 8601 timestamp." },
+		"tool": { "type": "string", "description": "What produced the findings, e.g. \"svelte-grab audit\", \"ui_security_scan\", \"svelte-grab-audit skill\"." },
+		"findings": {
+			"type": "array",
+			"items": { "$ref": "#/$defs/finding" }
+		}
+	},
+	"$defs": {
+		"finding": {
+			"type": "object",
+			"required": ["id", "severity", "verdict", "title", "evidence", "fix"],
+			"properties": {
+				"id": { "type": "string", "minLength": 1, "description": "Stable rule or check id." },
+				"severity": { "enum": ["high", "medium", "low", "info"] },
+				"verdict": {
+					"enum": ["confirmed", "needs_validation"],
+					"description": "confirmed needs reproduction evidence; needs_validation must name the missing fact. Disproved candidates are not findings."
+				},
+				"title": { "type": "string", "minLength": 1 },
+				"evidence": {
+					"type": "string",
+					"description": "Redacted evidence. Secrets appear only as kind:abcd…(len N, sha xxxxxx), never in full."
+				},
+				"source": { "type": "string", "description": "file:line when known." },
+				"rule": { "type": "string", "description": "Static rule id from svelte-grab audit, e.g. secrets/client-exposure." },
+				"file": { "type": "string", "description": "Project-relative file (static findings)." },
+				"line": { "type": "integer", "minimum": 1 },
+				"column": { "type": "integer", "minimum": 1 },
+				"fix": { "type": "string", "minLength": 1 },
+				"check": { "type": "string", "description": "ui_security_scan check (transit, storage, ...) or CHECKLIST.md id (S1, P4, ...)." },
+				"screen": { "type": "string", "description": "Route of the screen the finding was observed on." },
+				"missingFact": { "type": "string", "description": "For needs_validation: the exact fact that would confirm or reject it." }
+			},
+			"additionalProperties": true
+		}
+	}
+}
