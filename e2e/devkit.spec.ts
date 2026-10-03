@@ -1,4 +1,12 @@
-import { test, expect, gotoPlayground, altKey, expectClipboardToContain } from './fixtures';
+import {
+	test,
+	expect,
+	gotoPlayground,
+	altKey,
+	expectClipboardToContain,
+	readClipboard,
+	styleGrab
+} from './fixtures';
 
 /**
  * SvelteDevKit mounts the full tool suite and only activates when Svelte's
@@ -93,5 +101,48 @@ test.describe('SvelteDevKit — dev-mode activation', () => {
 		await altKey(page, '?');
 		const help = page.locator('[role="dialog"][aria-label="SvelteDevKit Keyboard Shortcuts"]');
 		await expect(help.locator('tr', { hasText: 'State Inspector' })).toContainText('Alt+Meta+Click');
+	});
+
+	test('Alt+Ctrl+Click and Alt+Meta+Click open only their tool, not SvelteGrab', async ({
+		page
+	}) => {
+		await gotoPlayground(page);
+		const grabDialog = page.locator('[role="dialog"][aria-label="SvelteGrab component inspector"]');
+		const stateDialog = page.locator('[role="dialog"][aria-label="SvelteStateGrab inspector"]');
+		const styleDialog = page.locator('[role="dialog"][aria-label="SvelteStyleGrab inspector"]');
+		const selected = page.locator('.svelte-grab-highlight-selected');
+		const sentinel = 'reserved-modifier-sentinel';
+		await page.evaluate((s) => navigator.clipboard.writeText(s), sentinel);
+
+		// Alt+Ctrl+Click: StyleGrab only (no grab popup, no stack copied).
+		await styleGrab(page, '[data-testid="fx-button-a"]');
+		await expect(styleDialog).toBeVisible();
+		await expect(grabDialog).toHaveCount(0);
+		expect(await readClipboard(page)).not.toContain('Component Stack:');
+		await page.keyboard.press('Escape');
+		await expect(styleDialog).toHaveCount(0);
+
+		// Alt+Meta+Click: StateGrab only.
+		await page.evaluate((s) => navigator.clipboard.writeText(s), sentinel);
+		await page.getByTestId('fx-button-a').click({ modifiers: ['Alt', 'Meta'] });
+		await expect(stateDialog).toBeVisible();
+		await expect(grabDialog).toHaveCount(0);
+		await expect(selected).toHaveCount(0);
+		expect(await readClipboard(page)).not.toContain('Component Stack:');
+		await page.keyboard.press('Escape');
+		await expect(stateDialog).toHaveCount(0);
+
+		// Plain Alt+Click still grabs.
+		await page.getByTestId('fx-button-a').click({ modifiers: ['Alt'] });
+		await expect(grabDialog).toBeVisible();
+		await expectClipboardToContain(page, 'Component Stack:');
+		await page.keyboard.press('Escape');
+		await expect(grabDialog).toHaveCount(0);
+
+		// Shift+Alt+Click still multi-selects.
+		await page.getByTestId('fx-button-a').click({ modifiers: ['Alt', 'Shift'] });
+		await page.getByTestId('fx-button-b').click({ modifiers: ['Alt', 'Shift'] });
+		await expect(selected).toHaveCount(2);
+		await expect(stateDialog).toHaveCount(0);
 	});
 });

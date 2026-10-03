@@ -318,6 +318,7 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 | `enablePromptMode` | `boolean` | `true` | Enable inline prompt overlay |
 | `enableAnnotations` | `boolean` | `true` | Annotation mode: `N` while selecting (or "Add annotation" in the prompt overlay) stores the hovered element or the current selection with a comment |
 | `hotkeys` | `'full' \| 'minimal'` | `'full'` | Shortcut set. `'minimal'`: only Alt+Click, Shift+Alt+Click, Alt+Drag, Escape and `N`. See [Minimal hotkeys](#minimal-hotkeys) |
+| `reservedModifiers` | `('ctrl' \| 'meta' \| 'shift')[]` | `[]` | Extra modifiers owned by other tools: an Alt+Click that also holds one is ignored (no grab, popup or multi-select). Shift keeps multi-selecting unless listed. SvelteDevKit sets it for you |
 | `copyOnKeyboard` | `boolean` | `true` | Enable Cmd+C / Ctrl+C to copy in selection mode |
 | `projectRoot` | `string` | `''` | Absolute path to project root (for "Open in Editor"). Not needed with the `svelte-grab/vite` plugin, which provides it |
 | `showActiveIndicator` | `boolean` | `true` | Show active indicator badge |
@@ -364,6 +365,8 @@ src/routes/contact/+page.svelte:12:1
 Alt+Shift+Click any element to inspect its component state.
 
 Inside SvelteDevKit the trigger is **Alt+Meta+Click** (Meta = Cmd on macOS, Win on Windows), because Shift+Alt+Click is SvelteGrab's multi-select. DevKit falls back to Alt+Shift+Click when multi-select is off (`enableMultiSelect={false}`) or SvelteGrab is not enabled. Set `stateSecondaryModifier` on SvelteDevKit to pick the modifier yourself.
+
+SvelteDevKit also passes these triggers to SvelteGrab as `reservedModifiers`, so Alt+Meta+Click (state) and Alt+Ctrl+Click (style) open only their own tool instead of also grabbing. Plain Alt+Click and Shift+Alt+Click are unaffected. With `hotkeys="minimal"` nothing is reserved, since those triggers are off.
 
 **Shows:** Props, HTML attributes, data attributes, bound values (form inputs, text content), child component count, and component location.
 

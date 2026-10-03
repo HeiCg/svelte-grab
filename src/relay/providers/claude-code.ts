@@ -10,16 +10,21 @@ interface SessionHistory {
 	results: string[];
 }
 
+/** The part of @anthropic-ai/claude-agent-sdk this provider calls. */
+interface ClaudeAgentSDK {
+	query(options: { prompt: string; signal?: AbortSignal }): Promise<unknown>;
+}
+
 export class ClaudeCodeProvider implements AgentProvider {
 	readonly name = 'claude-code';
 	private activeSessions = new Map<string, AbortController>();
 	private sessionHistory = new Map<string, SessionHistory>();
-	private sdk: any = null;
+	private sdk: ClaudeAgentSDK | null = null;
 
 	/**
 	 * Lazy-load the Claude Agent SDK.
 	 */
-	private async loadSDK(): Promise<any> {
+	private async loadSDK(): Promise<ClaudeAgentSDK> {
 		if (this.sdk) return this.sdk;
 
 		try {

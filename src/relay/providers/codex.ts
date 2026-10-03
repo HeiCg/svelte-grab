@@ -11,23 +11,42 @@ interface SessionHistory {
 	threadId?: string;
 }
 
+/** The parts of @openai/codex-sdk this provider calls. */
+interface CodexStreamEvent {
+	type: string;
+	item?: { content?: unknown; text?: unknown };
+	error?: { message?: string };
+	message?: string;
+}
+
+interface CodexThread {
+	id: string;
+	runStreamed(prompt: string, options: { signal: AbortSignal }): { events: AsyncIterable<CodexStreamEvent> };
+}
+
+interface CodexSDK {
+	startThread(): CodexThread | Promise<CodexThread>;
+	resumeThread(threadId: string): CodexThread | Promise<CodexThread>;
+}
+
 export class CodexProvider implements AgentProvider {
 	readonly name = 'codex';
 	private activeSessions = new Map<string, AbortController>();
 	private sessionHistory = new Map<string, SessionHistory>();
-	private sdk: any = null;
+	private sdk: CodexSDK | null = null;
 
 	/**
 	 * Lazy-load the Codex SDK.
 	 */
-	private async loadSDK(): Promise<any> {
+	private async loadSDK(): Promise<CodexSDK> {
 		if (this.sdk) return this.sdk;
 
 		try {
 			// Use variable to prevent TypeScript from resolving the optional peer dependency at compile time
 			const moduleName = '@openai/codex-sdk';
-			this.sdk = await import(/* @vite-ignore */ moduleName);
-			return this.sdk;
+			const sdk: CodexSDK = await import(/* @vite-ignore */ moduleName);
+			this.sdk = sdk;
+			return sdk;
 		} catch {
 			throw new Error(
 				'@openai/codex-sdk not installed. Run: npm install @openai/codex-sdk'
@@ -64,7 +83,7 @@ export class CodexProvider implements AgentProvider {
 			callbacks.onStatus('Processing...');
 
 			// Start or resume a thread
-			let thread: any;
+			let thread: CodexThread;
 			if (history.threadId) {
 				thread = await sdk.resumeThread(history.threadId);
 			} else {

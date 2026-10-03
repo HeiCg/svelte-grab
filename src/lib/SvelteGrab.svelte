@@ -68,6 +68,7 @@
 		ANNOTATION_KEY_LABEL,
 		isAnnotationKey,
 		isGrabHotkeyEnabled,
+		hasReservedModifier,
 		type GrabHotkey
 	} from './utils/hotkeys.js';
 	import {
@@ -141,12 +142,18 @@
 		screenshotSkipFonts = true,
 		screenshotPixelRatio,
 		enableAnnotations = true,
-		hotkeys = 'full'
+		hotkeys = 'full',
+		reservedModifiers = []
 	}: SvelteGrabProps = $props();
 
 	/** Whether a shortcut is active under the `hotkeys` set ('full' keeps all). */
 	function hotkeyOn(hotkey: GrabHotkey): boolean {
 		return isGrabHotkeyEnabled(hotkeys, hotkey);
+	}
+
+	/** Whether a mouse event holds another tool's modifier (see `reservedModifiers`). */
+	function isReservedClick(event: MouseEvent): boolean {
+		return hasReservedModifier(event, reservedModifiers, modifier);
 	}
 
 	// Resolve theme via the shared design-system helper so SvelteGrab's colors
@@ -745,6 +752,8 @@
 		}
 
 		if (!checkModifier(event)) return;
+		// Another tool's trigger (e.g. Alt+Ctrl+Click in SvelteDevKit): hands off.
+		if (isReservedClick(event)) return;
 
 		event.preventDefault();
 		event.stopPropagation();
@@ -1110,6 +1119,9 @@
 	 */
 	function handleContextMenu(event: MouseEvent) {
 		if (!selectionMode || !showContextMenu || !hoveredElement || !hotkeyOn('contextMenu')) return;
+		// macOS turns Ctrl+Click into a right-click: with Ctrl reserved, that
+		// click is StyleGrab's, not a request for this menu.
+		if (isReservedClick(event)) return;
 
 		event.preventDefault();
 		event.stopPropagation();
@@ -1196,6 +1208,8 @@
 
 		// Don't start drag if shift is held (that's multi-select click)
 		if (event.shiftKey) return;
+		// Nor on another tool's modified click (see reservedModifiers)
+		if (isReservedClick(event)) return;
 
 		// Don't start drag on our own UI elements
 		if ((event.target as HTMLElement).closest('[class*="svelte-grab-"], [class*="sg-"]')) return;
