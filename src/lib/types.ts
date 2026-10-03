@@ -134,6 +134,15 @@ export interface ChildComponentInfo {
 	count: number;
 }
 
+export interface InspectableStateInstance {
+	/** Display label, e.g. `"Counter #2"`. */
+	label: string;
+	/** 1-based instance number among live instances sharing the name. */
+	instance: number;
+	/** Snapshot of the values passed to `inspectable()`. */
+	values: Record<string, unknown>;
+}
+
 export interface ComponentStateInfo {
 	componentName: string | null;
 	file: string;
@@ -142,7 +151,10 @@ export interface ComponentStateInfo {
 	attributes: Record<string, string>;
 	dataAttributes: Record<string, string>;
 	boundValues: Record<string, unknown>;
+	/** Values of the first matching `inspectable()` instance (legacy single view). */
 	inspectableState?: Record<string, unknown>;
+	/** Every matching `inspectable()` instance (one per mounted component instance). */
+	inspectableInstances?: InspectableStateInstance[];
 	childComponentCount: number;
 	childComponents: ChildComponentInfo[];
 	elementTag: string;

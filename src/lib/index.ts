@@ -37,6 +37,7 @@ export type {
 	// StateGrab types
 	SvelteStateGrabProps,
 	ComponentStateInfo,
+	InspectableStateInstance,
 	ChildComponentInfo,
 	StateSnapshot,
 	StateDiff,

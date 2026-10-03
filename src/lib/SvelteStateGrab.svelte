@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { SvelteStateGrabProps, ComponentStateInfo, StateSnapshot, StateDiff } from './types.js';
+	import type {
+		SvelteStateGrabProps,
+		ComponentStateInfo,
+		InspectableStateInstance,
+		StateSnapshot,
+		StateDiff
+	} from './types.js';
 	import type { SvelteElement } from './utils/shared.js';
 	import {
 		findSvelteElement,
@@ -9,7 +15,7 @@
 		checkModifier
 	} from './utils/shared.js';
 	import { safeSerialize, inlinePreview, getTypeDescription } from './utils/serializer.js';
-	import { getInspectableState, getInspectableIds } from './utils/inspectable.js';
+	import { getInspectableInstances, getInspectableIds } from './utils/inspectable.svelte.js';
 	import { registerToolOutput } from './utils/unified-export.js';
 	import DevToolPopup from './ui/DevToolPopup.svelte';
 	import DevToolButton from './ui/DevToolButton.svelte';
@@ -159,20 +165,26 @@
 		const childComponents = Array.from(childMap.values());
 		const childComponentCount = childComponents.reduce((sum, c) => sum + c.count, 0);
 
-		// Look up inspectable() state by component name
-		let inspectableState: Record<string, unknown> | undefined;
+		// Look up inspectable() instances by component name (exact first, then
+		// case-insensitive). The grabbed element cannot be tied to a specific
+		// instance reliably, so every live instance is listed.
+		let inspectableInstances: InspectableStateInstance[] | undefined;
 		if (componentName) {
-			inspectableState = getInspectableState(componentName);
-			// Also try partial matches (e.g., "Counter" matches "MyCounter")
-			if (!inspectableState) {
-				const ids = getInspectableIds();
-				const match = ids.find(id =>
-					id === componentName ||
-					id.toLowerCase() === componentName!.toLowerCase()
-				);
-				if (match) inspectableState = getInspectableState(match);
+			let name: string | undefined = componentName;
+			if (getInspectableInstances(name).length === 0) {
+				const lower = componentName.toLowerCase();
+				name = getInspectableIds().find(id => id.toLowerCase() === lower);
+			}
+			if (name) {
+				const found = getInspectableInstances(name).map(({ label, instance, values }) => ({
+					label,
+					instance,
+					values
+				}));
+				if (found.length > 0) inspectableInstances = found;
 			}
 		}
+		const inspectableState = inspectableInstances?.[0]?.values;
 
 		return {
 			componentName,
@@ -183,6 +195,7 @@
 			dataAttributes,
 			boundValues,
 			inspectableState,
+			inspectableInstances,
 			childComponentCount,
 			childComponents,
 			elementTag: tag
@@ -229,10 +242,20 @@
 			parts.push('');
 		}
 
-		if (info.inspectableState && Object.keys(info.inspectableState).length > 0) {
+		const instances = info.inspectableInstances ?? [];
+		if (instances.length === 1 && Object.keys(instances[0].values).length > 0) {
 			parts.push('\u{1F50D} INSPECTABLE STATE ($state):');
-			for (const [key, value] of Object.entries(info.inspectableState)) {
+			for (const [key, value] of Object.entries(instances[0].values)) {
 				parts.push(`  ${key}: ${inlinePreview(value)}`);
+			}
+			parts.push('');
+		} else if (instances.length > 1) {
+			parts.push(`\u{1F50D} INSPECTABLE STATE ($state, ${instances.length} instances):`);
+			for (const inst of instances) {
+				parts.push(`  [${inst.label}]`);
+				for (const [key, value] of Object.entries(inst.values)) {
+					parts.push(`    ${key}: ${inlinePreview(value)}`);
+				}
 			}
 			parts.push('');
 		}
@@ -278,8 +301,10 @@
 		const values: Record<string, unknown> = {};
 		for (const [k, v] of Object.entries(info.props)) values[`props.${k}`] = v;
 		for (const [k, v] of Object.entries(info.boundValues)) values[`bound.${k}`] = v;
-		if (info.inspectableState) {
-			for (const [k, v] of Object.entries(info.inspectableState)) values[`state.${k}`] = v;
+		const instances = info.inspectableInstances ?? [];
+		for (const inst of instances) {
+			const prefix = instances.length > 1 ? `state#${inst.instance}` : 'state';
+			for (const [k, v] of Object.entries(inst.values)) values[`${prefix}.${k}`] = v;
 		}
 		return values;
 	}
@@ -474,19 +499,25 @@
 					{/if}
 				{/if}
 
-				{#if stateInfo.inspectableState && Object.keys(stateInfo.inspectableState).length > 0}
+				{#if stateInfo.inspectableInstances && stateInfo.inspectableInstances.length > 0}
+					{@const instances = stateInfo.inspectableInstances}
 					<button class="sg-state-section" onclick={() => toggleSection('inspectable')}>
 						<span class="sg-state-section-icon">{expandedSections.has('inspectable') ? '▼' : '▶'}</span>
-						<span>🔍 Inspectable State ({Object.keys(stateInfo.inspectableState).length})</span>
+						<span>🔍 Inspectable State ({instances.length > 1 ? `${instances.length} instances` : Object.keys(instances[0].values).length})</span>
 					</button>
 					{#if expandedSections.has('inspectable')}
 						<div class="sg-state-entries">
-							{#each Object.entries(stateInfo.inspectableState) as [key, value] (key)}
-								<div class="sg-state-entry">
-									<span class="sg-state-key">{key}</span>
-									<span class="sg-state-type">{getTypeDescription(value)}</span>
-									<span class="sg-state-value">{inlinePreview(value)}</span>
-								</div>
+							{#each instances as inst (inst.instance)}
+								{#if instances.length > 1}
+									<div class="sg-state-instance">{inst.label}</div>
+								{/if}
+								{#each Object.entries(inst.values) as [key, value] (key)}
+									<div class="sg-state-entry">
+										<span class="sg-state-key">{key}</span>
+										<span class="sg-state-type">{getTypeDescription(value)}</span>
+										<span class="sg-state-value">{inlinePreview(value)}</span>
+									</div>
+								{/each}
 							{/each}
 						</div>
 					{/if}
@@ -598,6 +629,13 @@
 
 	.sg-state-entries {
 		padding: 0 12px 8px;
+	}
+
+	.sg-state-instance {
+		padding: 6px 0 2px;
+		font-size: 10px;
+		font-weight: 600;
+		color: #888;
 	}
 
 	.sg-state-entry {
