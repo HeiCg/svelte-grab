@@ -63,6 +63,8 @@
 		includeHtml = true,
 		copyOnKeyboard = true,
 		enableScreenshot = true,
+		screenshotSkipFonts = true,
+		screenshotPixelRatio,
 		enableMultiSelect = true,
 		showActiveIndicator = true,
 		maxHistorySize = 20,
@@ -171,6 +173,8 @@
 		{includeHtml}
 		{copyOnKeyboard}
 		{enableScreenshot}
+		{screenshotSkipFonts}
+		{screenshotPixelRatio}
 		{enableMultiSelect}
 		{showActiveIndicator}
 		{maxHistorySize}
