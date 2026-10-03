@@ -41,5 +41,22 @@ declare module 'ws' {
 }
 
 declare module '@anthropic-ai/claude-agent-sdk' {
-	export function query(options: { prompt: string; signal?: AbortSignal }): Promise<string>;
+	// Minimal shape used by providers/claude-code.ts: query() returns an async
+	// generator of SDK messages (system init, assistant, result, ...).
+	export function query(params: {
+		prompt: string;
+		options?: {
+			abortController?: AbortController;
+			cwd?: string;
+			resume?: string;
+			permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+		};
+	}): AsyncIterable<{
+		type: string;
+		subtype?: string;
+		session_id?: string;
+		result?: string;
+		errors?: string[];
+		message?: { content?: Array<{ type: string; text?: string }> };
+	}>;
 }

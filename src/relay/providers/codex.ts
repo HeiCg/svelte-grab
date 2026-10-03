@@ -11,46 +11,73 @@ interface SessionHistory {
 	threadId?: string;
 }
 
-/** The parts of @openai/codex-sdk this provider calls. */
-interface CodexStreamEvent {
+/** The parts of @openai/codex-sdk this provider calls (SDK >= 0.1: `new Codex()`). */
+export interface CodexStreamEvent {
 	type: string;
-	item?: { content?: unknown; text?: unknown };
+	thread_id?: string;
+	item?: { type?: string; text?: string };
 	error?: { message?: string };
 	message?: string;
 }
 
-interface CodexThread {
-	id: string;
-	runStreamed(prompt: string, options: { signal: AbortSignal }): { events: AsyncIterable<CodexStreamEvent> };
+export interface CodexThread {
+	/** Null until the thread has started (see the `thread.started` event). */
+	readonly id: string | null;
+	runStreamed(
+		input: string,
+		options?: { signal?: AbortSignal }
+	): Promise<{ events: AsyncIterable<CodexStreamEvent> }>;
 }
 
-interface CodexSDK {
-	startThread(): CodexThread | Promise<CodexThread>;
-	resumeThread(threadId: string): CodexThread | Promise<CodexThread>;
+interface CodexThreadOptions {
+	workingDirectory?: string;
+	sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access';
+	skipGitRepoCheck?: boolean;
+}
+
+export interface CodexClient {
+	startThread(options?: CodexThreadOptions): CodexThread;
+	resumeThread(id: string, options?: CodexThreadOptions): CodexThread;
+}
+
+export interface CodexSDK {
+	Codex: new () => CodexClient;
 }
 
 export class CodexProvider implements AgentProvider {
 	readonly name = 'codex';
 	private activeSessions = new Map<string, AbortController>();
 	private sessionHistory = new Map<string, SessionHistory>();
-	private sdk: CodexSDK | null = null;
+	private client: CodexClient | null;
+
+	/** @param client - Injected client (tests); created lazily from the optional peer otherwise. */
+	constructor(client?: CodexClient) {
+		this.client = client ?? null;
+	}
 
 	/**
 	 * Lazy-load the Codex SDK.
 	 */
-	private async loadSDK(): Promise<CodexSDK> {
-		if (this.sdk) return this.sdk;
+	private async loadSDK(): Promise<CodexClient> {
+		if (this.client) return this.client;
 
+		let sdk: CodexSDK;
 		try {
 			// Use variable to prevent TypeScript from resolving the optional peer dependency at compile time
 			const moduleName = '@openai/codex-sdk';
-			const sdk: CodexSDK = await import(/* @vite-ignore */ moduleName);
-			this.sdk = sdk;
-			return sdk;
+			sdk = await import(/* @vite-ignore */ moduleName);
 		} catch {
 			throw new Error(
 				'@openai/codex-sdk not installed. Run: npm install @openai/codex-sdk'
 			);
+		}
+		try {
+			// The constructor locates the Codex CLI binary and throws if it is missing.
+			this.client = new sdk.Codex();
+			return this.client;
+		} catch (caught: unknown) {
+			const reason = caught instanceof Error ? caught.message : String(caught);
+			throw new Error(`Could not start the Codex SDK: ${reason}`);
 		}
 	}
 
@@ -82,57 +109,55 @@ export class CodexProvider implements AgentProvider {
 
 			callbacks.onStatus('Processing...');
 
-			// Start or resume a thread
-			let thread: CodexThread;
-			if (history.threadId) {
-				thread = await sdk.resumeThread(history.threadId);
-			} else {
-				thread = await sdk.startThread();
-				history.threadId = thread.id;
-			}
+			// Start or resume a thread. workspace-write: the relay exists so the
+			// agent can edit the project; nothing outside the workspace.
+			const threadOptions: CodexThreadOptions = {
+				workingDirectory: process.cwd(),
+				sandboxMode: 'workspace-write'
+			};
+			const thread = history.threadId
+				? sdk.resumeThread(history.threadId, threadOptions)
+				: sdk.startThread(threadOptions);
 
 			// Run the prompt with streaming
-			const stream = thread.runStreamed(fullPrompt, {
-				signal: controller.signal
-			});
+			const { events } = await thread.runStreamed(fullPrompt, { signal: controller.signal });
 
 			let lastResult = '';
 
-			// Process streamed events
-			for await (const event of stream.events) {
+			for await (const event of events) {
 				if (controller.signal.aborted) return;
 
 				switch (event.type) {
+					case 'thread.started':
+						if (event.thread_id) history.threadId = event.thread_id;
+						break;
+					case 'item.started':
+					case 'item.updated': {
+						const text = event.item?.text;
+						if (text) callbacks.onStatus(text.slice(0, 200));
+						break;
+					}
 					case 'item.completed': {
-						const content = event.item?.content || event.item?.text || '';
-						const statusText = typeof content === 'string'
-							? content.slice(0, 500)
-							: JSON.stringify(content).slice(0, 500);
-						if (statusText) {
-							callbacks.onStatus(statusText);
-							lastResult = statusText;
-						}
-						break;
-					}
-					case 'item.streaming':
-					case 'item.started': {
-						const text = event.item?.text || event.item?.content || '';
+						const text = event.item?.text;
 						if (text) {
-							callbacks.onStatus(typeof text === 'string' ? text.slice(0, 200) : 'Working...');
+							callbacks.onStatus(text.slice(0, 500));
+							if (event.item?.type === 'agent_message') lastResult = text;
 						}
 						break;
 					}
+					case 'turn.failed':
 					case 'error': {
 						const errMsg = event.error?.message || event.message || 'Codex stream error';
-						callbacks.onError(errMsg);
 						this.activeSessions.delete(sessionId);
+						callbacks.onError(errMsg);
 						return;
 					}
 					default:
-						// Other event types (e.g., thread.started, thread.completed)
+						// turn.started, turn.completed
 						break;
 				}
 			}
+			if (!history.threadId && thread.id) history.threadId = thread.id;
 
 			if (controller.signal.aborted) return;
 

@@ -3,23 +3,49 @@ import { setBoundedSession } from './base.js';
 
 /**
  * Claude Code agent provider using @anthropic-ai/claude-agent-sdk.
- * This provider streams responses from Claude Code via the SDK's query() API.
+ * `query()` returns an async generator of SDK messages; this provider streams
+ * assistant text as status updates and finishes on the `result` message.
  */
 interface SessionHistory {
 	prompts: string[];
 	results: string[];
+	/** Claude Code session id, so follow-up prompts resume the same conversation. */
+	claudeSessionId?: string;
+}
+
+/** The subset of SDK messages this provider reads. */
+export interface ClaudeSdkMessage {
+	type: string;
+	subtype?: string;
+	session_id?: string;
+	result?: string;
+	errors?: string[];
+	message?: { content?: Array<{ type: string; text?: string }> };
 }
 
 /** The part of @anthropic-ai/claude-agent-sdk this provider calls. */
-interface ClaudeAgentSDK {
-	query(options: { prompt: string; signal?: AbortSignal }): Promise<unknown>;
+export interface ClaudeAgentSDK {
+	query(params: {
+		prompt: string;
+		options?: {
+			abortController?: AbortController;
+			cwd?: string;
+			resume?: string;
+			permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+		};
+	}): AsyncIterable<ClaudeSdkMessage>;
 }
 
 export class ClaudeCodeProvider implements AgentProvider {
 	readonly name = 'claude-code';
 	private activeSessions = new Map<string, AbortController>();
 	private sessionHistory = new Map<string, SessionHistory>();
-	private sdk: ClaudeAgentSDK | null = null;
+	private sdk: ClaudeAgentSDK | null;
+
+	/** @param sdk - Injected SDK (tests); loaded lazily from the optional peer otherwise. */
+	constructor(sdk?: ClaudeAgentSDK) {
+		this.sdk = sdk ?? null;
+	}
 
 	/**
 	 * Lazy-load the Claude Agent SDK.
@@ -28,8 +54,9 @@ export class ClaudeCodeProvider implements AgentProvider {
 		if (this.sdk) return this.sdk;
 
 		try {
-			this.sdk = await import('@anthropic-ai/claude-agent-sdk');
-			return this.sdk;
+			const sdk: ClaudeAgentSDK = await import('@anthropic-ai/claude-agent-sdk');
+			this.sdk = sdk;
+			return sdk;
 		} catch {
 			throw new Error(
 				'@anthropic-ai/claude-agent-sdk not installed. Run: npm install @anthropic-ai/claude-agent-sdk'
@@ -64,18 +91,50 @@ export class ClaudeCodeProvider implements AgentProvider {
 
 			callbacks.onStatus('Processing...');
 
-			// Use the SDK's query function
-			const result = await sdk.query({
+			const history = this.sessionHistory.get(sessionId)!;
+			// acceptEdits: the relay exists so the agent can change files; shell
+			// commands still need approval (and are denied without a prompt handler).
+			const stream = sdk.query({
 				prompt: fullPrompt,
-				signal: controller.signal
+				options: {
+					abortController: controller,
+					cwd: process.cwd(),
+					permissionMode: 'acceptEdits',
+					...(history.claudeSessionId ? { resume: history.claudeSessionId } : {})
+				}
 			});
 
-			if (controller.signal.aborted) return;
+			let resultStr = '';
+			let failure: string | null = null;
+			for await (const msg of stream) {
+				if (controller.signal.aborted) return;
+				if (msg.session_id) history.claudeSessionId = msg.session_id;
+				if (msg.type === 'assistant') {
+					const text = (msg.message?.content ?? [])
+						.filter((block) => block.type === 'text' && block.text)
+						.map((block) => block.text)
+						.join('\n')
+						.trim();
+					if (text) callbacks.onStatus(text.slice(0, 500));
+				} else if (msg.type === 'result') {
+					if (msg.subtype === 'success') {
+						resultStr = msg.result ?? '';
+					} else {
+						failure = msg.errors?.join('; ') || `Claude Code stopped: ${msg.subtype ?? 'error'}`;
+					}
+				}
+			}
 
-			const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+			if (controller.signal.aborted) return;
+			if (failure) {
+				this.activeSessions.delete(sessionId);
+				callbacks.onError(failure);
+				return;
+			}
+			resultStr = resultStr || 'Claude Code completed';
 
 			// Save result to session history
-			this.sessionHistory.get(sessionId)!.results.push(resultStr);
+			history.results.push(resultStr);
 
 			this.activeSessions.delete(sessionId);
 			callbacks.onDone(resultStr);
