@@ -29,6 +29,8 @@ export default tseslint.config(
 			// Agent worktrees; demo app has its own Svelte/async compiler config
 			'.claude/',
 			'examples/',
+			// Deliberately insecure sample projects scanned by `svelte-grab audit` tests
+			'tests/fixtures/',
 			// Standalone packages (sv add-on): build output and their own demo/deps
 			'packages/*/dist/',
 			'packages/*/node_modules/',

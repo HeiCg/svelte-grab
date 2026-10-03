@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://github.com/HeiCg/svelte-grab/skills/svelte-grab-audit/finding-schema.json",
 	"title": "svelte-grab audit findings",
-	"description": "Findings of a svelte-grab security/performance audit. The finding shape is the one ui_security_scan returns (docs/agent-runtime-spec.md 9b) and svelte-grab audit emits (9c). TODO: reconcile with src/cli/audit/finding-schema.json once the static scanner ships, so both validate the same shape.",
+	"description": "Findings of a svelte-grab security/performance audit. The finding shape is the one ui_security_scan returns (docs/agent-runtime-spec.md 9b) and svelte-grab audit emits (9c). Static findings from `svelte-grab audit` (src/cli/audit/finding-schema.json) also carry rule, file, line and column and validate here too.",
 	"type": "object",
 	"required": ["findings"],
 	"properties": {
@@ -30,6 +30,10 @@
 					"description": "Redacted evidence. Secrets appear only as kind:abcd…(len N, sha xxxxxx), never in full."
 				},
 				"source": { "type": "string", "description": "file:line when known." },
+				"rule": { "type": "string", "description": "Static rule id from svelte-grab audit, e.g. secrets/client-exposure." },
+				"file": { "type": "string", "description": "Project-relative file (static findings)." },
+				"line": { "type": "integer", "minimum": 1 },
+				"column": { "type": "integer", "minimum": 1 },
 				"fix": { "type": "string", "minLength": 1 },
 				"check": { "type": "string", "description": "ui_security_scan check (transit, storage, ...) or CHECKLIST.md id (S1, P4, ...)." },
 				"screen": { "type": "string", "description": "Route of the screen the finding was observed on." },
