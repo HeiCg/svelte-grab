@@ -154,10 +154,11 @@ Commands:
 
   skills    Install or update the agent skills shipped in the package.
             Subcommands:
-              install       Copy skills into .claude/skills/ (idempotent; edited
-                            files get a <file>.new). Options: --skills-dir <dir>,
+              install       Copy skills into .claude/skills/ (idempotent; files you
+                            didn't edit update in place, edited ones get a <file>.new). Options: --skills-dir <dir>,
                             --force (overwrite edited files), --dry-run
-              list          List the packaged skills
+              list          Per-file status against the project: new, up to date,
+                            will update, edited by you. Option: --skills-dir <dir>
               path          Print the packaged skills directory
 
   add       Add an agent provider (claude-code, cursor, copilot, codex).
