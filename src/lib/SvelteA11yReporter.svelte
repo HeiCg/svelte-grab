@@ -12,6 +12,7 @@
 	import { resolveTheme } from './utils/resolve-theme.js';
 	import { createCopyFeedback } from './utils/copy-with-feedback.js';
 	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
+	import { matchesSecondaryModifier } from './utils/hotkeys.js';
 
 	let {
 		modifier = 'alt',
@@ -20,8 +21,18 @@
 		theme = {},
 		lightTheme = false,
 		includeSubtree = true,
-		enableHotkeys = true
+		enableHotkeys = true,
+		secondaryModifier
 	}: SvelteA11yReporterProps = $props();
+
+	/** Modifier(+secondaryModifier)+RightClick: the element-audit trigger. */
+	function isElementTrigger(event: MouseEvent): boolean {
+		return (
+			enableHotkeys &&
+			checkModifier(event, modifier) &&
+			matchesSecondaryModifier(event, secondaryModifier)
+		);
+	}
 
 	let colors = $derived(resolveTheme(theme, lightTheme));
 
@@ -46,8 +57,7 @@
 	});
 
 	function handleClick(event: MouseEvent) {
-		if (!enableHotkeys) return;
-		if (!checkModifier(event, modifier)) return;
+		if (!isElementTrigger(event)) return;
 		// Triple-click or Alt+A keyboard shortcut for a11y
 		// We'll use right-click with modifier instead
 		if (event.button !== 2) return; // right-click only
@@ -80,8 +90,9 @@
 	}
 
 	function handleContextMenu(event: MouseEvent) {
-		if (!enableHotkeys) return;
-		if (!checkModifier(event, modifier)) return;
+		// Without the secondary modifier the right-click is not ours (in
+		// SvelteDevKit, plain Alt+RightClick is SvelteGrab's context menu).
+		if (!isElementTrigger(event)) return;
 		event.preventDefault(); // Prevent default context menu
 	}
 
@@ -156,8 +167,12 @@
 	}, {
 		onDev: () => {
 			isDev = true;
-			const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
-			console.log(`[SvelteA11yReporter] Active! ${modLabel}+RightClick element or ${modLabel}+A for full page audit`);
+			const cap = (m: string) => m.charAt(0).toUpperCase() + m.slice(1);
+			const modLabel = cap(modifier);
+			const elementKeys = secondaryModifier
+				? `${modLabel}+${cap(secondaryModifier)}+RightClick`
+				: `${modLabel}+RightClick`;
+			console.log(`[SvelteA11yReporter] Active! ${elementKeys} element or ${modLabel}+A for full page audit`);
 		}
 	});
 

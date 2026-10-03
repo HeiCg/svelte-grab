@@ -22,6 +22,7 @@
 	import { resolveTheme } from './utils/resolve-theme.js';
 	import { createCopyFeedback } from './utils/copy-with-feedback.js';
 	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
+	import { isInOwnUi } from './runtime/node-info.js';
 
 	let {
 		modifier = 'alt',
@@ -29,7 +30,8 @@
 		showPopup = true,
 		theme = {},
 		lightTheme = false,
-		enableHotkeys = true
+		enableHotkeys = true,
+		onTrace
 	}: SveltePropsTracerProps = $props();
 
 	let colors = $derived(resolveTheme(theme, lightTheme));
@@ -210,6 +212,21 @@
 		return parts.join('\n');
 	}
 
+	/**
+	 * The page element under the pointer. The second click of a double-click can
+	 * land on an overlay svelte-grab opened on the first click (in SvelteDevKit,
+	 * the SvelteGrab popup's backdrop): trace what lies beneath it, never
+	 * svelte-grab's own UI.
+	 */
+	function pageTarget(event: MouseEvent): HTMLElement {
+		const target = event.target as HTMLElement;
+		if (!(target instanceof Element) || !isInOwnUi(target)) return target;
+		for (const el of document.elementsFromPoint(event.clientX, event.clientY)) {
+			if (!isInOwnUi(el)) return el as HTMLElement;
+		}
+		return target;
+	}
+
 	function handleClick(event: MouseEvent) {
 		// Double-click with modifier for props tracer
 		if (!enableHotkeys) return;
@@ -219,7 +236,7 @@
 		event.preventDefault();
 		event.stopPropagation();
 
-		const target = event.target as HTMLElement;
+		const target = pageTarget(event);
 		const svelteEl = findSvelteElement(target);
 		if (!svelteEl) {
 			const tag = target.tagName?.toLowerCase() || 'unknown';
@@ -234,6 +251,7 @@
 
 		console.log('[SveltePropsTracer] Component trace:\n' + formatted);
 		if (showPopup) visible = true;
+		onTrace?.(trace);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {

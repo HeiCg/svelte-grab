@@ -215,7 +215,7 @@ svelte-grab ships 7 specialized tools + a unified wrapper:
 | **SvelteStateGrab** | Alt+Shift+Click (Alt+Meta+Click in SvelteDevKit) | Props, attributes, bound values inspection |
 | **SvelteStyleGrab** | Alt+Ctrl+Click | CSS analysis with source attribution |
 | **SveltePropsTracer** | Alt+DoubleClick | Component hierarchy trace |
-| **SvelteA11yReporter** | Alt+RightClick / Alt+A | Accessibility audit with WCAG scoring |
+| **SvelteA11yReporter** | Alt+RightClick (Alt+Shift+RightClick in SvelteDevKit) / Alt+A | Accessibility audit with WCAG scoring |
 | **SvelteErrorContext** | Alt+E | Console errors/warnings with stack parsing |
 | **SvelteRenderProfiler** | Alt+P | DOM mutation profiling per component |
 | **SvelteDevKit** | (wrapper) | All tools in one component |
@@ -336,7 +336,7 @@ The annotations stay pending for the agent until it reads them with `ui_annotati
 
 ### Minimal hotkeys
 
-`hotkeys="minimal"` (on SvelteGrab or SvelteDevKit) keeps only the shortcuts that point at UI: Alt+Click (point), Shift+Alt+Click (multi), Alt+Drag (region), Escape and `N` (annotate). Everything else is off: Enter, `O`, `S`, Tab, arrows, Cmd/Ctrl+C, Alt+? and the right-click menu in SvelteGrab; in SvelteDevKit also Alt+Meta+Click (state), Alt+Ctrl+Click (style), Alt+DoubleClick (tracer), Alt+RightClick / Alt+A (a11y), Alt+E (errors), Alt+P (profiler), Alt+Shift+C and Alt+?. Those tools stay mounted, so error capture keeps running and the MCP runtime can still use their logic. Each tool also takes `enableHotkeys={false}` on its own. The default (`'full'`) is unchanged.
+`hotkeys="minimal"` (on SvelteGrab or SvelteDevKit) keeps only the shortcuts that point at UI: Alt+Click (point), Shift+Alt+Click (multi), Alt+Drag (region), Escape and `N` (annotate). Everything else is off: Enter, `O`, `S`, Tab, arrows, Cmd/Ctrl+C, Alt+? and the right-click menu in SvelteGrab; in SvelteDevKit also Alt+Meta+Click (state), Alt+Ctrl+Click (style), Alt+DoubleClick (tracer), Alt+Shift+RightClick / Alt+A (a11y), Alt+E (errors), Alt+P (profiler), Alt+Shift+C and Alt+?. Those tools stay mounted, so error capture keeps running and the MCP runtime can still use their logic. Each tool also takes `enableHotkeys={false}` on its own. The default (`'full'`) is unchanged.
 
 ```svelte
 <SvelteDevKit enableMcp hotkeys="minimal" />
@@ -407,6 +407,8 @@ Alt+DoubleClick to trace the full component hierarchy from any element to root.
 
 Shows the complete tree with file:line locations, depth indicators, and visual connectors. Warns about deep nesting (>5 levels) and suggests using Context API or stores.
 
+Inside SvelteDevKit a double-click starts with an Alt+Click, which SvelteGrab grabs right away (there is no click delay on Alt+Click). DevKit makes SvelteGrab skip the second click (`yieldDoubleClick`) and closes the SvelteGrab popup as soon as the tracer opens (the tracer's `onTrace` callback calls SvelteGrab's `dismiss()`). The first click's grab still lands in the history, and its clipboard copy is replaced by the trace.
+
 ```svelte
 <SveltePropsTracer />
 ```
@@ -414,6 +416,8 @@ Shows the complete tree with file:line locations, depth indicators, and visual c
 ## SvelteA11yReporter — Accessibility Auditor
 
 Alt+RightClick an element to audit it, or Alt+A to audit the entire page.
+
+Inside SvelteDevKit the element audit is **Alt+Shift+RightClick**, because Alt+RightClick is SvelteGrab's selection-mode context menu (Shift+Alt+Click multi-select is left-button only, so the two never meet). DevKit passes Shift to SvelteGrab as `reservedContextMenuModifiers`, so that combo opens only the audit. DevKit keeps plain Alt+RightClick when SvelteGrab or its context menu (`showContextMenu={false}`) is off. Alt+A is unchanged.
 
 **Checks:** WCAG color contrast (AA/AAA), missing alt text, unlabeled form inputs, ARIA attribute validity, heading hierarchy, focus order, and semantic HTML usage. Returns an accessibility score (0-100) with categorized issues (Critical / Warnings / Passes) and fix suggestions with code examples.
 
@@ -424,6 +428,7 @@ Alt+RightClick an element to audit it, or Alt+A to audit the entire page.
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `includeSubtree` | `boolean` | `true` | Audit child elements too |
+| `secondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | none | Extra modifier the element audit also requires (`'shift'`: Alt+Shift+RightClick). Alt+A is unaffected |
 
 ## SvelteErrorContext — Error Capture
 
@@ -981,7 +986,8 @@ window.__SVELTE_GRAB__.registerPlugin(plugin); // Register a plugin
 | **Alt+Shift+Click** | Inspect component state (standalone SvelteStateGrab) |
 | **Alt+Ctrl+Click** | Analyze CSS styles |
 | **Alt+DoubleClick** | Trace component hierarchy |
-| **Alt+RightClick** | Audit accessibility |
+| **Alt+RightClick** | Audit accessibility (standalone SvelteA11yReporter); in SvelteDevKit, SvelteGrab's context menu (selection mode) |
+| **Alt+Shift+RightClick** | Audit accessibility (SvelteDevKit) |
 | **Alt+A** | Audit entire page accessibility |
 | **Alt+E** | View captured errors |
 | **Alt+P** | Profile renders |
