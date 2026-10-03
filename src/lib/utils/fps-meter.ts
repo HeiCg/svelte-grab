@@ -27,6 +27,8 @@ export interface FpsMeter {
 	readonly current: number;
 	/** Exponentially-smoothed FPS, less jumpy than `current`. */
 	readonly rolling: number;
+	/** Frames counted since the meter started (for an average over any window). */
+	readonly frames: number;
 	/** Cancel the rAF loop. Idempotent. After this `current`/`rolling` freeze. */
 	stop: () => void;
 }
@@ -41,16 +43,23 @@ export function fpsColor(fps: number): string {
 	return '#4ade80'; // green
 }
 
+/** Optional hooks for {@link createFpsMeter}. */
+export interface FpsMeterOptions {
+	/** Called with each whole-second reading (the new `current`). */
+	onSample?: (fps: number) => void;
+}
+
 /**
  * Start an FPS meter. Begins counting frames immediately (when rAF exists).
  *
  * @param seed - Initial reading shown before the first full second elapses.
  *   Defaults to 60 (the common refresh rate), matching react-scan.
  */
-export function createFpsMeter(seed = 60): FpsMeter {
+export function createFpsMeter(seed = 60, options: FpsMeterOptions = {}): FpsMeter {
 	let current = seed;
 	let rolling = seed;
 	let frameCount = 0;
+	let totalFrames = 0;
 	let lastTime =
 		typeof performance !== 'undefined' ? performance.now() : Date.now();
 	let rafId: number | null = null;
@@ -65,6 +74,7 @@ export function createFpsMeter(seed = 60): FpsMeter {
 	const tick = (): void => {
 		if (stopped) return;
 		frameCount++;
+		totalFrames++;
 		const t = now();
 		const elapsed = t - lastTime;
 		if (elapsed >= 1000) {
@@ -74,6 +84,7 @@ export function createFpsMeter(seed = 60): FpsMeter {
 			rolling = Math.round(rolling + (current - rolling) * SMOOTHING);
 			frameCount = 0;
 			lastTime = t;
+			options.onSample?.(current);
 		}
 		rafId = requestAnimationFrame(tick);
 	};
@@ -88,6 +99,9 @@ export function createFpsMeter(seed = 60): FpsMeter {
 		},
 		get rolling() {
 			return rolling;
+		},
+		get frames() {
+			return totalFrames;
 		},
 		stop() {
 			stopped = true;
