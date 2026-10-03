@@ -65,6 +65,27 @@ Coding agent --MCP--> svelte-grab MCP server (src/mcp/server.ts, HTTP :port)
   via `POST /runtime/hello {tabId, url, focused}`); `ui_tabs` lists them and
   tools accept optional `tabId`.
 
+### Wire contract (v1) — server and page must match exactly
+
+- `POST /runtime/hello` body `{ tabId: string, url: string, title: string,
+  focused: boolean }` -> `{ ok: true }`. Page sends it on SSE connect, on
+  `focus`/`blur`/`visibilitychange`, and as heartbeat every 15s. Server forgets
+  tabs not seen for 45s. Active tab = most recent `focused: true` hello, else
+  most recently seen tab.
+- SSE `/events`, `event: runtime-command`, data
+  `{ id: string, targetTabId: string, tool: string, args: object }`.
+  Broadcast to all SSE clients; a page handles it only if
+  `targetTabId === its tabId`.
+- `POST /runtime/result` body `{ id: string, tabId: string, ok: boolean,
+  result?: { text: string, data?: object }, error?: string }` -> `{ ok: true }`.
+  Unknown/expired `id` -> 404. Same `checkAccess` + body cap as `/context`.
+- Server maps a page result to MCP: `content: [{type:'text', text}]`,
+  `structuredContent: data` (when present). Page errors -> MCP tool error with
+  the message. Timeout -> tool error "Browser tab did not respond in Ns".
+- `tabId`: random id per page load, kept in `sessionStorage` (fallback memory).
+- Tools a page must implement in Phase 2: `ui_snapshot`, `ui_find`. `ui_tabs`
+  is server-only. Unknown tool on page -> `{ok:false, error:'Unknown tool'}`.
+
 ## Refs
 
 - Session ref `eN`: incrementing per tab, stamped as `data-sg-ref` on the
