@@ -16,7 +16,13 @@ export const FAKE_API_KEY = 'sk_' + 'test_' + 'FAKEplaygroundKEYnotREAL0000';
 /** JWT-shaped token, clearly fake (payload says so, signature is not a signature). */
 export const FAKE_JWT = [
 	base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' })),
-	base64url(JSON.stringify({ sub: 'FAKE-user-do-not-use', note: 'fake token for the svelte-grab playground', iat: 1700000000 })),
+	base64url(
+		JSON.stringify({
+			sub: 'FAKE-user-do-not-use',
+			note: 'fake token for the svelte-grab playground',
+			iat: 1700000000
+		})
+	),
 	'FAKE_SIGNATURE_not_a_real_token'
 ].join('.');
 

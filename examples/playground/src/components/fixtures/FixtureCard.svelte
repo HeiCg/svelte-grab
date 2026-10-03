@@ -9,11 +9,7 @@
 <!-- Middle level: rendered twice, each reusing the shared Button component. -->
 <div class="fx-card" data-testid={`fx-card-${name}`}>
 	<p class="fx-card-text" data-testid={`fx-card-text-${name}`}>Card {name}</p>
-	<Button
-		testid={`fx-button-${name}`}
-		label={`${name}: ${clicks}`}
-		onclick={() => (clicks += 1)}
-	/>
+	<Button testid={`fx-button-${name}`} label={`${name}: ${clicks}`} onclick={() => (clicks += 1)} />
 </div>
 
 <style>

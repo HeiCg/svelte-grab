@@ -19,9 +19,7 @@ test.describe('SvelteA11yReporter — Alt+A', () => {
 		await expect(page.locator('.sg-popup[aria-label="SvelteA11yReporter"]')).toBeVisible();
 
 		// A contrast issue is listed among the reported messages.
-		await expect(
-			page.locator('.sg-a11y-issue-msg', { hasText: 'contrast' }).first()
-		).toBeVisible();
+		await expect(page.locator('.sg-a11y-issue-msg', { hasText: 'contrast' }).first()).toBeVisible();
 
 		// The offending element gets an a11y highlight outline injected.
 		await expect(page.locator('[data-sg-a11y-highlight]').first()).toBeVisible();

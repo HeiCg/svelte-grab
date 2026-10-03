@@ -6,7 +6,11 @@
 </script>
 
 <div class="fx-overflow" data-testid="fx-overflow">
-	<button class="fx-overflow-toggle" data-testid="fx-overflow-toggle" onclick={() => (wide = !wide)}>
+	<button
+		class="fx-overflow-toggle"
+		data-testid="fx-overflow-toggle"
+		onclick={() => (wide = !wide)}
+	>
 		Overflow: {wide ? 'on' : 'off'}
 	</button>
 	{#if wide}

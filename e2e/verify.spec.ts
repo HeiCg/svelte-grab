@@ -55,31 +55,48 @@ test.describe('agent runtime: ui_verify / ui_component_impact', () => {
 		const text = failing.result!.text;
 		console.log(`--- ui_verify (overflow on) ---\n${text}`);
 		const lines = text.split('\n');
-		expect(lines[0]).toMatch(/^FAIL e\d+ button "Overflow: on" OverflowFixture src\/components\/fixtures\/OverflowFixture\.svelte:\d+$/);
+		expect(lines[0]).toMatch(
+			/^FAIL e\d+ button "Overflow: on" OverflowFixture src\/components\/fixtures\/OverflowFixture\.svelte:\d+$/
+		);
 		const overflow = checkLine(text, 'overflow');
-		expect(overflow).toMatch(/^FAIL overflow page scrolls horizontally: document scrollWidth \d+ > clientWidth \d+$/);
+		expect(overflow).toMatch(
+			/^FAIL overflow page scrolls horizontally: document scrollWidth \d+ > clientWidth \d+$/
+		);
 		const offender = lines[lines.indexOf(overflow) + 1];
 		expect(offender).toMatch(
 			/^ {2}e\d+ div\.fx-overflow-strip OverflowFixture src\/components\/fixtures\/OverflowFixture\.svelte:\d+ extends \d+px past the page edge/
 		);
 		expect(checkLine(text, 'visible')).toMatch(/^PASS visible .*not covered$/);
-		const data = failing.result!.data as { verdict: string; checks: { check: string; status: string }[] };
+		const data = failing.result!.data as {
+			verdict: string;
+			checks: { check: string; status: string }[];
+		};
 		expect(data.verdict).toBe('FAIL');
 		expect(data.checks.find((c) => c.check === 'overflow')!.status).toBe('FAIL');
 		// The named ref is the strip itself (usable as a Playwright locator).
 		const stripRef = offender.trim().split(' ')[0];
-		await expect(page.locator(`[data-sg-ref="${stripRef}"]`)).toHaveAttribute('data-testid', 'fx-overflow-strip');
+		await expect(page.locator(`[data-sg-ref="${stripRef}"]`)).toHaveAttribute(
+			'data-testid',
+			'fx-overflow-strip'
+		);
 
 		await toggle.click();
 		await expect(page.getByTestId('fx-overflow-strip')).toHaveCount(0);
-		const passing = await callTool(page, 'ui_verify', { ref, checks: ['visible', 'overflow', 'a11y', 'contrast'] });
+		const passing = await callTool(page, 'ui_verify', {
+			ref,
+			checks: ['visible', 'overflow', 'a11y', 'contrast']
+		});
 		expect(passing.ok, passing.error).toBe(true);
 		console.log(`--- ui_verify (overflow off) ---\n${passing.result!.text}`);
-		expect(checkLine(passing.result!.text, 'overflow')).toMatch(/^PASS overflow .*no page-level horizontal overflow$/);
+		expect(checkLine(passing.result!.text, 'overflow')).toMatch(
+			/^PASS overflow .*no page-level horizontal overflow$/
+		);
 		expect(passing.result!.text.split('\n')[0]).toMatch(/^PASS /);
 	});
 
-	test('ui_verify console check reads the shared capture (errors FAIL, since filters)', async ({ activated: page }) => {
+	test('ui_verify console check reads the shared capture (errors FAIL, since filters)', async ({
+		activated: page
+	}) => {
 		const ref = await refFor(page, '[data-testid="fx-overflow-toggle"]');
 		// The runtime retains the capture while connected to the MCP server; the
 		// playground runs without one here, so retain it by hand.
@@ -90,7 +107,9 @@ test.describe('agent runtime: ui_verify / ui_component_impact', () => {
 		}, CAPTURE_URL);
 		try {
 			const clean = await callTool(page, 'ui_verify', { ref, checks: ['console'], since: started });
-			expect(checkLine(clean.result!.text, 'console')).toMatch(/^PASS console no errors or warnings since /);
+			expect(checkLine(clean.result!.text, 'console')).toMatch(
+				/^PASS console no errors or warnings since /
+			);
 
 			await page.evaluate(() => {
 				console.warn('[verify-e2e] heads up');
@@ -102,10 +121,16 @@ test.describe('agent runtime: ui_verify / ui_component_impact', () => {
 			console.log(`--- ui_verify (console) ---\n${text}`);
 			expect(text.split('\n')[0]).toMatch(/^FAIL /);
 			expect(checkLine(text, 'console')).toMatch(/^FAIL console 1 error, 1 warning since /);
-			expect(text).toContain('\n  error (unknown source) [verify-e2e] boom TypeError: x is undefined\n');
+			expect(text).toContain(
+				'\n  error (unknown source) [verify-e2e] boom TypeError: x is undefined\n'
+			);
 			expect(text).toContain('\n  warn (unknown source) [verify-e2e] heads up');
 
-			const later = await callTool(page, 'ui_verify', { ref, checks: ['console'], since: Date.now() + 60_000 });
+			const later = await callTool(page, 'ui_verify', {
+				ref,
+				checks: ['console'],
+				since: Date.now() + 60_000
+			});
 			expect(checkLine(later.result!.text, 'console')).toMatch(/^PASS console/);
 		} finally {
 			await page.evaluate(async (url) => {
@@ -124,7 +149,9 @@ test.describe('agent runtime: ui_verify / ui_component_impact', () => {
 		const text = out.result!.text;
 		console.log(`--- ui_component_impact ---\n${text}`);
 		expect(text.split('\n')[0]).toBe('<Button> defined in src/components/Button.svelte');
-		expect(text).toMatch(/\(this instance is used at src\/components\/fixtures\/FixtureCard\.svelte:\d+\)/);
+		expect(text).toMatch(
+			/\(this instance is used at src\/components\/fixtures\/FixtureCard\.svelte:\d+\)/
+		);
 		expect(text).toContain('INSTANCES on this page: 3');
 		expect(text).toMatch(/src\/components\/fixtures\/FixtureCard\.svelte \(2\): line \d+ x2 -> /);
 		expect(text).toMatch(/src\/components\/Card\.svelte \(1\): line \d+ -> /);
@@ -138,11 +165,15 @@ test.describe('agent runtime: ui_verify / ui_component_impact', () => {
 		expect(data.instances.count).toBe(3);
 		expect(data.importers.status).toBe('ok');
 		expect(data.importers.files).toEqual(
-			expect.arrayContaining(['src/components/fixtures/FixtureCard.svelte', 'src/components/Card.svelte'])
+			expect.arrayContaining([
+				'src/components/fixtures/FixtureCard.svelte',
+				'src/components/Card.svelte'
+			])
 		);
 		expect(data.recommendation).toMatch(
 			/^Changing src\/components\/Button\.svelte affects 3 instances on this page and \d+ importing files; prefer a prop\/variant or a local class at the usage site src\/components\/fixtures\/FixtureCard\.svelte:\d+ for a one-off change\.$/
 		);
-		for (const r of data.instances.refs) await expect(page.locator(`[data-sg-ref="${r}"]`)).toHaveCount(1);
+		for (const r of data.instances.refs)
+			await expect(page.locator(`[data-sg-ref="${r}"]`)).toHaveCount(1);
 	});
 });

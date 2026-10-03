@@ -1,18 +1,18 @@
 {
-  "name": "svelte-grab-playground",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "description": "Minimal Vite + Svelte 5 demo app used to exercise svelte-grab dev tools in e2e tests.",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^7.3.1",
-    "svelte": "^5.57.1",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.2"
-  }
+	"name": "svelte-grab-playground",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"description": "Minimal Vite + Svelte 5 demo app used to exercise svelte-grab dev tools in e2e tests.",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"preview": "vite preview"
+	},
+	"devDependencies": {
+		"@sveltejs/vite-plugin-svelte": "^7.3.1",
+		"svelte": "^5.57.1",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.2"
+	}
 }

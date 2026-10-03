@@ -50,7 +50,11 @@ async function callTool(page: Page, tool: string, args: Record<string, unknown>)
 const HOT_LINE = /^HOT HotFixture \d+ mutations in 1\.5s \(burst x\d+\)$/;
 
 /** HotFixture is hot, QuietTicker is listed below it and not hot. */
-async function expectHotFixture(page: Page, text: string, data: Record<string, unknown>): Promise<void> {
+async function expectHotFixture(
+	page: Page,
+	text: string,
+	data: Record<string, unknown>
+): Promise<void> {
 	const lines = text.split('\n');
 	expect(lines[0]).toMatch(HOT_LINE);
 	expect(text).not.toMatch(/^HOT QuietTicker/m);
@@ -72,8 +76,13 @@ async function expectHotFixture(page: Page, text: string, data: Record<string, u
 	// The most mutated element is the counter, usable as a Playwright locator.
 	const top = hot.topElements[0];
 	expect(top.source).toMatch(/^src\/components\/fixtures\/HotFixture\.svelte:\d+$/);
-	await expect(page.locator(`[data-sg-ref="${top.ref}"]`)).toHaveAttribute('data-testid', 'fx-hot-count');
-	expect(text).toMatch(/\n {2}HotFixture \d+ mutations, [\d.]+\/s, \d+ bursts?, \d+ batch(es)? \[characterData \d+.*\] src\/components\/fixtures\/HotFixture\.svelte\n/);
+	await expect(page.locator(`[data-sg-ref="${top.ref}"]`)).toHaveAttribute(
+		'data-testid',
+		'fx-hot-count'
+	);
+	expect(text).toMatch(
+		/\n {2}HotFixture \d+ mutations, [\d.]+\/s, \d+ bursts?, \d+ batch(es)? \[characterData \d+.*\] src\/components\/fixtures\/HotFixture\.svelte\n/
+	);
 	expect(text).toMatch(/\nFPS avg \d+/);
 }
 
@@ -85,21 +94,36 @@ test.describe('agent runtime: ui_profile', () => {
 		expect(found.ok, found.error).toBe(true);
 		const ref = (found.result!.data as { matches: { ref: string }[] }).matches[0].ref;
 
-		const out = await callTool(page, 'ui_profile', { durationMs: 1500, action: { ref, type: 'click' } });
+		const out = await callTool(page, 'ui_profile', {
+			durationMs: 1500,
+			action: { ref, type: 'click' }
+		});
 		expect(out.ok, out.error).toBe(true);
 		const text = out.result!.text;
 		console.log(`--- ui_profile ---\n${text}`);
 		await expectHotFixture(page, text, out.result!.data!);
-		expect(text.split('\n')[1]).toBe(`ui_profile 1.5s, scope: page, action: click ${ref} x1 (isTrusted=false)`);
-		expect(out.result!.data!.action).toMatchObject({ ref, type: 'click', performed: 1, isTrusted: false });
+		expect(text.split('\n')[1]).toBe(
+			`ui_profile 1.5s, scope: page, action: click ${ref} x1 (isTrusted=false)`
+		);
+		expect(out.result!.data!.action).toMatchObject({
+			ref,
+			type: 'click',
+			performed: 1,
+			isTrusted: false
+		});
 
 		// Still running: scoped to the quiet sibling, nothing is hot.
 		await expect(page.getByTestId('fx-hot-toggle')).toContainText('Stop');
-		const scoped = await callTool(page, 'ui_profile', { durationMs: 1200, component: 'QuietTicker' });
+		const scoped = await callTool(page, 'ui_profile', {
+			durationMs: 1200,
+			component: 'QuietTicker'
+		});
 		expect(scoped.ok, scoped.error).toBe(true);
 		console.log(`--- ui_profile (component QuietTicker) ---\n${scoped.result!.text}`);
 		expect(scoped.result!.text.split('\n')[0]).toMatch(/^QUIET /);
-		expect((scoped.result!.data!.components as ProfileComponent[]).map((c) => c.name)).toEqual(['QuietTicker']);
+		expect((scoped.result!.data!.components as ProfileComponent[]).map((c) => c.name)).toEqual([
+			'QuietTicker'
+		]);
 
 		await page.getByTestId('fx-hot-toggle').click();
 		await expect(page.getByTestId('fx-hot-toggle')).toContainText('Start');
@@ -125,11 +149,18 @@ test.describe('ui_profile through the real MCP client', () => {
 		const tabId = await pageTabId(page);
 		await waitForActiveTab(client!, tabId);
 
-		const found = await call(client!, 'ui_find', { selector: '[data-testid="fx-hot-toggle"]', tabId });
+		const found = await call(client!, 'ui_find', {
+			selector: '[data-testid="fx-hot-toggle"]',
+			tabId
+		});
 		expect(found.isError, found.text).toBe(false);
 		const ref = (found.data!.matches as { ref: string }[])[0].ref;
 
-		const out = await call(client!, 'ui_profile', { durationMs: 1500, action: { ref, type: 'click' }, tabId });
+		const out = await call(client!, 'ui_profile', {
+			durationMs: 1500,
+			action: { ref, type: 'click' },
+			tabId
+		});
 		expect(out.isError, out.text).toBe(false);
 		console.log(`--- ui_profile (MCP) ---\n${out.text}`);
 		await expectHotFixture(page, out.text, out.data!);

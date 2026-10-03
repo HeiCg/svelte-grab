@@ -17,9 +17,7 @@ test.describe('SvelteRenderProfiler — Alt+P', () => {
 	test('activates and shows the recording popup + widget', async ({ page }) => {
 		await altKey(page, 'p');
 
-		await expect(
-			page.locator('[role="dialog"][aria-label="SvelteRenderProfiler"]')
-		).toBeVisible();
+		await expect(page.locator('[role="dialog"][aria-label="SvelteRenderProfiler"]')).toBeVisible();
 		await expect(page.locator('.sg-prof-widget')).toBeVisible();
 		// It starts recording immediately.
 		await expect(page.locator('.sg-prof-recording')).toBeVisible();

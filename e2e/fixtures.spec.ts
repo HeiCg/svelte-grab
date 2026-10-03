@@ -23,9 +23,11 @@ interface MetaSummary {
 async function readMeta(page: Page, testid: string): Promise<MetaSummary | null> {
 	return page.getByTestId(testid).evaluate((el) => {
 		type Entry = { type?: string; componentTag?: string; parent?: Entry | null };
-		const meta = (el as HTMLElement & {
-			__svelte_meta?: { loc?: { file?: string; line?: number }; parent?: Entry | null };
-		}).__svelte_meta;
+		const meta = (
+			el as HTMLElement & {
+				__svelte_meta?: { loc?: { file?: string; line?: number }; parent?: Entry | null };
+			}
+		).__svelte_meta;
 		if (!meta) return null;
 		const componentTags: string[] = [];
 		const parentTypes: string[] = [];

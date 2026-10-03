@@ -99,8 +99,14 @@ export async function connectClient(port: number, token?: string): Promise<Clien
 	return client;
 }
 
-export async function call(client: Client, name: string, args: Record<string, unknown> = {}): Promise<ToolResult> {
-	const res = (await client.callTool({ name, arguments: args }, undefined, { timeout: 70_000 })) as {
+export async function call(
+	client: Client,
+	name: string,
+	args: Record<string, unknown> = {}
+): Promise<ToolResult> {
+	const res = (await client.callTool({ name, arguments: args }, undefined, {
+		timeout: 70_000
+	})) as {
 		content?: { type: string; text?: string }[];
 		structuredContent?: Record<string, unknown>;
 		isError?: boolean;
@@ -128,10 +134,12 @@ export async function waitForActiveTab(client: Client, tabId: string): Promise<v
 		.poll(
 			async () => {
 				const res = await call(client, 'ui_tabs');
-				return ((res.data?.tabs ?? []) as { tabId: string; active: boolean }[]).map(({ tabId, active }) => ({
-					tabId,
-					active
-				}));
+				return ((res.data?.tabs ?? []) as { tabId: string; active: boolean }[]).map(
+					({ tabId, active }) => ({
+						tabId,
+						active
+					})
+				);
 			},
 			{ timeout: 10_000 }
 		)
