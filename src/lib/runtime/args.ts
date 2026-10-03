@@ -24,3 +24,10 @@ export function optionalInt(
 	}
 	return Math.min(max, Math.max(min, Math.floor(value)));
 }
+
+export function optionalBoolean(args: Record<string, unknown>, key: string): boolean | undefined {
+	const value = args[key];
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== 'boolean') throw new Error(`"${key}" must be a boolean`);
+	return value;
+}

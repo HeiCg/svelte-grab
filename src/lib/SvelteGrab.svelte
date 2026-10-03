@@ -40,6 +40,22 @@
 	} from './runtime/connection.js';
 	import { resolveMcpPort } from './runtime/server-probe.js';
 	import {
+		annotationStore,
+		addAnnotation,
+		refreshAnnotationRefs
+	} from './runtime/annotations.js';
+	import {
+		formatAnnotationsForAgent,
+		MAX_ANNOTATIONS,
+		type Annotation
+	} from './utils/annotations.js';
+	import {
+		ANNOTATION_KEY_LABEL,
+		isAnnotationKey,
+		isGrabHotkeyEnabled,
+		type GrabHotkey
+	} from './utils/hotkeys.js';
+	import {
 		getComponentStack as getComponentStackPure,
 		findMetaElement,
 		getSvelteMeta,
@@ -108,8 +124,15 @@
 		enableHistoryPersistence = true,
 		enablePromptMode = true,
 		screenshotSkipFonts = true,
-		screenshotPixelRatio
+		screenshotPixelRatio,
+		enableAnnotations = true,
+		hotkeys = 'full'
 	}: SvelteGrabProps = $props();
+
+	/** Whether a shortcut is active under the `hotkeys` set ('full' keeps all). */
+	function hotkeyOn(hotkey: GrabHotkey): boolean {
+		return isGrabHotkeyEnabled(hotkeys, hotkey);
+	}
 
 	// Resolve theme via the shared design-system helper so SvelteGrab's colors
 	// come from the same resolved theme (--sg-bg / --sg-border / --sg-text /
@@ -217,6 +240,26 @@
 	// survive releasing it (typing with a modifier held garbles input on macOS).
 	let modifierHeld = false;
 	let promptText = $state('');
+	// The prompt overlay doubles as the annotation editor: 'annotate' stores the
+	// typed text with `annotationTargets` instead of sending it.
+	let promptPurpose = $state<'prompt' | 'annotate'>('prompt');
+
+	// ============================================================
+	// Annotation mode state (pending annotations live in runtime/annotations.ts
+	// so the `ui_annotations` runtime command reads the same store)
+	// ============================================================
+	interface AnnotationView {
+		annotation: Annotation;
+		targets: Element[];
+	}
+	let annotationTargets = $state.raw<HTMLElement[]>([]);
+	let annotationViews = $state.raw<AnnotationView[]>([]);
+	let annotationInstruction = $state('');
+	let annotationNextId = $state(1);
+	let annotationTrayCollapsed = $state(false);
+	let annotationsSent = $state(false);
+	// Bumped on scroll/resize so the numbered badges follow their elements.
+	let layoutTick = $state(0);
 
 	// ============================================================
 	// MCP connection state (SSE)
@@ -519,6 +562,8 @@
 		selectionMode = false;
 		promptMode = false;
 		promptText = '';
+		promptPurpose = 'prompt';
+		annotationTargets = [];
 		deactivateFreezes();
 	}
 
@@ -526,6 +571,8 @@
 	function closePromptOverlay(): void {
 		promptMode = false;
 		promptText = '';
+		promptPurpose = 'prompt';
+		annotationTargets = [];
 		if (activationMode === 'hold' && !modifierHeld) {
 			exitSelectionMode();
 			document.body.style.cursor = '';
@@ -572,6 +619,119 @@
 		}
 
 		closePromptOverlay();
+	}
+
+	// ============================================================
+	// Annotation mode
+	// ============================================================
+
+	/** Mirror the shared annotation store into component state (badges + tray). */
+	function syncAnnotations(): void {
+		annotationViews = annotationStore.list().map((annotation) => ({
+			annotation,
+			targets: annotationStore.targetsOf(annotation.id)
+		}));
+		// Keep what is being typed (the store trims); pick up clears.
+		if (annotationStore.instruction !== annotationInstruction.trim()) {
+			annotationInstruction = annotationStore.instruction;
+		}
+		annotationNextId = annotationStore.nextId;
+		annotationsSent = false;
+	}
+
+	/**
+	 * What an annotation would cover now: the multi / region selection, else the
+	 * hovered element (else the last grabbed one, when `withGrabbed`).
+	 */
+	function currentAnnotationTargets(withGrabbed = false): HTMLElement[] {
+		if (selectedElements.length > 0) return [...selectedElements];
+		const el = hoveredElement || (withGrabbed ? grabbedElement : null);
+		return el ? [el] : [];
+	}
+
+	/** Open the prompt overlay as the annotation editor for `targets`. */
+	function openAnnotationDraft(targets: HTMLElement[]): void {
+		if (!enableAnnotations || targets.length === 0 || annotationStore.isFull) return;
+		annotationTargets = targets;
+		promptPurpose = 'annotate';
+		promptText = '';
+		promptMode = true;
+	}
+
+	/**
+	 * Store `promptText` with `targets` as annotation #N, then close the overlay.
+	 * A selection that was annotated is cleared so the next one starts fresh.
+	 */
+	function saveAnnotation(targets: HTMLElement[]): void {
+		const fromSelection =
+			selectedElements.length > 0 && targets.every((el) => selectedElementsSet.has(el));
+		const added = addAnnotation(promptText, targets);
+		if (added && fromSelection) clearSelection();
+		closePromptOverlay();
+	}
+
+	/**
+	 * "Send all": one agent text for every pending annotation, copied to the
+	 * clipboard and, with MCP on, posted to `/context` (so watch_for_grab /
+	 * get_element_context receive it). The annotations stay pending for
+	 * `ui_annotations` until the agent clears them or the human does.
+	 */
+	function sendAllAnnotations(): void {
+		annotationStore.setInstruction(annotationInstruction);
+		refreshAnnotationRefs();
+		const annotations = annotationStore.list();
+		if (annotations.length === 0) return;
+		const instruction = annotationStore.instruction;
+		const text = formatAnnotationsForAgent(annotations, instruction, shortenPath);
+		copyToClipboard(text);
+		if (enableMcp) {
+			sendToMcp([text], instruction || undefined);
+			mcpStatus = 'sent';
+			setTimeout(() => { mcpStatus = mcpAgentListening ? 'watching' : 'idle'; }, 3000);
+		}
+		annotationsSent = true;
+	}
+
+	/** `<Component> file:line` of the first element, `+N` for the rest. */
+	function annotationSummary(annotation: Annotation): string {
+		const first = annotation.refs[0];
+		if (!first) return '';
+		const parts: string[] = [];
+		if (first.component) parts.push(`<${first.component}>`);
+		if (first.source) {
+			const m = first.source.match(/^(.*):(\d+)$/);
+			parts.push(m ? `${shortenPath(m[1]).split('/').pop()}:${m[2]}` : first.source);
+		}
+		if (annotation.refs.length > 1) parts.push(`+${annotation.refs.length - 1}`);
+		return parts.join(' ');
+	}
+
+	/** Viewport box of an annotated element; `tick` makes it re-read on scroll/resize. */
+	function badgeRect(el: Element, tick: number): DOMRect {
+		void tick;
+		return el.getBoundingClientRect();
+	}
+
+	let layoutRafId: number | null = null;
+	function bumpLayout(): void {
+		if (annotationViews.length === 0 || layoutRafId !== null) return;
+		layoutRafId = requestAnimationFrame(() => {
+			layoutRafId = null;
+			layoutTick++;
+		});
+	}
+
+	/** Annotation editor position: next to the cursor, kept inside the viewport. */
+	function annotationOverlayPos(): { x: number; y: number } {
+		const x = Math.max(8, Math.min(hoverPosition.x, window.innerWidth - 340));
+		const y = Math.max(8, Math.min(hoverPosition.y + 30, window.innerHeight - 220));
+		return { x, y };
+	}
+
+	function isEditableTarget(target: EventTarget | null): boolean {
+		const el = target as HTMLElement | null;
+		if (!el || typeof el.tagName !== 'string') return false;
+		return el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName);
 	}
 
 	function handleClick(event: MouseEvent) {
@@ -689,31 +849,31 @@
 		}
 
 		// Open first file in editor when "O" is pressed with popup visible
-		if ((event.key === 'o' || event.key === 'O') && visible && stack.length > 0) {
+		if ((event.key === 'o' || event.key === 'O') && visible && stack.length > 0 && hotkeyOn('open')) {
 			event.preventDefault();
 			openInEditor(stack[0].file, stack[0].line);
 		}
 
 		// Screenshot when "S" is pressed with popup visible
-		if ((event.key === 's' || event.key === 'S') && visible && grabbedElement && enableScreenshot) {
+		if ((event.key === 's' || event.key === 'S') && visible && grabbedElement && enableScreenshot && hotkeyOn('screenshot')) {
 			event.preventDefault();
 			captureScreenshot(grabbedElement);
 		}
 
 		// Tab to open agent prompt (when in selection mode with agent relay)
-		if (event.key === 'Tab' && selectionMode && enableAgentRelay) {
+		if (event.key === 'Tab' && selectionMode && enableAgentRelay && hotkeyOn('relayPrompt')) {
 			event.preventDefault();
 			showAgentPrompt = true;
 		}
 
 		// Enter to open prompt mode (when selection mode active with hovered element)
-		if (event.key === 'Enter' && selectionMode && hoveredElement && enablePromptMode && !promptMode) {
+		if (event.key === 'Enter' && selectionMode && hoveredElement && enablePromptMode && !promptMode && hotkeyOn('prompt')) {
 			event.preventDefault();
 			promptMode = true;
 		}
 
 		// Alt+? to toggle help overlay
-		if ((event.key === '?' || event.key === '/') && checkModifier(event) && showPopup) {
+		if ((event.key === '?' || event.key === '/') && checkModifier(event) && showPopup && hotkeyOn('help')) {
 			event.preventDefault();
 			showHelpOverlay = !showHelpOverlay;
 		}
@@ -756,8 +916,26 @@
 			}
 		}
 
+		// N while selecting: annotate the selection (or the hovered element)
+		if (
+			enableAnnotations &&
+			hotkeyOn('annotate') &&
+			selectionMode &&
+			!promptMode &&
+			!event.repeat &&
+			isAnnotationKey(event) &&
+			!isEditableTarget(event.target)
+		) {
+			const targets = currentAnnotationTargets();
+			if (targets.length > 0) {
+				event.preventDefault();
+				openAnnotationDraft(targets);
+				return;
+			}
+		}
+
 		// Arrow key navigation in selection mode
-		if (selectionMode && enableArrowNav && hoveredElement) {
+		if (selectionMode && enableArrowNav && hoveredElement && hotkeyOn('arrows')) {
 			let nextEl: HTMLElement | null = null;
 
 			switch (event.key) {
@@ -795,7 +973,7 @@
 		}
 
 		// Cmd+C / Ctrl+C to copy in selection mode
-		if (copyOnKeyboard && selectionMode && hoveredElement && (event.metaKey || event.ctrlKey) && event.key === 'c') {
+		if (copyOnKeyboard && hotkeyOn('copy') && selectionMode && hoveredElement && (event.metaKey || event.ctrlKey) && event.key === 'c') {
 			event.preventDefault();
 			const hoverStack = getComponentStack(hoveredElement);
 			if (hoverStack.length > 0) {
@@ -928,7 +1106,7 @@
 	 * Handle context menu (right-click) in selection mode
 	 */
 	function handleContextMenu(event: MouseEvent) {
-		if (!selectionMode || !showContextMenu || !hoveredElement) return;
+		if (!selectionMode || !showContextMenu || !hoveredElement || !hotkeyOn('contextMenu')) return;
 
 		event.preventDefault();
 		event.stopPropagation();
@@ -1308,8 +1486,21 @@
 			document.addEventListener('contextmenu', handleContextMenu, true);
 			document.addEventListener('mousedown', handleMouseDown, true);
 			document.addEventListener('mouseup', handleMouseUp, true);
+			window.addEventListener('scroll', bumpLayout, true);
+			window.addEventListener('resize', bumpLayout);
+
+			// Pending annotations survive a remount (the store is per page load).
+			const unsubscribeAnnotations = annotationStore.subscribe(syncAnnotations);
+			syncAnnotations();
 
 			cleanup = () => {
+				unsubscribeAnnotations();
+				window.removeEventListener('scroll', bumpLayout, true);
+				window.removeEventListener('resize', bumpLayout);
+				if (layoutRafId !== null) {
+					cancelAnimationFrame(layoutRafId);
+					layoutRafId = null;
+				}
 				document.removeEventListener('click', handleClick, true);
 				document.removeEventListener('keydown', handleKeydown);
 				document.removeEventListener('keyup', handleKeyup);
@@ -1415,6 +1606,19 @@
 					Send to Agent
 				</button>
 			{/if}
+			{#if enableAnnotations && annotationViews.length < MAX_ANNOTATIONS}
+				<button
+					class="svelte-grab-floating-btn"
+					onclick={(e) => {
+						const r = e.currentTarget.getBoundingClientRect();
+						hoverPosition = { x: r.left, y: r.top - 200 };
+						openAnnotationDraft([...selectedElements]);
+					}}
+					title="Annotate the selected elements ({ANNOTATION_KEY_LABEL} while selecting)"
+				>
+					Annotate
+				</button>
+			{/if}
 			<button
 				class="svelte-grab-floating-btn svelte-grab-floating-btn-secondary"
 				onclick={clearSelection}
@@ -1424,6 +1628,109 @@
 			</button>
 		</div>
 	{/if}
+{/if}
+
+<!-- Annotation mode: numbered badges on annotated elements + the tray -->
+{#if isDev && enableAnnotations && annotationViews.length > 0}
+	{#each annotationViews as view (view.annotation.id)}
+		{#each view.targets as target, i (i)}
+			{#if target.isConnected}
+				{@const rect = badgeRect(target, layoutTick)}
+				<div
+					use:redactNode
+					class="sg-ann-outline"
+					data-annotation-badge={view.annotation.id}
+					style="
+						top: {rect.top}px;
+						left: {rect.left}px;
+						width: {rect.width}px;
+						height: {rect.height}px;
+						z-index: {Z_INDEX.floating};
+						--sg-accent: {colors.accent};
+					"
+					aria-hidden="true"
+				>
+					<span class="sg-ann-badge">{view.annotation.id}</span>
+				</div>
+			{/if}
+		{/each}
+	{/each}
+
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div
+		use:redactNode
+		class="sg-ann-tray"
+		style="
+			--sg-bg: {colors.background};
+			--sg-border: {colors.border};
+			--sg-text: {colors.text};
+			--sg-accent: {colors.accent};
+			--sg-ann-radius: {RADIUS.md}px;
+			--sg-ann-font: {FONT_FAMILY_MONO};
+			z-index: {Z_INDEX.floating};
+		"
+		role="region"
+		aria-label="SvelteGrab annotations"
+		onkeydown={(e) => e.stopPropagation()}
+	>
+		<div class="sg-ann-header">
+			<span class="sg-ann-title">Annotations ({annotationViews.length})</span>
+			{#if annotationsSent}
+				<span class="sg-ann-sent" aria-live="polite">{enableMcp ? 'Sent and copied' : 'Copied'}</span>
+			{/if}
+			<button
+				class="sg-ann-icon-btn"
+				onclick={() => (annotationTrayCollapsed = !annotationTrayCollapsed)}
+				aria-expanded={!annotationTrayCollapsed}
+				aria-label={annotationTrayCollapsed ? 'Expand annotations' : 'Collapse annotations'}
+			>{annotationTrayCollapsed ? '▴' : '▾'}</button>
+		</div>
+		{#if !annotationTrayCollapsed}
+			<ol class="sg-ann-list">
+				{#each annotationViews as view (view.annotation.id)}
+					{@const id = view.annotation.id}
+					<li class="sg-ann-item" data-annotation-id={id}>
+						<div class="sg-ann-item-head">
+							<span class="sg-ann-num">#{id}</span>
+							<span class="sg-ann-where">{annotationSummary(view.annotation)}</span>
+							<button
+								class="sg-ann-icon-btn"
+								onclick={() => annotationStore.remove(id)}
+								aria-label="Delete annotation #{id}"
+								title="Delete annotation #{id}"
+							>&times;</button>
+						</div>
+						<textarea
+							class="sg-ann-comment"
+							rows="2"
+							value={view.annotation.comment}
+							placeholder="Comment"
+							aria-label="Comment for annotation #{id}"
+							onchange={(e) => annotationStore.update(id, e.currentTarget.value)}
+						></textarea>
+					</li>
+				{/each}
+			</ol>
+			<input
+				class="sg-ann-instruction"
+				type="text"
+				value={annotationInstruction}
+				placeholder="Instruction for all (optional)"
+				aria-label="Instruction for all annotations"
+				oninput={(e) => {
+					annotationInstruction = e.currentTarget.value;
+					annotationStore.setInstruction(annotationInstruction);
+				}}
+			/>
+		{/if}
+		<div class="sg-ann-footer">
+			<DevToolButton
+				onclick={sendAllAnnotations}
+				title={enableMcp ? 'Copy all annotations and send them to the MCP server' : 'Copy all annotations for your agent'}
+			>Send all</DevToolButton>
+			<DevToolButton block={false} onclick={() => annotationStore.clear()} title="Delete every annotation">Clear all</DevToolButton>
+		</div>
+	</div>
 {/if}
 
 {#if isDev && selectionMode && hoveredElement && !visible}
@@ -1592,7 +1899,9 @@
 {/if}
 
 <!-- Agent prompt -->
-{#if isDev && promptMode && hoveredElement}
+{#if isDev && promptMode && (hoveredElement || (promptPurpose === 'annotate' && annotationTargets.length > 0))}
+	{@const annotating = promptPurpose === 'annotate'}
+	{@const annotatePos = annotating ? annotationOverlayPos() : null}
 	<div
 		use:redactNode
 		class="sg-prompt-overlay"
@@ -1602,14 +1911,14 @@
 			--sg-text: {colors.text};
 			--sg-accent: {colors.accent};
 			position: fixed;
-			left: {hoverPosition.x}px;
-			top: {hoverPosition.y + 30}px;
+			left: {annotatePos ? annotatePos.x : hoverPosition.x}px;
+			top: {annotatePos ? annotatePos.y : hoverPosition.y + 30}px;
 			z-index: 2147483647;
 		"
 	>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="sg-prompt-container" onkeydown={(e) => e.stopPropagation()}>
-			{#if enableMcp}
+			{#if enableMcp && !annotating}
 				<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 10px;">
 					<span style="
 						width: 6px; height: 6px; border-radius: 50%;
@@ -1630,7 +1939,9 @@
 				</div>
 			{/if}
 			<div class="sg-prompt-header" style="color: var(--sg-text); font-size: 11px; margin-bottom: 4px; opacity: 0.7;">
-				{#if enableMcp && mcpAgentListening}
+				{#if annotating}
+					Annotation #{annotationNextId} ({annotationTargets.length} element{annotationTargets.length === 1 ? '' : 's'}): Enter to add, Esc to cancel
+				{:else if enableMcp && mcpAgentListening}
 					Describe what to change (Cmd+Enter to send)
 				{:else}
 					Add context (Cmd+Enter to copy, Esc to cancel)
@@ -1640,14 +1951,22 @@
 			<textarea
 				class="sg-prompt-input"
 				bind:value={promptText}
-				placeholder={enableMcp && mcpAgentListening
-					? 'e.g. "Make this button bigger and change the color to blue"'
-					: 'Add context or instructions...'}
+				placeholder={annotating
+					? 'What should change here?'
+					: enableMcp && mcpAgentListening
+						? 'e.g. "Make this button bigger and change the color to blue"'
+						: 'Add context or instructions...'}
+				aria-label={annotating ? `Comment for new annotation #${annotationNextId}` : undefined}
 				autofocus
 				onkeydown={(e) => {
 					if (e.key === 'Escape') {
 						e.preventDefault();
 						closePromptOverlay();
+					}
+					if (annotating && e.key === 'Enter' && !e.shiftKey) {
+						e.preventDefault();
+						saveAnnotation(annotationTargets);
+						return;
 					}
 					if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
 						e.preventDefault();
@@ -1657,7 +1976,7 @@
 				style="
 					background: var(--sg-bg);
 					color: var(--sg-text);
-					border: 1px solid {enableMcp && mcpAgentListening ? '#22c55e' : 'var(--sg-border)'};
+					border: 1px solid {enableMcp && mcpAgentListening && !annotating ? '#22c55e' : 'var(--sg-border)'};
 					border-radius: 6px;
 					padding: 8px;
 					width: 300px;
@@ -1669,7 +1988,13 @@
 				"
 			></textarea>
 			<div style="display: flex; gap: 6px; margin-top: 6px;">
-				{#if enableMcp && mcpAgentListening}
+				{#if annotating}
+					<button
+						class="sg-ann-primary-btn"
+						onclick={() => saveAnnotation(annotationTargets)}
+					>Add annotation #{annotationNextId}</button>
+					<button class="sg-ann-secondary-btn" onclick={() => closePromptOverlay()}>Cancel</button>
+				{:else if enableMcp && mcpAgentListening}
 					<button
 						onclick={() => confirmPrompt()}
 						style="
@@ -1740,6 +2065,13 @@
 							cursor: pointer;
 						"
 					>Send via Relay</button>
+				{/if}
+				{#if !annotating && enableAnnotations && annotationViews.length < MAX_ANNOTATIONS}
+					<button
+						class="sg-ann-secondary-btn"
+						onclick={() => saveAnnotation(currentAnnotationTargets(true))}
+						title="Keep this as annotation #{annotationNextId} and send several together later"
+					>Add annotation</button>
 				{/if}
 			</div>
 		</div>
@@ -2134,6 +2466,7 @@
 						<tr><td class="sg-help-keys"><kbd>O</kbd></td><td class="sg-help-desc">Open in editor (popup visible)</td></tr>
 						<tr><td class="sg-help-keys"><kbd>S</kbd></td><td class="sg-help-desc">Screenshot element (popup visible)</td></tr>
 						{#if enableAgentRelay}<tr><td class="sg-help-keys"><kbd>Tab</kbd></td><td class="sg-help-desc">Open agent prompt (selection mode)</td></tr>{/if}
+						{#if enableAnnotations}<tr><td class="sg-help-keys"><kbd>{ANNOTATION_KEY_LABEL}</kbd></td><td class="sg-help-desc">Annotate hovered element or selection (selection mode)</td></tr>{/if}
 						<tr><td class="sg-help-keys"><kbd>Escape</kbd></td><td class="sg-help-desc">Close popup / exit selection mode</td></tr>
 					</tbody>
 				</table>
@@ -2144,6 +2477,178 @@
 {/if}
 
 <style>
+	/* Annotation mode: badges on annotated elements */
+	.sg-ann-outline {
+		position: fixed;
+		pointer-events: none;
+		border: 2px dashed var(--sg-accent);
+		border-radius: 4px;
+		box-sizing: border-box;
+	}
+
+	.sg-ann-badge {
+		position: absolute;
+		top: -10px;
+		right: -10px;
+		min-width: 20px;
+		height: 20px;
+		padding: 0 5px;
+		box-sizing: border-box;
+		background: var(--sg-accent);
+		color: #fff;
+		border-radius: 10px;
+		font-size: 11px;
+		font-weight: 700;
+		line-height: 20px;
+		text-align: center;
+		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+	}
+
+	/* Annotation tray (compact, non-modal: the page stays usable) */
+	.sg-ann-tray {
+		position: fixed;
+		left: 16px;
+		bottom: 16px;
+		width: 300px;
+		max-height: min(60vh, 460px);
+		display: flex;
+		flex-direction: column;
+		background: var(--sg-bg);
+		border: 1px solid var(--sg-border);
+		border-radius: var(--sg-ann-radius, 8px);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		color: var(--sg-text);
+		font-family: var(--sg-ann-font, ui-monospace, 'SF Mono', Menlo, Monaco, monospace);
+		font-size: 12px;
+		overflow: hidden;
+	}
+
+	.sg-ann-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 6px 10px;
+		border-bottom: 1px solid var(--sg-border);
+		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
+	}
+
+	.sg-ann-title {
+		color: var(--sg-accent);
+		font-weight: 600;
+	}
+
+	.sg-ann-sent {
+		color: #4ade80;
+		font-size: 11px;
+	}
+
+	.sg-ann-icon-btn {
+		margin-left: auto;
+		background: none;
+		border: none;
+		color: #888;
+		cursor: pointer;
+		padding: 2px 6px;
+		font-size: 13px;
+		border-radius: 4px;
+		line-height: 1;
+	}
+
+	.sg-ann-icon-btn:hover {
+		color: var(--sg-text);
+		background: rgba(255, 255, 255, 0.1);
+	}
+
+	.sg-ann-list {
+		list-style: none;
+		margin: 0;
+		padding: 6px 10px;
+		overflow-y: auto;
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.sg-ann-item-head {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-bottom: 3px;
+	}
+
+	.sg-ann-num {
+		color: var(--sg-accent);
+		font-weight: 700;
+	}
+
+	.sg-ann-where {
+		opacity: 0.7;
+		font-size: 11px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.sg-ann-comment,
+	.sg-ann-instruction {
+		width: 100%;
+		box-sizing: border-box;
+		background: var(--sg-bg);
+		color: var(--sg-text);
+		border: 1px solid var(--sg-border);
+		border-radius: 4px;
+		padding: 4px 6px;
+		font-family: system-ui, sans-serif;
+		font-size: 12px;
+		outline: none;
+	}
+
+	.sg-ann-comment {
+		resize: vertical;
+	}
+
+	.sg-ann-comment:focus,
+	.sg-ann-instruction:focus {
+		border-color: var(--sg-accent);
+	}
+
+	.sg-ann-instruction {
+		margin: 0 10px 6px;
+		width: calc(100% - 20px);
+	}
+
+	.sg-ann-footer {
+		display: flex;
+		gap: 8px;
+		padding: 6px 10px;
+		border-top: 1px solid var(--sg-border);
+		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
+	}
+
+	/* Annotation editor buttons (prompt overlay in annotate mode) */
+	.sg-ann-primary-btn,
+	.sg-ann-secondary-btn {
+		border-radius: 4px;
+		padding: 4px 12px;
+		font-size: 11px;
+		cursor: pointer;
+	}
+
+	.sg-ann-primary-btn {
+		background: var(--sg-accent);
+		color: white;
+		border: none;
+		font-weight: 500;
+	}
+
+	.sg-ann-secondary-btn {
+		background: transparent;
+		color: var(--sg-accent);
+		border: 1px solid var(--sg-accent);
+	}
+
 	/* Selection mode highlight */
 	.svelte-grab-highlight {
 		position: fixed;

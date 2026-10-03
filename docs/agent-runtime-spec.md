@@ -109,7 +109,7 @@ Coding agent --MCP--> svelte-grab MCP server (src/mcp/server.ts, HTTP :port)
 | `ui_component_impact` | `ref` | Instances of the component on page (count + refs), importers from Vite module graph when plugin present, else "unknown" |
 | `ui_click` / `ui_scroll` | `ref` | Best-effort in-page action; result notes `isTrusted=false` and suggests Playwright for real input |
 | `ui_tabs` | — | Connected tabs |
-| `ui_annotations` | — | Pending human annotations (see Annotation mode) |
+| `ui_annotations` | `clear?: boolean` | Pending human annotations `{annotations:[{id, comment, refs:[{ref, stableKey, component, source}], createdAt}], instruction}`; refs re-resolved (rebound / `stale`); `clear` marks them consumed (Phase 6, README "Annotation mode") |
 
 Existing tools (`watch_for_grab`, `get_element_context`, …) stay. New tools use
 `registerTool` with `title`, `inputSchema`, `outputSchema` where the SDK

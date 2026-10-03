@@ -29,7 +29,8 @@
 		forceEnable = false,
 		showPopup = true,
 		theme = {},
-		lightTheme = false
+		lightTheme = false,
+		enableHotkeys = true
 	}: SveltePropsTracerProps = $props();
 
 	let colors = $derived(resolveTheme(theme, lightTheme));
@@ -212,6 +213,7 @@
 
 	function handleClick(event: MouseEvent) {
 		// Double-click with modifier for props tracer
+		if (!enableHotkeys) return;
 		if (!checkModifier(event, modifier)) return;
 		if (!event.detail || event.detail < 2) return; // require double-click
 

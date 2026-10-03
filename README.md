@@ -162,6 +162,7 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 - **History** — Tracks last 20 grabs with timestamps, persisted to sessionStorage
 - **Arrow navigation** — Use arrow keys in selection mode to walk the component tree
 - **Prompt mode** — Type instructions inline and send directly to Claude Code
+- **Annotation mode** — Press `N` while selecting to note "change this" on an element or a selection, collect several, then send them as one task (see [Annotation mode](#annotation-mode))
 - **Agent relay** — Send selections to Claude Code or other agents via WebSocket
 - **MCP integration** — Direct bridge to Claude Code with live connection status
 - **Animation freezing** — Pauses CSS animations/transitions during selection for stable captures
@@ -202,9 +203,30 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 | `freezePseudoStates` | `boolean` | `true` | Preserve :hover/:focus states during selection |
 | `enableHistoryPersistence` | `boolean` | `true` | Persist history to sessionStorage |
 | `enablePromptMode` | `boolean` | `true` | Enable inline prompt overlay |
+| `enableAnnotations` | `boolean` | `true` | Annotation mode: `N` while selecting (or "Add annotation" in the prompt overlay) stores the hovered element or the current selection with a comment |
+| `hotkeys` | `'full' \| 'minimal'` | `'full'` | Shortcut set. `'minimal'`: only Alt+Click, Shift+Alt+Click, Alt+Drag, Escape and `N`. See [Minimal hotkeys](#minimal-hotkeys) |
 | `copyOnKeyboard` | `boolean` | `true` | Enable Cmd+C / Ctrl+C to copy in selection mode |
 | `projectRoot` | `string` | `''` | Absolute path to project root (for "Open in Editor") |
 | `showActiveIndicator` | `boolean` | `true` | Show active indicator badge |
+
+### Annotation mode
+
+Collect several "change this" notes, then hand them to the agent as one task:
+
+1. Hold Alt and hover an element, or select several (Shift+Alt+Click, Alt+Drag).
+2. Press `N` (still holding Alt). An editor opens next to the cursor; you can release Alt and type the comment. Enter adds it as annotation `#1` (Shift+Enter for a new line, Esc cancels). The prompt overlay (Enter while selecting) also has an "Add annotation" button, and the multi-select bar has "Annotate".
+3. Annotated elements get a numbered badge. A tray in the bottom-left corner lists the annotations: edit or delete each comment, add one instruction for all of them, or "Clear all".
+4. "Send all" copies one agent text to the clipboard (per annotation: `#N`, comment, and each element's ref, component, `file:line` and `ui://` stable key) and, with `enableMcp`, posts it to the MCP server's `/context` endpoint, so `watch_for_grab` / `get_element_context` receive it.
+
+The annotations stay pending for the agent until it reads them with `ui_annotations({ clear: true })` or you clear the tray. `N` was picked because Alt+A already opens the a11y audit in SvelteDevKit.
+
+### Minimal hotkeys
+
+`hotkeys="minimal"` (on SvelteGrab or SvelteDevKit) keeps only the shortcuts that point at UI: Alt+Click (point), Shift+Alt+Click (multi), Alt+Drag (region), Escape and `N` (annotate). Everything else is off: Enter, `O`, `S`, Tab, arrows, Cmd/Ctrl+C, Alt+? and the right-click menu in SvelteGrab; in SvelteDevKit also Alt+Shift+Click (state), Alt+Ctrl+Click (style), Alt+DoubleClick (tracer), Alt+RightClick / Alt+A (a11y), Alt+E (errors), Alt+P (profiler), Alt+Shift+C and Alt+?. Those tools stay mounted, so error capture keeps running and the MCP runtime can still use their logic. Each tool also takes `enableHotkeys={false}` on its own. The default (`'full'`) is unchanged.
+
+```svelte
+<SvelteDevKit enableMcp hotkeys="minimal" />
+```
 
 ### Output Formats
 
@@ -341,6 +363,7 @@ Accepts all SvelteGrab props plus:
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `enabledTools` | `DevKitTool[]` | all tools | Which tools to activate |
+| `hotkeys` | `'full' \| 'minimal'` | `'full'` | `'minimal'` turns off every tool trigger except Alt+Click, Shift+Alt+Click, Alt+Drag, Escape and `N`; the tools stay mounted ([Minimal hotkeys](#minimal-hotkeys)) |
 
 Available tools: `'grab'`, `'state'`, `'style'`, `'props'`, `'a11y'`, `'errors'`, `'profiler'`
 
@@ -406,6 +429,7 @@ The recommended way to connect svelte-grab to Claude Code. Select a component, t
 | `ui_snapshot` | Compact tree of the live UI: only elements with Svelte metadata or an a11y role/name, one line each (`eN <role/tag> "<name>" <Component> <file:line>`). Args: `scope`, `detail`, `maxNodes`, `tabId`. |
 | `ui_find` | Finds elements by `text`, `role`, `name`, `component`, `file` or `selector` (plus `limit`, `tabId`). Returns refs with stable key, component, source, role, name, box and visibility. |
 | `ui_inspect` | The heavy, on-demand context for one element (`ref`: `eN` or `ui://` key). Sections COMPONENT, SOURCE, STACK, PROPS/ATTRIBUTES, STATE, LAYOUT (box, overflow, visibility), STYLES (matched rules with source, Tailwind/scoped detection), A11Y (role, name, contrast, issues) and USAGE (other instances with refs). Args: `ref`, `include` (subset of `stack`, `props`, `state`, `styles`, `layout`, `a11y`, `usage`; default all), `tabId`. Text is capped at ~8000 chars. Use `ui_snapshot`/`ui_find` first. |
+| `ui_annotations` | The human's pending annotations ([Annotation mode](#annotation-mode)): `{ annotations: [{ id, comment, refs: [{ ref, stableKey, component, source }], createdAt }], instruction }` plus the same as text. Refs are re-resolved (rebound by stable key after a re-render, `stale` when gone) and work with `ui_inspect`. Args: `clear` (mark them consumed; the tray empties), `tabId`. |
 
 The `ui_*` tools query the page live: the app must be open in dev with `<SvelteGrab/>` mounted (otherwise they return "No browser tab connected"). Refs are stamped on elements as `data-sg-ref`, so `[data-sg-ref="e12"]` works as a locator in Playwright MCP or chrome-devtools MCP for real clicks and screenshots.
 
@@ -416,6 +440,7 @@ With `enableMcp` (and `enableAgentRuntime`, on by default), the page also answer
 - `ui_snapshot` returns an indented outline of the page, one line per element with Svelte source info or a useful role/name: `e12 button "Save" Button src/lib/Button.svelte:11`.
 - `ui_find` locates elements by `text`, `role`, `name`, `component`, `file` or `selector`.
 - `ui_inspect` returns the full context of one ref: component, source, stack, props/attributes, `inspectable()` state, layout, matched styles, accessibility and other instances of the same component. A stale ref is re-resolved by its stable key and reported as rebound.
+- `ui_annotations` returns the annotations collected in the page tray, with their refs registered so `ui_inspect` and `[data-sg-ref]` work on them.
 - Every reported element gets a session ref (`e12`) stamped as `data-sg-ref`, so other tools (Playwright MCP, chrome-devtools-mcp) can act on it with the locator `[data-sg-ref="e12"]`. Each result also carries a stable key (`ui://<file>:<line>:<col>#<Component>[role=..,name=..][i]`) that re-resolves after re-renders.
 
 Set `enableAgentRuntime={false}` to keep the MCP bridge without the runtime.
@@ -679,8 +704,11 @@ window.__SVELTE_GRAB__.registerPlugin(plugin); // Register a plugin
 | **Arrow keys** | Navigate component tree (selection mode) |
 | **Tab** | Open prompt overlay (selection mode) |
 | **Cmd/Ctrl+C** | Copy hovered element (selection mode) |
+| **N** | Annotate the hovered element or the selection (selection mode) |
 | **Cmd/Ctrl+Enter** | Send prompt to agent |
 | **Escape** | Close popup / exit selection mode |
+
+With `hotkeys="minimal"` only Alt+Click, Shift+Alt+Click, Alt+Drag, `N` and Escape remain ([Minimal hotkeys](#minimal-hotkeys)).
 
 ## Theming
 

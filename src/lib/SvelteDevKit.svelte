@@ -13,6 +13,9 @@
 	 * - SvelteA11yReporter (Alt+RightClick or Alt+A for accessibility)
 	 * - SvelteErrorContext (Alt+E for captured errors)
 	 * - SvelteRenderProfiler (Alt+P for render profiling)
+	 *
+	 * `hotkeys="minimal"` keeps only Alt+Click, Shift+Alt+Click, Alt+Drag, Escape
+	 * and N (annotate); the other tools stay mounted with their triggers off.
 	 */
 	import { onMount, onDestroy } from 'svelte';
 	import type { SvelteDevKitProps, DevKitTool } from './types.js';
@@ -32,6 +35,7 @@
 	import DevToolPopup from './ui/DevToolPopup.svelte';
 	import { resolveTheme } from './utils/resolve-theme.js';
 	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
+	import { ANNOTATION_KEY_LABEL, toolHotkeysEnabled } from './utils/hotkeys.js';
 
 	let {
 		modifier = 'alt',
@@ -59,6 +63,8 @@
 		freezePseudoStates = true,
 		enableHistoryPersistence = true,
 		enablePromptMode = true,
+		enableAnnotations = true,
+		hotkeys = 'full',
 		// SvelteGrab props forwarding
 		autoCopyFormat = 'agent',
 		showPopup = true,
@@ -95,10 +101,19 @@
 
 	let modLabel = $derived(modifier.charAt(0).toUpperCase() + modifier.slice(1));
 
+	// 'minimal' turns off every trigger except SvelteGrab's point/multi/region/annotate.
+	let toolHotkeys = $derived(toolHotkeysEnabled(hotkeys));
+
 	// Build shortcuts list based on enabled tools
 	let shortcuts = $derived.by(() => {
 		const list: { keys: string; description: string }[] = [];
 		if (isEnabled('grab')) list.push({ keys: `${modLabel}+Click`, description: 'Component Inspector' });
+		if (isEnabled('grab') && enableMultiSelect) list.push({ keys: `Shift+${modLabel}+Click`, description: 'Multi-select' });
+		if (isEnabled('grab') && enableDragSelect) list.push({ keys: `${modLabel}+Drag`, description: 'Region select' });
+		if (isEnabled('grab') && enableAnnotations) {
+			list.push({ keys: `${modLabel} held + ${ANNOTATION_KEY_LABEL}`, description: 'Annotate selection' });
+		}
+		if (!toolHotkeys) return list;
 		if (isEnabled('state')) list.push({ keys: `${modLabel}+${stateSecondaryModifier.charAt(0).toUpperCase() + stateSecondaryModifier.slice(1)}+Click`, description: 'State Inspector' });
 		if (isEnabled('style')) list.push({ keys: `${modLabel}+${styleSecondaryModifier.charAt(0).toUpperCase() + styleSecondaryModifier.slice(1)}+Click`, description: 'Style Inspector' });
 		if (isEnabled('props')) list.push({ keys: `${modLabel}+DoubleClick`, description: 'Props Tracer' });
@@ -114,6 +129,7 @@
 	});
 
 	function handleDevKitKeys(event: KeyboardEvent) {
+		if (!toolHotkeys) return;
 		if (!checkModifier(event, modifier)) return;
 
 		// Alt+Shift+C: Copy all context
@@ -186,12 +202,15 @@
 		{freezePseudoStates}
 		{enableHistoryPersistence}
 		{enablePromptMode}
+		{enableAnnotations}
+		{hotkeys}
 	/>
 {/if}
 
 {#if isEnabled('state')}
 	<SvelteStateGrab
 		{modifier}
+		enableHotkeys={toolHotkeys}
 		secondaryModifier={stateSecondaryModifier}
 		{forceEnable}
 		showPopup={showPopup}
@@ -204,6 +223,7 @@
 {#if isEnabled('style')}
 	<SvelteStyleGrab
 		{modifier}
+		enableHotkeys={toolHotkeys}
 		secondaryModifier={styleSecondaryModifier}
 		{forceEnable}
 		showPopup={showPopup}
@@ -216,6 +236,7 @@
 {#if isEnabled('props')}
 	<SveltePropsTracer
 		{modifier}
+		enableHotkeys={toolHotkeys}
 		{forceEnable}
 		showPopup={showPopup}
 		{theme}
@@ -226,6 +247,7 @@
 {#if isEnabled('a11y')}
 	<SvelteA11yReporter
 		{modifier}
+		enableHotkeys={toolHotkeys}
 		{forceEnable}
 		showPopup={showPopup}
 		{theme}
@@ -237,6 +259,7 @@
 {#if isEnabled('errors')}
 	<SvelteErrorContext
 		{modifier}
+		enableHotkeys={toolHotkeys}
 		{forceEnable}
 		showPopup={showPopup}
 		{theme}
@@ -250,6 +273,7 @@
 {#if isEnabled('profiler')}
 	<SvelteRenderProfiler
 		{modifier}
+		enableHotkeys={toolHotkeys}
 		{forceEnable}
 		showPopup={showPopup}
 		{theme}

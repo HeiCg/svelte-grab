@@ -35,7 +35,8 @@
 		showPopup = true,
 		theme = {},
 		lightTheme = false,
-		showCategories = ['all']
+		showCategories = ['all'],
+		enableHotkeys = true
 	}: SvelteStyleGrabProps = $props();
 
 	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
@@ -259,6 +260,7 @@
 	}
 
 	function handleClick(event: MouseEvent) {
+		if (!enableHotkeys) return;
 		if (!checkModifier(event, modifier)) return;
 		// Require Ctrl as secondary (not Shift which is StateGrab)
 		if (secondaryModifier === 'ctrl' && !event.ctrlKey) return;
