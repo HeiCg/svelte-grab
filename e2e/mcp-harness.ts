@@ -10,7 +10,7 @@ import { expect } from './fixtures';
 /**
  * Real MCP harness for e2e specs: the built MCP server (dist/mcp/cli.js, HTTP
  * mode) and a real @modelcontextprotocol/sdk Client over Streamable HTTP.
- * Same mechanics as e2e/agent-loop.spec.ts (kept there unchanged).
+ * Shared by e2e/agent-loop.spec.ts and e2e/hmr.spec.ts.
  */
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -39,15 +39,19 @@ function freePort(): Promise<number> {
 	});
 }
 
-/** Start `node dist/mcp/cli.js --port=<free>`; resolves with the port it really bound. */
-export async function startMcpServer(): Promise<McpServerProcess> {
+/**
+ * Start `node dist/mcp/cli.js --port=<free>`; resolves with the port it really bound.
+ * `env` is merged over process.env; SVELTE_GRAB_TOKEN is dropped unless `env` sets it.
+ */
+export async function startMcpServer(env: Record<string, string> = {}): Promise<McpServerProcess> {
+	// CI builds on `npm ci` (prepare); locally build the server half if missing.
 	if (!existsSync(CLI)) execSync('npm run build:server', { cwd: ROOT, stdio: 'ignore' });
 	const requested = await freePort();
-	const env: NodeJS.ProcessEnv = { ...process.env };
-	delete env.SVELTE_GRAB_TOKEN;
+	const childEnv: NodeJS.ProcessEnv = { ...process.env, ...env };
+	if (!env.SVELTE_GRAB_TOKEN) delete childEnv.SVELTE_GRAB_TOKEN;
 	const proc = spawn(process.execPath, [CLI, `--port=${requested}`], {
 		cwd: ROOT,
-		env,
+		env: childEnv,
 		stdio: ['ignore', 'pipe', 'pipe']
 	});
 	const port = await new Promise<number>((resolve, reject) => {
@@ -79,9 +83,13 @@ export async function stopMcpServer(server: McpServerProcess | undefined): Promi
 	if (server.proc.exitCode === null) server.proc.kill('SIGKILL');
 }
 
-export async function connectClient(port: number): Promise<Client> {
+/** MCP client over Streamable HTTP; `token` is sent as `x-svelte-grab-token`. */
+export async function connectClient(port: number, token?: string): Promise<Client> {
 	const client = new Client({ name: 'svelte-grab-e2e', version: '0.0.0' });
-	await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`)));
+	const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
+		requestInit: token ? { headers: { 'x-svelte-grab-token': token } } : undefined
+	});
+	await client.connect(transport);
 	return client;
 }
 
