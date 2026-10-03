@@ -11,6 +11,10 @@ import {
 	type SecurityConfig,
 	type SecurityOptions
 } from '../utils/security.js';
+import { TabRegistry } from './runtime/tab-registry.js';
+import { CommandChannel, type RuntimeCommandMessage, type SendOptions } from './runtime/command-channel.js';
+import { parseHelloPayload, parseResultPayload, isPlainObject, type RuntimeResultData } from './runtime/validate.js';
+import { registerRuntimeTools, type McpToolServer, type ZodNamespace } from './runtime/tools.js';
 
 /** Max request body size (2 MB) for POST endpoints. */
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -75,16 +79,46 @@ function notifyWatchers(ctx: ContextPayload): void {
 
 /**
  * Send an SSE event to all connected browsers.
+ * Returns how many clients the event was written to.
  */
-function broadcastSSE(event: string, data: unknown): void {
+function broadcastSSE(event: string, data: unknown): number {
 	const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+	let delivered = 0;
 	for (const client of sseClients) {
+		if (client.destroyed || client.writableEnded) {
+			sseClients.delete(client);
+			continue;
+		}
 		try {
 			client.write(payload);
+			delivered++;
 		} catch {
 			sseClients.delete(client);
 		}
 	}
+	return delivered;
+}
+
+// ============================================================
+// Agent runtime channel (docs/agent-runtime-spec.md, wire contract v1)
+// ============================================================
+const tabRegistry = new TabRegistry();
+const commandChannel = new CommandChannel({
+	registry: tabRegistry,
+	broadcast: (message: RuntimeCommandMessage) => broadcastSSE('runtime-command', message)
+});
+
+/**
+ * Send a runtime command to a connected browser tab (explicit `tabId` or the
+ * active tab) and wait for its `POST /runtime/result`. Rejects when no tab is
+ * connected, on page error, or on timeout (default 10s, max 60s).
+ */
+export function sendRuntimeCommand(
+	tool: string,
+	args: Record<string, unknown>,
+	options: SendOptions = {}
+): Promise<RuntimeResultData> {
+	return commandChannel.send(tool, args, options);
 }
 
 /**
@@ -159,6 +193,22 @@ function readBody(req: IncomingMessage): Promise<string> {
 }
 
 /**
+ * Read and JSON-parse a POST body with the same cap and error mapping as
+ * `POST /context` (413 too large, 400 invalid JSON). Returns `undefined` after
+ * writing the error response.
+ */
+async function readJsonBody(req: IncomingMessage, res: ServerResponse): Promise<{ data: unknown } | undefined> {
+	try {
+		const body = await readBody(req);
+		return { data: JSON.parse(body) };
+	} catch (err) {
+		const tooLarge = err instanceof Error && err.message === 'Request body too large';
+		sendJson(res, tooLarge ? 413 : 400, { error: tooLarge ? 'Request body too large' : 'Invalid JSON' });
+		return undefined;
+	}
+}
+
+/**
  * Send JSON response.
  */
 function sendJson(res: ServerResponse, status: number, data: unknown): void {
@@ -214,13 +264,14 @@ async function handleMcpProtocol(req: IncomingMessage, res: ServerResponse): Pro
 	try {
 		const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
 		const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
+		const { z } = await import('zod');
 
 		const server = new McpServer({
 			name: 'svelte-grab',
 			version: '1.0.0'
 		});
 
-		registerMcpTools(server);
+		registerMcpTools(server, z);
 
 		const transport = new StreamableHTTPServerTransport('/mcp');
 		await server.connect(transport);
@@ -248,18 +299,21 @@ function extractToolSection(toolName: string): string | null {
 /**
  * Register MCP tools on a server instance.
  */
-function registerMcpTools(server: any): void {
+function registerMcpTools(server: McpToolServer, z: ZodNamespace): void {
 	// ============================================================
 	// watch_for_grab — blocks until the browser sends new context
 	// ============================================================
-	server.tool(
+	server.registerTool(
 		'watch_for_grab',
-		'Waits for the user to select a component in the browser and send context via svelte-grab. ' +
-		'This tool BLOCKS until the user Alt+Clicks an element and submits their prompt. ' +
-		'Returns the component context (file paths, component stack, HTML) plus the user\'s instruction. ' +
-		'Call this in a loop to continuously receive instructions from the browser. ' +
-		'The user selects a component, types what they want changed, and hits Enter — you receive everything here.',
-		{},
+		{
+			title: 'Watch for browser grab',
+			description:
+				'Waits for the user to select a component in the browser and send context via svelte-grab. ' +
+				'This tool BLOCKS until the user Alt+Clicks an element and submits their prompt. ' +
+				'Returns the component context (file paths, component stack, HTML) plus the user\'s instruction. ' +
+				'Call this in a loop to continuously receive instructions from the browser. ' +
+				'The user selects a component, types what they want changed, and hits Enter — you receive everything here.'
+		},
 		async () => {
 			agentWatching = true;
 			broadcastSSE('agent-status', { status: 'watching', message: 'Claude Code is listening...' });
@@ -305,10 +359,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_element_context',
-		'Returns the last element context captured by svelte-grab in the browser. Returns the grabbed component stack, HTML preview, and optional prompt. Context is cleared after reading.',
-		{},
+		{
+			title: 'Get last element context',
+			description:
+				'Returns the last element context captured by svelte-grab in the browser. Returns the grabbed component stack, HTML preview, and optional prompt. Context is cleared after reading.'
+		},
 		async () => {
 			if (!storedContext) {
 				return {
@@ -330,10 +387,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'undo_last_action',
-		'Returns an undo instruction with the original context from the last interaction. Use this to instruct the agent to undo its last change.',
-		{},
+		{
+			title: 'Undo last action',
+			description:
+				'Returns an undo instruction with the original context from the last interaction. Use this to instruct the agent to undo its last change.'
+		},
 		async () => {
 			if (sessionHistory.length === 0) {
 				return {
@@ -355,10 +415,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_session_history',
-		'Returns the list of recent interactions (contexts sent by the browser). Each entry includes the content, prompt, and timestamp.',
-		{},
+		{
+			title: 'Get session history',
+			description:
+				'Returns the list of recent interactions (contexts sent by the browser). Each entry includes the content, prompt, and timestamp.'
+		},
 		async () => {
 			if (sessionHistory.length === 0) {
 				return {
@@ -381,10 +444,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_a11y_report',
-		'Returns the last accessibility audit report captured by SvelteA11yReporter. Includes WCAG violations, scores, and fix suggestions.',
-		{},
+		{
+			title: 'Get accessibility report',
+			description:
+				'Returns the last accessibility audit report captured by SvelteA11yReporter. Includes WCAG violations, scores, and fix suggestions.'
+		},
 		async () => {
 			const section = extractToolSection('A11yReporter');
 			if (!section) {
@@ -396,10 +462,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_style_context',
-		'Returns the last CSS style analysis captured by SvelteStyleGrab. Includes computed styles, conflicts, and source attribution.',
-		{},
+		{
+			title: 'Get style context',
+			description:
+				'Returns the last CSS style analysis captured by SvelteStyleGrab. Includes computed styles, conflicts, and source attribution.'
+		},
 		async () => {
 			const section = extractToolSection('StyleGrab');
 			if (!section) {
@@ -411,10 +480,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_error_context',
-		'Returns captured console errors and warnings from SvelteErrorContext. Includes stack traces, component attribution, and error patterns.',
-		{},
+		{
+			title: 'Get error context',
+			description:
+				'Returns captured console errors and warnings from SvelteErrorContext. Includes stack traces, component attribution, and error patterns.'
+		},
 		async () => {
 			const section = extractToolSection('ErrorContext');
 			if (!section) {
@@ -426,10 +498,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_profiler_report',
-		'Returns the last render profiler report from SvelteRenderProfiler. Includes hot components, render counts, and burst detection.',
-		{},
+		{
+			title: 'Get render profiler report',
+			description:
+				'Returns the last render profiler report from SvelteRenderProfiler. Includes hot components, render counts, and burst detection.'
+		},
 		async () => {
 			const section = extractToolSection('RenderProfiler');
 			if (!section) {
@@ -441,10 +516,12 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'list_available_tools',
-		'Lists which svelte-grab tools have data available and when it was last captured.',
-		{},
+		{
+			title: 'List available tool data',
+			description: 'Lists which svelte-grab tools have data available and when it was last captured.'
+		},
 		async () => {
 			const tools: string[] = [];
 
@@ -473,6 +550,9 @@ function registerMcpTools(server: any): void {
 			};
 		}
 	);
+
+	// Agent runtime: ui_tabs (server-only), ui_snapshot / ui_find (page round trip).
+	registerRuntimeTools(server, z, { registry: tabRegistry, channel: commandChannel });
 }
 
 /**
@@ -564,6 +644,47 @@ function createHttpHandler() {
 			return;
 		}
 
+		// POST /runtime/hello — page registers/heartbeats its tab (wire contract v1)
+		if (req.method === 'POST' && path === '/runtime/hello') {
+			const body = await readJsonBody(req, res);
+			if (!body) return;
+			const parsed = parseHelloPayload(body.data);
+			if (!parsed.ok) {
+				sendJson(res, 400, { error: `Invalid payload: ${parsed.error}` });
+				return;
+			}
+			tabRegistry.hello(parsed.value);
+			sendJson(res, 200, { ok: true });
+			return;
+		}
+
+		// POST /runtime/result — page answers a runtime-command (wire contract v1)
+		if (req.method === 'POST' && path === '/runtime/result') {
+			const body = await readJsonBody(req, res);
+			if (!body) return;
+			const parsed = parseResultPayload(body.data);
+			if (!parsed.ok) {
+				// Fail the matching command now instead of letting the agent wait for the timeout.
+				const id = isPlainObject(body.data) ? body.data.id : undefined;
+				if (typeof id === 'string') {
+					commandChannel.fail(id, new Error(`Browser tab sent an invalid result: ${parsed.error}`));
+				}
+				sendJson(res, 400, { error: `Invalid payload: ${parsed.error}` });
+				return;
+			}
+			const outcome = commandChannel.settle(parsed.value);
+			if (outcome === 'unknown-id') {
+				sendJson(res, 404, { error: 'Unknown or expired command id' });
+				return;
+			}
+			if (outcome === 'tab-mismatch') {
+				sendJson(res, 404, { error: 'Command id was not sent to this tab' });
+				return;
+			}
+			sendJson(res, 200, { ok: true });
+			return;
+		}
+
 		// POST /mcp — MCP protocol endpoint (only in HTTP mode)
 		if (req.method === 'POST' && path === '/mcp') {
 			await handleMcpProtocol(req, res);
@@ -607,16 +728,17 @@ async function startHttpListener(preferredPort: number): Promise<{ close: () => 
 /**
  * Start the MCP server in HTTP mode.
  */
-async function startHttpServer(preferredPort: number): Promise<{ close: () => void }> {
+async function startHttpServer(preferredPort: number): Promise<{ close: () => void; port: number }> {
 	const { close, port } = await startHttpListener(preferredPort);
 
 	console.log(`[svelte-grab mcp] HTTP server listening on http://localhost:${port}`);
 	console.log(`[svelte-grab mcp] Health check: http://localhost:${port}/health`);
 	console.log(`[svelte-grab mcp] Context endpoint: POST http://localhost:${port}/context`);
 	console.log(`[svelte-grab mcp] SSE events: http://localhost:${port}/events`);
+	console.log(`[svelte-grab mcp] Runtime channel: POST http://localhost:${port}/runtime/hello, /runtime/result`);
 	logSecurityBanner('mcp', security);
 
-	return { close };
+	return { close, port };
 }
 
 /**
@@ -626,13 +748,17 @@ async function startHttpServer(preferredPort: number): Promise<{ close: () => vo
 async function startStdioServer(httpPort: number): Promise<void> {
 	const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
 	const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
+	const { z } = await import('zod');
 
 	const server = new McpServer({
 		name: 'svelte-grab',
 		version: '1.0.0'
 	});
 
-	registerMcpTools(server);
+	// ui_* tools reach the page through the sidecar HTTP listener below (same
+	// process, shared tab registry). If the sidecar cannot start, no tab can
+	// connect and ui_* tools return the "No browser tab connected" error.
+	registerMcpTools(server, z);
 
 	// Start sidecar HTTP server for browser context bridge
 	try {
@@ -656,7 +782,7 @@ async function startStdioServer(httpPort: number): Promise<void> {
  * and starts a sidecar HTTP server for browser context.
  * In HTTP mode, starts an HTTP server with /health, /context, /events, and /mcp endpoints.
  */
-export async function startMcpServer(options: McpServerOptions = {}): Promise<{ close: () => void } | void> {
+export async function startMcpServer(options: McpServerOptions = {}): Promise<{ close: () => void; port: number } | void> {
 	const { port = DEFAULT_MCP_PORT, stdio = false } = options;
 
 	// Resolve security config (Origin allowlist + optional token) from

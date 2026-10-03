@@ -400,6 +400,11 @@ The recommended way to connect svelte-grab to Claude Code. Select a component, t
 | `undo_last_action` | Returns an undo instruction with the original context. |
 | `get_session_history` | Returns recent interactions (up to 20) with timestamps and prompts. |
 | `list_available_tools` | Lists which tools have data available and when it was captured. |
+| `ui_tabs` | Lists connected browser tabs (`tabId`, url, title, focused, lastSeen, active). `ui_*` tools target the active tab (last focused, else most recently seen) unless given `tabId`. |
+| `ui_snapshot` | Compact tree of the live UI: only elements with Svelte metadata or an a11y role/name, one line each (`eN <role/tag> "<name>" <Component> <file:line>`). Args: `scope`, `detail`, `maxNodes`, `tabId`. |
+| `ui_find` | Finds elements by `text`, `role`, `name`, `component`, `file` or `selector` (plus `limit`, `tabId`). Returns refs with stable key, component, source, role, name, box and visibility. |
+
+The `ui_*` tools query the page live: the app must be open in dev with `<SvelteGrab/>` mounted (otherwise they return "No browser tab connected"). Refs are stamped on elements as `data-sg-ref`, so `[data-sg-ref="e12"]` works as a locator in Playwright MCP or chrome-devtools MCP for real clicks and screenshots.
 
 ### HTTP Endpoints
 
@@ -410,6 +415,8 @@ The MCP server also exposes HTTP endpoints (available in both stdio and HTTP mod
 | `GET` | `/health` | Health check with agent status |
 | `GET` | `/events` | SSE stream for real-time browser status updates |
 | `POST` | `/context` | Receive context from browser |
+| `POST` | `/runtime/hello` | Browser tab registration and heartbeat for the `ui_*` tools |
+| `POST` | `/runtime/result` | Browser tab answer to a `runtime-command` SSE event |
 | `POST` | `/mcp` | MCP protocol endpoint (HTTP mode only) |
 
 ### Alternative: HTTP mode
