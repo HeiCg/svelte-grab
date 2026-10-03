@@ -74,7 +74,7 @@ async function resolve(page: Page, refOrKey: string): Promise<Resolved | null> {
 	);
 }
 
-test.describe('agent runtime: ui_snapshot / ui_find', () => {
+test.describe('agent runtime: ui_snapshot / ui_find / ui_inspect', () => {
 	test('ui_snapshot lists FixtureCard and Button with playground source files', async ({
 		activated: page
 	}) => {
@@ -191,6 +191,58 @@ test.describe('agent runtime: ui_snapshot / ui_find', () => {
 		expect(res!.ref).not.toBe(branch.ref);
 		expect(res!.stableKey).toBe(branch.stableKey);
 		await expect(page.locator(`[data-sg-ref="${res!.ref}"]`)).toHaveText('Branch: else if (few)');
+	});
+
+	test('ui_inspect on a FixtureCard Button ref returns source, stack and layout', async ({
+		activated: page
+	}) => {
+		const [button] = await find(page, { role: 'button', name: 'a: 0' });
+		expect(button.component).toBe('Button');
+
+		const out = await callTool(page, 'ui_inspect', { ref: button.ref });
+		expect(out.ok, out.error).toBe(true);
+		const text = out.result!.text;
+
+		const lines = text.split('\n');
+		expect(lines[0]).toMatch(
+			new RegExp(`^${button.ref} button "a: 0" Button src/components/Button\\.svelte:\\d+$`)
+		);
+		expect(lines).toContain(`Locator: [data-sg-ref="${button.ref}"]`);
+
+		const sectionOf = (title: string) => {
+			const start = lines.indexOf(title);
+			expect(start, `${title} section`).toBeGreaterThan(-1);
+			const body: string[] = [];
+			for (const l of lines.slice(start + 1)) {
+				if (!l.startsWith('  ')) break;
+				body.push(l);
+			}
+			return body.join('\n');
+		};
+
+		expect(sectionOf('SOURCE')).toMatch(/src\/components\/Button\.svelte:\d+:\d+/);
+		expect(sectionOf('COMPONENT')).toMatch(
+			/this instance is used at src\/components\/fixtures\/FixtureCard\.svelte:\d+/
+		);
+		const stack = sectionOf('STACK');
+		expect(stack).toMatch(/FixtureCard \(src\/App\.svelte:\d+\)/);
+		expect(stack).toMatch(/Section \(src\/App\.svelte:\d+\)/);
+		expect(sectionOf('LAYOUT')).toMatch(/box: \d+,\d+ [1-9]\d*x[1-9]\d* \(viewport px/);
+		expect(sectionOf('STYLES')).toMatch(/background-color: rgb\(37, 99, 235\) -> Svelte scoped/);
+		expect(sectionOf('A11Y')).toMatch(/role: button, name: "a: 0"/);
+		expect(sectionOf('USAGE')).toMatch(/instances of <Button> on the page/);
+		expect(sectionOf('USAGE')).toContain(`${button.ref} (this)`);
+		expect(text.length).toBeLessThanOrEqual(8000);
+
+		const data = out.result!.data as {
+			source: { file: string };
+			layout: { visible: boolean; box: { width: number } };
+			usage: { count: number };
+		};
+		expect(data.source.file).toMatch(/Button\.svelte$/);
+		expect(data.layout.visible).toBe(true);
+		expect(data.layout.box.width).toBeGreaterThan(0);
+		expect(data.usage.count).toBeGreaterThanOrEqual(2);
 	});
 
 	test('unknown tools and bad args come back as ok:false', async ({ activated: page }) => {

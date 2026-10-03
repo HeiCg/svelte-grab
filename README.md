@@ -404,6 +404,7 @@ The recommended way to connect svelte-grab to Claude Code. Select a component, t
 | `ui_tabs` | Lists connected browser tabs (`tabId`, url, title, focused, lastSeen, active). `ui_*` tools target the active tab (last focused, else most recently seen) unless given `tabId`. |
 | `ui_snapshot` | Compact tree of the live UI: only elements with Svelte metadata or an a11y role/name, one line each (`eN <role/tag> "<name>" <Component> <file:line>`). Args: `scope`, `detail`, `maxNodes`, `tabId`. |
 | `ui_find` | Finds elements by `text`, `role`, `name`, `component`, `file` or `selector` (plus `limit`, `tabId`). Returns refs with stable key, component, source, role, name, box and visibility. |
+| `ui_inspect` | The heavy, on-demand context for one element (`ref`: `eN` or `ui://` key). Sections COMPONENT, SOURCE, STACK, PROPS/ATTRIBUTES, STATE, LAYOUT (box, overflow, visibility), STYLES (matched rules with source, Tailwind/scoped detection), A11Y (role, name, contrast, issues) and USAGE (other instances with refs). Args: `ref`, `include` (subset of `stack`, `props`, `state`, `styles`, `layout`, `a11y`, `usage`; default all), `tabId`. Text is capped at ~8000 chars. Use `ui_snapshot`/`ui_find` first. |
 
 The `ui_*` tools query the page live: the app must be open in dev with `<SvelteGrab/>` mounted (otherwise they return "No browser tab connected"). Refs are stamped on elements as `data-sg-ref`, so `[data-sg-ref="e12"]` works as a locator in Playwright MCP or chrome-devtools MCP for real clicks and screenshots.
 
@@ -413,6 +414,7 @@ With `enableMcp` (and `enableAgentRuntime`, on by default), the page also answer
 
 - `ui_snapshot` returns an indented outline of the page, one line per element with Svelte source info or a useful role/name: `e12 button "Save" Button src/lib/Button.svelte:11`.
 - `ui_find` locates elements by `text`, `role`, `name`, `component`, `file` or `selector`.
+- `ui_inspect` returns the full context of one ref: component, source, stack, props/attributes, `inspectable()` state, layout, matched styles, accessibility and other instances of the same component. A stale ref is re-resolved by its stable key and reported as rebound.
 - Every reported element gets a session ref (`e12`) stamped as `data-sg-ref`, so other tools (Playwright MCP, chrome-devtools-mcp) can act on it with the locator `[data-sg-ref="e12"]`. Each result also carries a stable key (`ui://<file>:<line>:<col>#<Component>[role=..,name=..][i]`) that re-resolves after re-renders.
 
 Set `enableAgentRuntime={false}` to keep the MCP bridge without the runtime.

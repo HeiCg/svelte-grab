@@ -1,6 +1,6 @@
 /**
  * MCP tools of the agent runtime: `ui_tabs` (server-only) and the page-forwarded
- * `ui_snapshot` / `ui_find`.
+ * `ui_snapshot` / `ui_find` / `ui_inspect`.
  *
  * `zod` is passed in by the caller (it is loaded lazily together with the
  * optional `@modelcontextprotocol/sdk` peer, which requires it), so this module
@@ -130,7 +130,10 @@ export function uiTabs(registry: TabRegistry, now: number): McpToolResult {
 	};
 }
 
-/** Register `ui_tabs`, `ui_snapshot` and `ui_find`. */
+/** Sections `ui_inspect` can return (besides the always-on COMPONENT and SOURCE). */
+export const UI_INSPECT_SECTIONS = ['stack', 'props', 'state', 'styles', 'layout', 'a11y', 'usage'] as const;
+
+/** Register `ui_tabs`, `ui_snapshot`, `ui_find` and `ui_inspect`. */
 export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, deps: RuntimeToolDeps): void {
 	const now = deps.now ?? (() => Date.now());
 
@@ -200,5 +203,34 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 			}
 		},
 		async (args) => forwardToPage(deps.channel, 'ui_find', args)
+	);
+
+	server.registerTool(
+		'ui_inspect',
+		{
+			title: 'Inspect one element of the live Svelte UI',
+			description:
+				'The heavy, on-demand context for ONE element: call ui_snapshot / ui_find first to get a ref, then ' +
+				'ui_inspect it. Returns sectioned text: COMPONENT and SOURCE (file:line:col to edit), STACK (component ' +
+				'chain with usage sites), PROPS/ATTRIBUTES, STATE (inspectable() $state), LAYOUT (box, display, position, ' +
+				'visibility, overflow/clipping), STYLES (matched CSS rules, authored declarations with source, ' +
+				'Svelte-scoped/Tailwind detection, conflicts), A11Y (role, name, contrast, element-level issues) and ' +
+				'USAGE (other instances of the same component, with refs). structuredContent carries the same data. ' +
+				'Output is capped at ~8000 chars; use include to ask for fewer sections. A stale ref is re-resolved by ' +
+				'its stable key and reported as rebound at the top. ' +
+				REF_RECIPE,
+			inputSchema: {
+				ref: z.string().describe('Element ref (eN) or ui:// stable key from ui_snapshot / ui_find.'),
+				include: z
+					.array(z.enum(UI_INSPECT_SECTIONS))
+					.optional()
+					.describe(
+						'Sections to return (default all): stack, props, state, styles, layout, a11y, usage. ' +
+							'COMPONENT and SOURCE are always included.'
+					),
+				tabId: z.string().optional().describe(TAB_ID_HINT)
+			}
+		},
+		async (args) => forwardToPage(deps.channel, 'ui_inspect', args)
 	);
 }

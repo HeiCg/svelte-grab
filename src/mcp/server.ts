@@ -661,7 +661,7 @@ function registerMcpTools(server: McpToolServer, z: ZodNamespace): void {
 		}
 	);
 
-	// Agent runtime: ui_tabs (server-only), ui_snapshot / ui_find (page round trip).
+	// Agent runtime: ui_tabs (server-only), ui_snapshot / ui_find / ui_inspect (page round trip).
 	registerRuntimeTools(server, z, { registry: tabRegistry, channel: commandChannel });
 }
 

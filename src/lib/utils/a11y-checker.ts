@@ -395,7 +395,7 @@ function checkContrast(root: HTMLElement): A11yIssue[] {
  * background of its ancestors. The final fallback is opaque white, matching the
  * default page background. The returned string is always an opaque `rgb(...)`.
  */
-function getEffectiveBackground(el: HTMLElement): string {
+export function getEffectiveBackground(el: HTMLElement): string {
 	// Collect background layers from the element up to the root, stopping once we
 	// hit a fully opaque layer (anything behind it is invisible).
 	const layers: RGBA[] = [];
