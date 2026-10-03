@@ -45,7 +45,14 @@ export interface HealthMessage {
 	type: 'health';
 }
 
-export type ClientMessage = AgentRequestMessage | AgentAbortMessage | AgentUndoMessage | AgentRedoMessage | AgentResumeMessage | AgentRetryMessage | HealthMessage;
+export type ClientMessage =
+	| AgentRequestMessage
+	| AgentAbortMessage
+	| AgentUndoMessage
+	| AgentRedoMessage
+	| AgentResumeMessage
+	| AgentRetryMessage
+	| HealthMessage;
 
 // Server -> Client messages
 export interface AgentStatusMessage {
@@ -77,7 +84,12 @@ export interface HealthResponseMessage {
 	agents: string[];
 }
 
-export type ServerMessage = AgentStatusMessage | AgentDoneMessage | AgentErrorMessage | HandlersMessage | HealthResponseMessage;
+export type ServerMessage =
+	| AgentStatusMessage
+	| AgentDoneMessage
+	| AgentErrorMessage
+	| HandlersMessage
+	| HealthResponseMessage;
 
 // ============================================================
 // Validation
@@ -109,7 +121,9 @@ function isNonEmptyBoundedString(v: unknown, max: number): boolean {
 	return typeof v === 'string' && v.length > 0 && v.length <= max;
 }
 
-function isValidContext(ctx: unknown): ctx is { content: string[]; prompt: string; selectedCount: number } {
+function isValidContext(
+	ctx: unknown
+): ctx is { content: string[]; prompt: string; selectedCount: number } {
 	if (typeof ctx !== 'object' || ctx === null) return false;
 	const o = ctx as Record<string, unknown>;
 	if (!Array.isArray(o.content) || o.content.length > MAX_CONTENT_ITEMS) return false;

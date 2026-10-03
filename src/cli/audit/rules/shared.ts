@@ -36,7 +36,10 @@ export class FindingSink {
 		fix: string
 	): void {
 		this.starts ??= lineStarts(this.file.text);
-		const { line, column } = lineColAt(this.starts, Math.max(0, Math.min(offset, this.file.text.length)));
+		const { line, column } = lineColAt(
+			this.starts,
+			Math.max(0, Math.min(offset, this.file.text.length))
+		);
 		this.findings.push({
 			rule,
 			severity,
@@ -62,7 +65,8 @@ export function svelteScriptText(text: string): string {
 	for (const m of text.matchAll(re)) {
 		const contentStart = (m.index ?? 0) + m[0].indexOf('>') + 1;
 		const contentEnd = contentStart + m[1].length;
-		out += text.slice(pos, contentStart).replace(/[^\n]/g, ' ') + text.slice(contentStart, contentEnd);
+		out +=
+			text.slice(pos, contentStart).replace(/[^\n]/g, ' ') + text.slice(contentStart, contentEnd);
 		pos = contentEnd;
 	}
 	return out + text.slice(pos).replace(/[^\n]/g, ' ');

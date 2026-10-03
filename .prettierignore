@@ -10,3 +10,5 @@ tests/fixtures/
 # generated
 packages/sv-addon/src/skills.generated.ts
 packages/*/dist/
+# skill content: tests and MCP prompts read the compact tables verbatim
+skills/**/*.md

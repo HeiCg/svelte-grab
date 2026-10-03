@@ -44,7 +44,12 @@ async function callTool(page: Page, tool: string, args: Record<string, unknown>)
 const tray = (page: Page) => page.locator('[role="region"][aria-label="SvelteGrab annotations"]');
 
 /** Hold Alt, hover `testid`, press N: the annotation editor opens for that element. */
-async function annotateHovered(page: Page, testid: string, comment: string, id: number): Promise<void> {
+async function annotateHovered(
+	page: Page,
+	testid: string,
+	comment: string,
+	id: number
+): Promise<void> {
 	await page.keyboard.down('Alt');
 	await page.getByTestId(testid).hover();
 	await expect(page.locator('.svelte-grab-tooltip')).toBeVisible();
@@ -90,7 +95,10 @@ test.describe('annotation mode', () => {
 		// Overlay roots carry the svelte-grab UI marker and the redaction marks.
 		await expect(tray(page)).toHaveAttribute('data-svelte-grab-ui', '');
 		await expect(tray(page)).toHaveAttribute('data-sentry-block', '');
-		await expect(page.locator('[data-annotation-badge="1"]')).toHaveAttribute('data-svelte-grab-ui', '');
+		await expect(page.locator('[data-annotation-badge="1"]')).toHaveAttribute(
+			'data-svelte-grab-ui',
+			''
+		);
 
 		// Send all: one agent text with both comments and their sources.
 		await tray(page).getByLabel('Instruction for all annotations').fill('Polish the fixtures');
@@ -126,7 +134,10 @@ test.describe('annotation mode', () => {
 			'data-testid',
 			'fx-button-b'
 		);
-		const inspected = await callTool(page, 'ui_inspect', { ref: buttonRefs[1].ref, include: ['stack'] });
+		const inspected = await callTool(page, 'ui_inspect', {
+			ref: buttonRefs[1].ref,
+			include: ['stack']
+		});
 		expect(inspected.ok, inspected.error).toBe(true);
 		expect(inspected.result!.text).toContain('Button');
 
@@ -207,7 +218,9 @@ test.describe('hotkeys="minimal"', () => {
 		await gotoPlayground(page, '/?hotkeys=minimal');
 	});
 
-	test('Alt+P, Alt+A and Alt+Shift+Click do nothing while Alt+Click still grabs', async ({ page }) => {
+	test('Alt+P, Alt+A and Alt+Shift+Click do nothing while Alt+Click still grabs', async ({
+		page
+	}) => {
 		await altKey(page, 'p');
 		await altKey(page, 'a');
 		await page.waitForTimeout(300);
@@ -218,7 +231,9 @@ test.describe('hotkeys="minimal"', () => {
 		// Shift+Alt+Click only multi-selects (StateGrab's trigger is off).
 		await page.getByTestId('fx-button-a').click({ modifiers: ['Alt', 'Shift'] });
 		await expect(page.locator('.svelte-grab-highlight-selected')).toHaveCount(1);
-		await expect(page.locator('[role="dialog"][aria-label="SvelteStateGrab inspector"]')).toHaveCount(0);
+		await expect(
+			page.locator('[role="dialog"][aria-label="SvelteStateGrab inspector"]')
+		).toHaveCount(0);
 		await page.locator('.svelte-grab-floating-bar button', { hasText: 'Clear' }).click();
 
 		await grab(page, '[data-testid="demo-button"]');

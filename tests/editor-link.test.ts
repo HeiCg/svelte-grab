@@ -86,19 +86,27 @@ describe('openInEditor', () => {
 		const openUrl = vi.fn();
 		openInEditor('src/App.svelte', 12, 'vscode', null, { fetch, openUrl });
 		await flush();
-		expect(fetch).toHaveBeenCalledWith(`/__open-in-editor?file=${encodeURIComponent(`${ROOT}/src/App.svelte:12:1`)}`);
+		expect(fetch).toHaveBeenCalledWith(
+			`/__open-in-editor?file=${encodeURIComponent(`${ROOT}/src/App.svelte:12:1`)}`
+		);
 		expect(openUrl).not.toHaveBeenCalled();
 	});
 
 	it('falls back to the deep link when the Vite request fails', async () => {
 		installPlugin();
 		const openUrl = vi.fn();
-		openInEditor('src/App.svelte', 3, 'vscode', null, { fetch: vi.fn().mockResolvedValue({ ok: false }), openUrl });
+		openInEditor('src/App.svelte', 3, 'vscode', null, {
+			fetch: vi.fn().mockResolvedValue({ ok: false }),
+			openUrl
+		});
 		await flush();
 		expect(openUrl).toHaveBeenCalledWith(`vscode://file${ROOT}/src/App.svelte:3`);
 
 		openUrl.mockClear();
-		openInEditor('src/App.svelte', 4, 'zed', null, { fetch: vi.fn().mockRejectedValue(new Error('down')), openUrl });
+		openInEditor('src/App.svelte', 4, 'zed', null, {
+			fetch: vi.fn().mockRejectedValue(new Error('down')),
+			openUrl
+		});
 		await flush();
 		expect(openUrl).toHaveBeenCalledWith(`zed://file${ROOT}/src/App.svelte:4`);
 	});

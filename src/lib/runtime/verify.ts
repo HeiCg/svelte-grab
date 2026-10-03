@@ -92,7 +92,9 @@ function parseChecks(args: Record<string, unknown>): VerifyCheck[] {
 	const out: VerifyCheck[] = [];
 	for (const item of raw) {
 		if (typeof item !== 'string' || !(VERIFY_CHECKS as readonly string[]).includes(item)) {
-			throw new Error(`Unknown check ${JSON.stringify(item)}: use any of ${VERIFY_CHECKS.join(', ')}`);
+			throw new Error(
+				`Unknown check ${JSON.stringify(item)}: use any of ${VERIFY_CHECKS.join(', ')}`
+			);
 		}
 		if (!out.includes(item as VerifyCheck)) out.push(item as VerifyCheck);
 	}
@@ -179,22 +181,38 @@ function checkVisible(el: HTMLElement, namer: Namer): VerifyCheckResult {
 	const box = getBox(el);
 	const data: Record<string, unknown> = { box };
 
-	for (let n: Element | null = el; n && n !== el.ownerDocument.documentElement; n = n.parentElement) {
+	for (
+		let n: Element | null = el;
+		n && n !== el.ownerDocument.documentElement;
+		n = n.parentElement
+	) {
 		const cs = view.getComputedStyle(n);
 		const where = n === el ? '' : ` on ancestor ${formatRef(namer.describe(n))}`;
 		if (cs.display === 'none') {
-			return result('visible', 'FAIL', `hidden: display: none${where}`, { ...data, reason: 'display-none' });
+			return result('visible', 'FAIL', `hidden: display: none${where}`, {
+				...data,
+				reason: 'display-none'
+			});
 		}
 		if (n === el && (cs.visibility === 'hidden' || cs.visibility === 'collapse')) {
-			return result('visible', 'FAIL', `hidden: visibility: ${cs.visibility}`, { ...data, reason: 'visibility' });
+			return result('visible', 'FAIL', `hidden: visibility: ${cs.visibility}`, {
+				...data,
+				reason: 'visibility'
+			});
 		}
 		if (cs.opacity !== '' && Number(cs.opacity) === 0) {
-			return result('visible', 'FAIL', `invisible: opacity: 0${where}`, { ...data, reason: 'opacity' });
+			return result('visible', 'FAIL', `invisible: opacity: 0${where}`, {
+				...data,
+				reason: 'opacity'
+			});
 		}
 	}
 
 	if (box.width === 0 || box.height === 0) {
-		return result('visible', 'FAIL', `zero-size box (${box.width}x${box.height})`, { ...data, reason: 'zero-size' });
+		return result('visible', 'FAIL', `zero-size box (${box.width}x${box.height})`, {
+			...data,
+			reason: 'zero-size'
+		});
 	}
 
 	if (!isInViewport(el)) {
@@ -212,10 +230,18 @@ function checkVisible(el: HTMLElement, namer: Namer): VerifyCheckResult {
 	const hit = hitTest(el.ownerDocument, x, y);
 	const base = { ...data, inViewport: true };
 	if (hit === undefined) {
-		return result('visible', 'PASS', `box ${formatBox(box)}, in viewport (coverage not checked: no hit testing)`, base);
+		return result(
+			'visible',
+			'PASS',
+			`box ${formatBox(box)}, in viewport (coverage not checked: no hit testing)`,
+			base
+		);
 	}
 	if (hit === null || hit === el || el.contains(hit)) {
-		return result('visible', 'PASS', `box ${formatBox(box)}, in viewport, not covered`, { ...base, covered: false });
+		return result('visible', 'PASS', `box ${formatBox(box)}, in viewport, not covered`, {
+			...base,
+			covered: false
+		});
 	}
 	if (hit.contains(el) && view.getComputedStyle(el).pointerEvents === 'none') {
 		return result(
@@ -282,7 +308,10 @@ function insideHorizontalClip(el: Element): boolean {
  * left) edge of the document's client box, outside any horizontal clip/scroll
  * container, outermost of each subtree, furthest out first.
  */
-export function pageOverflowOffenders(doc: Document, clientWidth: number): { el: Element; right: number; by: number }[] {
+export function pageOverflowOffenders(
+	doc: Document,
+	clientWidth: number
+): { el: Element; right: number; by: number }[] {
 	const view = doc.defaultView!;
 	const scrollX = view.scrollX || 0;
 	const candidates: { el: Element; right: number; by: number }[] = [];
@@ -397,7 +426,8 @@ function checkOverflow(el: HTMLElement, namer: Namer): VerifyCheckResult {
 				? `content fits (${scroll.width}x${scroll.height} in ${client.width}x${client.height})`
 				: `element not measured (display: ${display})`
 		];
-		if (scrollAxes.length > 0) parts[0] = `content scrolls inside the element (overflow ${ox}/${oy})`;
+		if (scrollAxes.length > 0)
+			parts[0] = `content scrolls inside the element (overflow ${ox}/${oy})`;
 		parts.push('no page-level horizontal overflow');
 		return result('overflow', 'PASS', parts.join('; '), data);
 	}
@@ -424,7 +454,9 @@ interface ConsoleGroup {
 function groupConsole(entries: ConsoleEntry[]): ConsoleGroup[] {
 	const groups = new Map<string, ConsoleGroup>();
 	for (const e of entries) {
-		const source = e.source ? `${e.source.file}:${e.source.line}${e.source.column ? `:${e.source.column}` : ''}` : null;
+		const source = e.source
+			? `${e.source.file}:${e.source.line}${e.source.column ? `:${e.source.column}` : ''}`
+			: null;
 		const key = `${e.level}|${e.message}|${source}`;
 		const g = groups.get(key);
 		if (g) g.count++;
@@ -436,7 +468,11 @@ function groupConsole(entries: ConsoleEntry[]): ConsoleGroup[] {
 	);
 }
 
-function checkConsole(capture: ConsoleCapture, tracker: HmrTracker, since: number | undefined): VerifyCheckResult {
+function checkConsole(
+	capture: ConsoleCapture,
+	tracker: HmrTracker,
+	since: number | undefined
+): VerifyCheckResult {
 	let after: number | undefined;
 	let label: string;
 	if (since !== undefined) {
@@ -470,9 +506,11 @@ function checkConsole(capture: ConsoleCapture, tracker: HmrTracker, since: numbe
 		messages: top
 	};
 	const details = top.map(
-		(g) => `${g.level} ${g.source ?? '(unknown source)'} ${g.message}${g.count > 1 ? ` (x${g.count})` : ''}`
+		(g) =>
+			`${g.level} ${g.source ?? '(unknown source)'} ${g.message}${g.count > 1 ? ` (x${g.count})` : ''}`
 	);
-	if (groups.length > top.length) details.push(`… ${groups.length - top.length} more distinct messages`);
+	if (groups.length > top.length)
+		details.push(`… ${groups.length - top.length} more distinct messages`);
 
 	if (!capture.active && entries.length === 0) {
 		return result(
@@ -510,13 +548,27 @@ function checkA11y(el: HTMLElement, skipContrast: boolean): VerifyCheckResult {
 			? 'WARN'
 			: 'PASS';
 	if (issues.length === 0) {
-		return result('a11y', 'PASS', 'no element-level issues (label, button name, img alt, tabindex, interactive role)', data);
+		return result(
+			'a11y',
+			'PASS',
+			'no element-level issues (label, button name, img alt, tabindex, interactive role)',
+			data
+		);
 	}
 	const details = issues
 		.slice(0, MAX_A11Y_ISSUES)
-		.map((i) => `[${i.severity}] ${i.rule}: ${i.message}. Fix: ${i.fix.replace(/\n/g, '; ')}${i.fixCode ? ` e.g. ${i.fixCode}` : ''}`);
+		.map(
+			(i) =>
+				`[${i.severity}] ${i.rule}: ${i.message}. Fix: ${i.fix.replace(/\n/g, '; ')}${i.fixCode ? ` e.g. ${i.fixCode}` : ''}`
+		);
 	if (issues.length > MAX_A11Y_ISSUES) details.push(`… ${issues.length - MAX_A11Y_ISSUES} more`);
-	return result('a11y', status, `${issues.length} issue${issues.length === 1 ? '' : 's'}: ${issues.map((i) => i.rule).join(', ')}`, data, details);
+	return result(
+		'a11y',
+		status,
+		`${issues.length} issue${issues.length === 1 ? '' : 's'}: ${issues.map((i) => i.rule).join(', ')}`,
+		data,
+		details
+	);
 }
 
 function contrastStatus(c: ContrastResult): VerifyStatus {
@@ -540,7 +592,9 @@ function checkContrast(el: HTMLElement, namer: Namer): VerifyCheckResult {
 		if (c) measured.push({ el: t, c });
 	}
 	if (measured.length === 0) {
-		return result('contrast', 'PASS', 'n/a (no text with a determinable background)', { measured: 0 });
+		return result('contrast', 'PASS', 'n/a (no text with a determinable background)', {
+			measured: 0
+		});
 	}
 	// Worst = lowest ratio relative to what it needs.
 	measured.sort((a, b) => a.c.ratio / a.c.required - b.c.ratio / b.c.required);
@@ -554,28 +608,40 @@ function checkContrast(el: HTMLElement, namer: Namer): VerifyCheckResult {
 			(m) =>
 				`${m.el === el ? 'this element' : formatRef(namer.describe(m.el))}: ${m.c.ratio}:1 (needs ${m.c.required}:1), fg ${m.c.fg} on bg ${m.c.bg}`
 		);
-	if (failing.length > MAX_CONTRAST_FAILS) details.push(`… ${failing.length - MAX_CONTRAST_FAILS} more`);
+	if (failing.length > MAX_CONTRAST_FAILS)
+		details.push(`… ${failing.length - MAX_CONTRAST_FAILS} more`);
 	const summary =
 		status === 'PASS'
 			? `${w.c.ratio}:1 (needs ${w.c.required}:1)${measured.length > 1 ? `, lowest of ${measured.length} text elements` : ''}`
 			: `${w.c.ratio}:1 (needs ${w.c.required}:1)${where}`;
-	return result('contrast', status, summary, {
-		measured: measured.length,
-		worst: { ...w.c, ref: w.el === el ? null : namer.describe(w.el).ref },
-		failing: failing.length
-	}, status === 'PASS' ? [] : details);
+	return result(
+		'contrast',
+		status,
+		summary,
+		{
+			measured: measured.length,
+			worst: { ...w.c, ref: w.el === el ? null : namer.describe(w.el).ref },
+			failing: failing.length
+		},
+		status === 'PASS' ? [] : details
+	);
 }
 
 // ------------------------------------------------------------------ handler
 
-export function uiVerify(args: Record<string, unknown>, options: VerifyOptions = {}): RuntimeToolResult {
+export function uiVerify(
+	args: Record<string, unknown>,
+	options: VerifyOptions = {}
+): RuntimeToolResult {
 	const registry = options.registry ?? refRegistry;
 	const capture = options.capture ?? consoleCapture;
 	const tracker = options.tracker ?? hmrTracker;
 
 	const refArg = args.ref;
 	if (typeof refArg !== 'string' || refArg.trim() === '') {
-		throw new Error('ui_verify needs "ref": an eN ref or a ui:// stable key from ui_snapshot/ui_find');
+		throw new Error(
+			'ui_verify needs "ref": an eN ref or a ui:// stable key from ui_snapshot/ui_find'
+		);
 	}
 	const checks = parseChecks(args);
 	const since = parseSince(args);
@@ -637,7 +703,13 @@ export function uiVerify(args: Record<string, unknown>, options: VerifyOptions =
 		ref: resolved.ref,
 		stableKey: resolved.stableKey,
 		locator: `[${REF_ATTR}="${resolved.ref}"]`,
-		checks: results.map((r) => ({ check: r.check, status: r.status, summary: r.summary, details: r.details, ...r.data }))
+		checks: results.map((r) => ({
+			check: r.check,
+			status: r.status,
+			summary: r.summary,
+			details: r.details,
+			...r.data
+		}))
 	};
 	if (resolved.rebound) {
 		data.rebound = true;

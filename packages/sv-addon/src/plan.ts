@@ -109,7 +109,8 @@ export function runSvelteGrabAddon(ctx: AddonRunContext): AddonReport {
 				return false;
 			}
 			report.mcpServersAdded = merged.added;
-			report.enableMcp = merged.added.includes('svelte-grab') || merged.kept.includes('svelte-grab');
+			report.enableMcp =
+				merged.added.includes('svelte-grab') || merged.kept.includes('svelte-grab');
 			return merged.changed ? merged.content : false;
 		});
 	}
@@ -120,7 +121,9 @@ export function runSvelteGrabAddon(ctx: AddonRunContext): AddonReport {
 		ctx.sv.file(viteConfig, (content) => {
 			if (!content) {
 				report.vitePlugin = 'manual';
-				report.notes.push(`No ${viteConfig} found: add svelteGrab() from svelte-grab/vite to your Vite plugins`);
+				report.notes.push(
+					`No ${viteConfig} found: add svelteGrab() from svelte-grab/vite to your Vite plugins`
+				);
 				return false;
 			}
 			const injected = injectVitePlugin(content);

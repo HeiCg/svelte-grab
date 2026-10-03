@@ -10,25 +10,25 @@ npx sv add @svelte-grab
 
 It does the same as `npx svelte-grab init`, through sv:
 
-| Step | File |
-|------|------|
-| Dev dependencies: `svelte-grab`, plus `@modelcontextprotocol/sdk` and `zod` (needed by `svelte-grab-mcp --stdio`) when the MCP server is configured. Packages already in `package.json` are left alone. | `package.json` |
-| MCP servers for your coding agent: `svelte-grab` (stdio), optional `svelte` (`@sveltejs/mcp`) and `playwright` (`@playwright/mcp`). Existing entries are never replaced. | `.mcp.json` |
-| `svelteGrab()` from `svelte-grab/vite` after `sveltekit()` / `svelte()` in `plugins`, when the config has a plain `plugins: [...]` array; otherwise a next step tells you what to add. | `vite.config.(ts\|js)` |
-| `<SvelteDevKit />` gated by `dev` from `$app/environment` (SvelteKit) or at the end of `src/App.svelte` (Vite + Svelte). `enableMcp` is set when `.mcp.json` declares the `svelte-grab` server. | `src/routes/+layout.svelte` / `src/App.svelte` |
+| Step                                                                                                                                                                                                                                                                                                                                                                                                                                                         | File                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Dev dependencies: `svelte-grab`, plus `@modelcontextprotocol/sdk` and `zod` (needed by `svelte-grab-mcp --stdio`) when the MCP server is configured. Packages already in `package.json` are left alone.                                                                                                                                                                                                                                                      | `package.json`                                                              |
+| MCP servers for your coding agent: `svelte-grab` (stdio), optional `svelte` (`@sveltejs/mcp`) and `playwright` (`@playwright/mcp`). Existing entries are never replaced.                                                                                                                                                                                                                                                                                     | `.mcp.json`                                                                 |
+| `svelteGrab()` from `svelte-grab/vite` after `sveltekit()` / `svelte()` in `plugins`, when the config has a plain `plugins: [...]` array; otherwise a next step tells you what to add.                                                                                                                                                                                                                                                                       | `vite.config.(ts\|js)`                                                      |
+| `<SvelteDevKit />` gated by `dev` from `$app/environment` (SvelteKit) or at the end of `src/App.svelte` (Vite + Svelte). `enableMcp` is set when `.mcp.json` declares the `svelte-grab` server.                                                                                                                                                                                                                                                              | `src/routes/+layout.svelte` / `src/App.svelte`                              |
 | Agent skills `svelte-grab` (UI loop) and `svelte-grab-audit` (security + performance audit). Files you have not touched since the last install are updated in place (tracked in `.claude/skills/.svelte-grab-skills.json`); a file you edited is never overwritten: the new version goes next to it as `<file>.new`. Files no longer shipped are listed in the next steps (the add-on cannot delete files). An existing `AGENTS.md` gets a one-time pointer. | `.claude/skills/*/`, `.claude/skills/.svelte-grab-skills.json`, `AGENTS.md` |
 
 Running it twice changes nothing.
 
 ## Options
 
-| Option | Default | Question |
-|--------|---------|----------|
-| `mcpJson` | `yes` | Write `.mcp.json` so your coding agent starts the svelte-grab MCP server? |
-| `svelteMcp` | `yes` | Also add the official Svelte MCP? (asked only with `mcpJson`) |
-| `playwrightMcp` | `no` | Also add Playwright MCP? (asked only with `mcpJson`) |
-| `vitePlugin` | `yes` | Add the svelte-grab Vite plugin? |
-| `skills` | `yes` | Install the svelte-grab agent skills into `.claude/skills/`? |
+| Option          | Default | Question                                                                  |
+| --------------- | ------- | ------------------------------------------------------------------------- |
+| `mcpJson`       | `yes`   | Write `.mcp.json` so your coding agent starts the svelte-grab MCP server? |
+| `svelteMcp`     | `yes`   | Also add the official Svelte MCP? (asked only with `mcpJson`)             |
+| `playwrightMcp` | `no`    | Also add Playwright MCP? (asked only with `mcpJson`)                      |
+| `vitePlugin`    | `yes`   | Add the svelte-grab Vite plugin?                                          |
+| `skills`        | `yes`   | Install the svelte-grab agent skills into `.claude/skills/`?              |
 
 Skip the prompts:
 

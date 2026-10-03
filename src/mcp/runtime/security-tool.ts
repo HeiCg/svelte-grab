@@ -38,7 +38,9 @@ export async function forwardSecurityScan(
 ): Promise<McpToolResult> {
 	const { tabId, args } = splitForwardArgs(rawArgs);
 	try {
-		return toToolResult(await channel.send('ui_security_scan', args, { tabId, timeoutMs: SECURITY_SCAN_TIMEOUT_MS }));
+		return toToolResult(
+			await channel.send('ui_security_scan', args, { tabId, timeoutMs: SECURITY_SCAN_TIMEOUT_MS })
+		);
 	} catch (err) {
 		return toToolError(err instanceof Error ? err.message : String(err));
 	}

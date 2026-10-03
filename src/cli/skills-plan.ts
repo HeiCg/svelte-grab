@@ -144,7 +144,8 @@ export function serializeSkillsManifest(manifest: SkillsManifest): string {
 function isOwnedSkillPath(path: string, shippedSkills: ReadonlySet<string>): boolean {
 	if (path.includes('\\') || path.startsWith('/')) return false;
 	const segments = path.split('/');
-	if (segments.length < 2 || segments.some((s) => s === '' || s === '.' || s === '..')) return false;
+	if (segments.length < 2 || segments.some((s) => s === '' || s === '.' || s === '..'))
+		return false;
 	return /^svelte-grab(-[a-z0-9]+)*$/.test(segments[0]) || shippedSkills.has(segments[0]);
 }
 
@@ -181,7 +182,14 @@ export function planSkillsInstall(
 	const manifestRaw = readExisting(manifestPath);
 	const previous = parseSkillsManifest(manifestRaw);
 	const next: SkillsManifest = { version: options.version ?? 'unknown', files: {} };
-	const plan: SkillsPlan = { files: [], writes: [], removes: [], skills: [], manifestPath, manifest: next };
+	const plan: SkillsPlan = {
+		files: [],
+		writes: [],
+		removes: [],
+		skills: [],
+		manifestPath,
+		manifest: next
+	};
 
 	for (const file of files) {
 		if (!plan.skills.includes(file.skill)) plan.skills.push(file.skill);
@@ -235,7 +243,8 @@ export function planSkillsInstall(
 	}
 
 	const manifestContent = serializeSkillsManifest(next);
-	if (manifestContent !== manifestRaw) plan.writes.push({ path: manifestPath, content: manifestContent });
+	if (manifestContent !== manifestRaw)
+		plan.writes.push({ path: manifestPath, content: manifestContent });
 
 	return plan;
 }
@@ -246,14 +255,14 @@ export function planSkillsInstall(
 // ============================================================
 
 const SHA256_K = new Uint32Array([
-	0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98,
-	0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-	0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8,
-	0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-	0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819,
-	0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-	0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
-	0xc67178f2
+	0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+	0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+	0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+	0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+	0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+	0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+	0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+	0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 ]);
 
 const rotr = (x: number, n: number): number => (x >>> n) | (x << (32 - n));
@@ -269,7 +278,9 @@ export function sha256Hex(text: string): string {
 	view.setUint32(padded.length - 8, Math.floor(bits / 0x100000000));
 	view.setUint32(padded.length - 4, bits >>> 0);
 
-	const h = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+	const h = new Uint32Array([
+		0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+	]);
 	const w = new Uint32Array(64);
 	for (let offset = 0; offset < padded.length; offset += 64) {
 		for (let i = 0; i < 16; i++) w[i] = view.getUint32(offset + i * 4);
@@ -280,7 +291,9 @@ export function sha256Hex(text: string): string {
 		}
 		let [a, b, c, d, e, f, g, k] = h;
 		for (let i = 0; i < 64; i++) {
-			const t1 = (k + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + SHA256_K[i] + w[i]) | 0;
+			const t1 =
+				(k + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + SHA256_K[i] + w[i]) |
+				0;
 			const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
 			k = g;
 			g = f;
@@ -313,7 +326,8 @@ export const AGENTS_MD_MARKER = '<!-- svelte-grab-skills -->';
 /** One-line purpose of each shipped skill, for the AGENTS.md pointer. */
 const SKILL_SUMMARIES: Record<string, string> = {
 	'svelte-grab': 'inspect, edit and verify the live UI with the svelte-grab `ui_*` MCP tools',
-	'svelte-grab-audit': 'per-screen security and performance audit (requests, credential leaks, hot components, memory)'
+	'svelte-grab-audit':
+		'per-screen security and performance audit (requests, credential leaks, hot components, memory)'
 };
 
 /**
@@ -334,10 +348,14 @@ export function appendAgentsMdPointer(
 		'',
 		`Agent skills installed by svelte-grab live in \`${dir}/\`. Read the SKILL.md before using the svelte-grab MCP tools:`,
 		'',
-		...skills.map((name) => `- \`${dir}/${name}/SKILL.md\`${SKILL_SUMMARIES[name] ? `: ${SKILL_SUMMARIES[name]}` : ''}`),
+		...skills.map(
+			(name) =>
+				`- \`${dir}/${name}/SKILL.md\`${SKILL_SUMMARIES[name] ? `: ${SKILL_SUMMARIES[name]}` : ''}`
+		),
 		''
 	];
-	const separator = existing === '' || existing.endsWith('\n\n') ? '' : existing.endsWith('\n') ? '\n' : '\n\n';
+	const separator =
+		existing === '' || existing.endsWith('\n\n') ? '' : existing.endsWith('\n') ? '\n' : '\n\n';
 	return { content: `${existing}${separator}${lines.join('\n')}`, changed: true };
 }
 
@@ -349,7 +367,9 @@ export function appendAgentsMdPointer(
  * Minimal YAML frontmatter reader for SKILL.md (`---` block with `key: value`
  * lines; values may be quoted). Returns null when there is no frontmatter.
  */
-export function parseSkillFrontmatter(content: string): { data: Record<string, string>; body: string } | null {
+export function parseSkillFrontmatter(
+	content: string
+): { data: Record<string, string>; body: string } | null {
 	const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
 	if (!match) return null;
 	const data: Record<string, string> = {};

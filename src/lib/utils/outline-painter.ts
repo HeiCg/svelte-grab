@@ -73,8 +73,7 @@ interface ActiveOutline {
 
 const DEFAULT_COLOR = '115,97,230';
 const DEFAULT_TOTAL_FRAMES = 45;
-const MONO_FONT =
-	"Menlo,Consolas,Monaco,'Liberation Mono','Lucida Console',monospace";
+const MONO_FONT = "Menlo,Consolas,Monaco,'Liberation Mono','Lucida Console',monospace";
 
 const noop: OutlinePainter = {
 	flash: () => {},
@@ -87,9 +86,7 @@ const noop: OutlinePainter = {
  *
  * @returns A painter, or a no-op painter in non-DOM (SSR) environments.
  */
-export function createOutlinePainter(
-	options: OutlinePainterOptions = {}
-): OutlinePainter {
+export function createOutlinePainter(options: OutlinePainterOptions = {}): OutlinePainter {
 	// SSR / non-DOM guard.
 	if (
 		typeof document === 'undefined' ||
@@ -218,11 +215,7 @@ export function createOutlinePainter(
 		}
 	}
 
-	function flash(
-		rect: DOMRectReadOnly | DOMRect,
-		label: string,
-		count: number
-	): void {
+	function flash(rect: DOMRectReadOnly | DOMRect, label: string, count: number): void {
 		if (destroyed) return;
 		// Ignore degenerate rects (detached / display:none elements).
 		if (rect.width <= 0 && rect.height <= 0) return;

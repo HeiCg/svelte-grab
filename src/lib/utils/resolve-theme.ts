@@ -31,10 +31,7 @@ export type ResolvedTheme = Required<ThemeConfig>;
  * @param lightTheme - When true, use the light preset as the base. Default: false.
  * @returns The merged, fully-populated theme.
  */
-export function resolveTheme(
-	theme: ThemeConfig = {},
-	lightTheme = false
-): ResolvedTheme {
+export function resolveTheme(theme: ThemeConfig = {}, lightTheme = false): ResolvedTheme {
 	const base = lightTheme ? LIGHT_THEME : DARK_THEME;
 	return { ...base, ...theme } as ResolvedTheme;
 }

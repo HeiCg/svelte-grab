@@ -77,9 +77,10 @@ export class ClaudeCodeProvider implements AgentProvider {
 			callbacks.onStatus('Connecting to Claude Code...');
 
 			// Build the prompt with context
-			const contextBlock = context.content.length > 0
-				? `\n\nHere is the Svelte component context from the browser:\n\n${context.content.join('\n\n')}\n\n`
-				: '';
+			const contextBlock =
+				context.content.length > 0
+					? `\n\nHere is the Svelte component context from the browser:\n\n${context.content.join('\n\n')}\n\n`
+					: '';
 
 			const fullPrompt = `${contextBlock}${context.prompt}`;
 
@@ -158,35 +159,53 @@ export class ClaudeCodeProvider implements AgentProvider {
 
 	async undo(sessionId: string, callbacks: AgentProviderCallbacks): Promise<void> {
 		const history = this.sessionHistory.get(sessionId);
-		const contextHint = history && history.prompts.length > 0
-			? `\n\nPrevious prompt was: ${history.prompts[history.prompts.length - 1]}`
-			: '';
+		const contextHint =
+			history && history.prompts.length > 0
+				? `\n\nPrevious prompt was: ${history.prompts[history.prompts.length - 1]}`
+				: '';
 
-		await this.handleRequest(sessionId, {
-			content: [],
-			prompt: `Undo the last change you made.${contextHint}`,
-			selectedCount: 0
-		}, callbacks);
+		await this.handleRequest(
+			sessionId,
+			{
+				content: [],
+				prompt: `Undo the last change you made.${contextHint}`,
+				selectedCount: 0
+			},
+			callbacks
+		);
 	}
 
 	async redo(sessionId: string, callbacks: AgentProviderCallbacks): Promise<void> {
-		await this.handleRequest(sessionId, {
-			content: [],
-			prompt: 'Redo the change you just undid.',
-			selectedCount: 0
-		}, callbacks);
+		await this.handleRequest(
+			sessionId,
+			{
+				content: [],
+				prompt: 'Redo the change you just undid.',
+				selectedCount: 0
+			},
+			callbacks
+		);
 	}
 
-	async resume(sessionId: string, prompt: string, callbacks: AgentProviderCallbacks): Promise<void> {
+	async resume(
+		sessionId: string,
+		prompt: string,
+		callbacks: AgentProviderCallbacks
+	): Promise<void> {
 		const history = this.sessionHistory.get(sessionId);
-		const contextBlock = history && history.results.length > 0
-			? `\n\nPrevious interaction result: ${history.results[history.results.length - 1]}`
-			: '';
+		const contextBlock =
+			history && history.results.length > 0
+				? `\n\nPrevious interaction result: ${history.results[history.results.length - 1]}`
+				: '';
 
-		await this.handleRequest(sessionId, {
-			content: [],
-			prompt: `${prompt}${contextBlock}`,
-			selectedCount: 0
-		}, callbacks);
+		await this.handleRequest(
+			sessionId,
+			{
+				content: [],
+				prompt: `${prompt}${contextBlock}`,
+				selectedCount: 0
+			},
+			callbacks
+		);
 	}
 }

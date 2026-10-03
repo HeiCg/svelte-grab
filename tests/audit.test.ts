@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { audit, validateAuditReport, type AuditFinding, type AuditResult } from '../src/cli/audit/index.js';
+import {
+	audit,
+	validateAuditReport,
+	type AuditFinding,
+	type AuditResult
+} from '../src/cli/audit/index.js';
 import { runAuditCli, type AuditCliIO } from '../src/cli/audit/cli.js';
 import { formatHtml, formatText } from '../src/cli/audit/report.js';
 import { FAKE, cleanupFixtures, makeFixtureApp, makeProject } from './audit-helpers.js';
@@ -58,7 +63,11 @@ describe('audit: secrets', () => {
 	});
 
 	it('never reports server-only files as client exposure (server dir, .server., +server)', () => {
-		for (const file of ['src/lib/server/db.ts', 'src/lib/secrets.server.ts', 'src/routes/api/+server.ts']) {
+		for (const file of [
+			'src/lib/server/db.ts',
+			'src/lib/secrets.server.ts',
+			'src/routes/api/+server.ts'
+		]) {
 			expect(of('secrets/client-exposure', file)).toEqual([]);
 			const hard = of('secrets/hardcoded-server', file);
 			expect(hard).toHaveLength(1);
@@ -90,7 +99,11 @@ describe('audit: .svelte templates', () => {
 	it('{@html} with a non-literal expression only', () => {
 		const html = of('svelte/html-non-literal', page);
 		expect(lines(html)).toEqual([12]);
-		expect(html[0]).toMatchObject({ severity: 'medium', verdict: 'needs_validation', evidence: '{@html content}' });
+		expect(html[0]).toMatchObject({
+			severity: 'medium',
+			verdict: 'needs_validation',
+			evidence: '{@html content}'
+		});
 	});
 
 	it('target=_blank without rel only for the external link lacking noopener', () => {
@@ -148,7 +161,11 @@ describe('audit: SvelteKit rules', () => {
 	it('form actions without an auth check only', () => {
 		const actions = of('kit/action-no-auth');
 		expect(actions).toHaveLength(1);
-		expect(actions[0]).toMatchObject({ file: 'src/routes/+page.server.ts', line: 10, verdict: 'needs_validation' });
+		expect(actions[0]).toMatchObject({
+			file: 'src/routes/+page.server.ts',
+			line: 10,
+			verdict: 'needs_validation'
+		});
 		expect(actions[0].title).toContain('"update"');
 	});
 
@@ -168,13 +185,16 @@ describe('audit: SvelteKit rules', () => {
 
 	it('csp-missing is silent when kit.csp is configured or a hook sets the header', () => {
 		const withCsp = audit({
-			path: makeProject({ 'svelte.config.js': "export default { kit: { csp: { mode: 'auto' } } };\n" })
+			path: makeProject({
+				'svelte.config.js': "export default { kit: { csp: { mode: 'auto' } } };\n"
+			})
 		});
 		expect(withCsp.findings.filter((f) => f.rule === 'kit/csp-missing')).toEqual([]);
 		const withHook = audit({
 			path: makeProject({
 				'svelte.config.js': 'export default { kit: {} };\n',
-				'src/hooks.server.ts': "export const handle = async ({ event, resolve }) => { const r = await resolve(event); r.headers.set('Content-Security-Policy', \"default-src 'self'\"); return r; };\n"
+				'src/hooks.server.ts':
+					"export const handle = async ({ event, resolve }) => { const r = await resolve(event); r.headers.set('Content-Security-Policy', \"default-src 'self'\"); return r; };\n"
 			})
 		});
 		expect(withHook.findings.filter((f) => f.rule === 'kit/csp-missing')).toEqual([]);
@@ -229,7 +249,9 @@ describe('audit CLI', () => {
 		expect(run.stdout).toMatch(/^HIGH \(\d+\)$/m);
 		expect(run.stdout).toMatch(/^MEDIUM \(\d+\)$/m);
 		// stripe in config.ts, two PUBLIC_/VITE_ secrets in .env, trustedOrigins '*'
-		expect(run.stdout).toContain('CI gate (min-severity high): FAIL, 4 confirmed finding(s) at or above high');
+		expect(run.stdout).toContain(
+			'CI gate (min-severity high): FAIL, 4 confirmed finding(s) at or above high'
+		);
 	});
 
 	it('without --ci exits 0 even with findings, and colors when the IO allows', () => {
@@ -248,14 +270,18 @@ describe('audit CLI', () => {
 	});
 
 	it('needs_validation findings never fail CI', () => {
-		const heuristic = makeProject({ 'src/routes/+page.svelte': '<script>let x = $state("");</script>\n{@html x}\n' });
+		const heuristic = makeProject({
+			'src/routes/+page.svelte': '<script>let x = $state("");</script>\n{@html x}\n'
+		});
 		const run = cli(['--path', heuristic, '--ci', '--min-severity', 'low']);
 		expect(run.stdout).toContain('svelte/html-non-literal');
 		expect(run.code).toBe(0);
 	});
 
 	it('a clean project exits 0 under --ci', () => {
-		const clean = makeProject({ 'src/lib/add.ts': 'export const add = (a: number, b: number) => a + b;\n' });
+		const clean = makeProject({
+			'src/lib/add.ts': 'export const add = (a: number, b: number) => a + b;\n'
+		});
 		const run = cli(['--path', clean, '--ci']);
 		expect(run.code).toBe(0);
 		expect(run.stdout).toContain('No findings.');

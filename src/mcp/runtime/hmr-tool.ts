@@ -72,13 +72,17 @@ export function registerWaitForHmrTool(
 				files: z
 					.array(z.string())
 					.optional()
-					.describe('Edited files (path or suffix, e.g. "Card.svelte"). Any update counts when omitted.'),
+					.describe(
+						'Edited files (path or suffix, e.g. "Card.svelte"). Any update counts when omitted.'
+					),
 				timeoutMs: z
 					.number()
 					.int()
 					.positive()
 					.optional()
-					.describe(`How long to wait in ms (default ${DEFAULT_HMR_WAIT_MS}, max ${MAX_HMR_WAIT_MS}).`),
+					.describe(
+						`How long to wait in ms (default ${DEFAULT_HMR_WAIT_MS}, max ${MAX_HMR_WAIT_MS}).`
+					),
 				since: z
 					.number()
 					.optional()

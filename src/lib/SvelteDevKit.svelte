@@ -8,7 +8,7 @@
 	 * This is a convenience wrapper that includes:
 	 * - SvelteGrab (Alt+Click for component location)
 	 * - SvelteStateGrab (Alt+Meta+Click for component state; Alt+Shift+Click when
- *   SvelteGrab multi-select is off, since Shift+Alt+Click is multi-select)
+	 *   SvelteGrab multi-select is off, since Shift+Alt+Click is multi-select)
 	 * - SvelteStyleGrab (Alt+Ctrl+Click for computed styles)
 	 * - SveltePropsTracer (Alt+DoubleClick for component hierarchy)
 	 * - SvelteA11yReporter (Alt+Shift+RightClick or Alt+A for accessibility;
@@ -173,16 +173,31 @@
 	// Build shortcuts list based on enabled tools
 	let shortcuts = $derived.by(() => {
 		const list: { keys: string; description: string }[] = [];
-		if (isEnabled('grab')) list.push({ keys: `${modLabel}+Click`, description: 'Component Inspector' });
-		if (isEnabled('grab') && enableMultiSelect) list.push({ keys: `Shift+${modLabel}+Click`, description: 'Multi-select' });
-		if (isEnabled('grab') && enableDragSelect) list.push({ keys: `${modLabel}+Drag`, description: 'Region select' });
+		if (isEnabled('grab'))
+			list.push({ keys: `${modLabel}+Click`, description: 'Component Inspector' });
+		if (isEnabled('grab') && enableMultiSelect)
+			list.push({ keys: `Shift+${modLabel}+Click`, description: 'Multi-select' });
+		if (isEnabled('grab') && enableDragSelect)
+			list.push({ keys: `${modLabel}+Drag`, description: 'Region select' });
 		if (isEnabled('grab') && enableAnnotations) {
-			list.push({ keys: `${modLabel} held + ${ANNOTATION_KEY_LABEL}`, description: 'Annotate selection' });
+			list.push({
+				keys: `${modLabel} held + ${ANNOTATION_KEY_LABEL}`,
+				description: 'Annotate selection'
+			});
 		}
 		if (!toolHotkeys) return list;
-		if (isEnabled('state')) list.push({ keys: `${modLabel}+${stateModifier.charAt(0).toUpperCase() + stateModifier.slice(1)}+Click`, description: 'State Inspector' });
-		if (isEnabled('style')) list.push({ keys: `${modLabel}+${styleSecondaryModifier.charAt(0).toUpperCase() + styleSecondaryModifier.slice(1)}+Click`, description: 'Style Inspector' });
-		if (isEnabled('props')) list.push({ keys: `${modLabel}+DoubleClick`, description: 'Props Tracer' });
+		if (isEnabled('state'))
+			list.push({
+				keys: `${modLabel}+${stateModifier.charAt(0).toUpperCase() + stateModifier.slice(1)}+Click`,
+				description: 'State Inspector'
+			});
+		if (isEnabled('style'))
+			list.push({
+				keys: `${modLabel}+${styleSecondaryModifier.charAt(0).toUpperCase() + styleSecondaryModifier.slice(1)}+Click`,
+				description: 'Style Inspector'
+			});
+		if (isEnabled('props'))
+			list.push({ keys: `${modLabel}+DoubleClick`, description: 'Props Tracer' });
 		if (isEnabled('a11y')) {
 			const a11yKeys = a11yElementModifier
 				? `${modLabel}+${capitalize(a11yElementModifier)}+RightClick`
@@ -205,7 +220,7 @@
 		if (event.shiftKey && (event.key === 'c' || event.key === 'C')) {
 			event.preventDefault();
 			const unified = formatUnifiedExport();
-			copyToClipboard(unified).then(ok => {
+			copyToClipboard(unified).then((ok) => {
 				if (ok) {
 					console.log('[SvelteDevKit] All context copied to clipboard');
 				}
@@ -222,15 +237,19 @@
 		}
 	}
 
-	const mount = useDevtoolMount(() => forceEnable, () => {
-		document.addEventListener('keydown', handleDevKitKeys);
-		return () => document.removeEventListener('keydown', handleDevKitKeys);
-	}, {
-		onDev: () => {
-			isDev = true;
-			console.log(`[SvelteDevKit] ${modLabel}+Shift+C to copy all | ${modLabel}+? for help`);
+	const mount = useDevtoolMount(
+		() => forceEnable,
+		() => {
+			document.addEventListener('keydown', handleDevKitKeys);
+			return () => document.removeEventListener('keydown', handleDevKitKeys);
+		},
+		{
+			onDev: () => {
+				isDev = true;
+				console.log(`[SvelteDevKit] ${modLabel}+Shift+C to copy all | ${modLabel}+? for help`);
+			}
 		}
-	});
+	);
 
 	onMount(mount.start);
 	onDestroy(mount.stop);
@@ -286,7 +305,7 @@
 		enableHotkeys={toolHotkeys}
 		secondaryModifier={stateModifier}
 		{forceEnable}
-		showPopup={showPopup}
+		{showPopup}
 		{theme}
 		{lightTheme}
 		{maxSnapshots}
@@ -299,7 +318,7 @@
 		enableHotkeys={toolHotkeys}
 		secondaryModifier={styleSecondaryModifier}
 		{forceEnable}
-		showPopup={showPopup}
+		{showPopup}
 		{theme}
 		{lightTheme}
 		{showCategories}
@@ -312,7 +331,7 @@
 		enableHotkeys={toolHotkeys}
 		onTrace={() => grab?.dismiss()}
 		{forceEnable}
-		showPopup={showPopup}
+		{showPopup}
 		{theme}
 		{lightTheme}
 	/>
@@ -324,7 +343,7 @@
 		enableHotkeys={toolHotkeys}
 		secondaryModifier={a11yElementModifier}
 		{forceEnable}
-		showPopup={showPopup}
+		{showPopup}
 		{theme}
 		{lightTheme}
 		{includeSubtree}
@@ -336,7 +355,7 @@
 		{modifier}
 		enableHotkeys={toolHotkeys}
 		{forceEnable}
-		showPopup={showPopup}
+		{showPopup}
 		{theme}
 		{lightTheme}
 		{maxErrors}
@@ -350,7 +369,7 @@
 		{modifier}
 		enableHotkeys={toolHotkeys}
 		{forceEnable}
-		showPopup={showPopup}
+		{showPopup}
 		{theme}
 		{lightTheme}
 		{profileDuration}
@@ -393,20 +412,45 @@
 {/if}
 
 <style>
-	.sg-help-content { padding: 8px 14px; }
+	.sg-help-content {
+		padding: 8px 14px;
+	}
 
-	.sg-help-table { width: 100%; border-collapse: collapse; }
-	.sg-help-th { text-align: left; padding: 4px 0; color: #888; font-size: 10px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+	.sg-help-table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+	.sg-help-th {
+		text-align: left;
+		padding: 4px 0;
+		color: #888;
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
 
-	.sg-help-row td { padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
+	.sg-help-row td {
+		padding: 6px 0;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+	}
 	.sg-help-keys kbd {
-		background: rgba(255, 255, 255, 0.1); padding: 2px 6px;
-		border-radius: 3px; font-size: 11px; font-family: inherit;
+		background: rgba(255, 255, 255, 0.1);
+		padding: 2px 6px;
+		border-radius: 3px;
+		font-size: 11px;
+		font-family: inherit;
 		border: 1px solid rgba(255, 255, 255, 0.15);
 	}
-	.sg-help-desc { color: #ccc; padding-left: 12px; }
+	.sg-help-desc {
+		color: #ccc;
+		padding-left: 12px;
+	}
 
 	.sg-help-footer-text {
-		flex: 1; text-align: center; color: #888; font-size: 10px;
+		flex: 1;
+		text-align: center;
+		color: #888;
+		font-size: 10px;
 	}
 </style>

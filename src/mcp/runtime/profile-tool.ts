@@ -80,15 +80,21 @@ export function registerProfileTool(
 					.int()
 					.positive()
 					.optional()
-					.describe(`Recording window in ms (default ${DEFAULT_PROFILE_MS}, ${MIN_PROFILE_MS}..${MAX_PROFILE_MS}).`),
+					.describe(
+						`Recording window in ms (default ${DEFAULT_PROFILE_MS}, ${MIN_PROFILE_MS}..${MAX_PROFILE_MS}).`
+					),
 				action: z
 					.object({
 						ref: z.string().describe('Ref (eN) or ui:// stable key of the element to act on.'),
-						type: z.enum(UI_PROFILE_ACTIONS).describe('"click", "input" (sets value, fires input + change) or "scroll".'),
+						type: z
+							.enum(UI_PROFILE_ACTIONS)
+							.describe('"click", "input" (sets value, fires input + change) or "scroll".'),
 						value: z
 							.string()
 							.optional()
-							.describe('input: the text to set (required). scroll: "dy" or "dx,dy" px; omit to scroll into view.'),
+							.describe(
+								'input: the text to set (required). scroll: "dy" or "dx,dy" px; omit to scroll into view.'
+							),
 						repeat: z
 							.number()
 							.int()
@@ -102,7 +108,10 @@ export function registerProfileTool(
 					.string()
 					.optional()
 					.describe('Only count mutations inside instances of this component (e.g. "TodoList").'),
-				ref: z.string().optional().describe('Only count mutations inside this element (eN or ui:// key).'),
+				ref: z
+					.string()
+					.optional()
+					.describe('Only count mutations inside this element (eN or ui:// key).'),
 				tabId: z.string().optional().describe(deps.tabIdHint)
 			}
 		},

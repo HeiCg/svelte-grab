@@ -8,8 +8,18 @@
 
 /** Priority attributes for HTML preview (in order of importance). */
 export const PRIORITY_ATTRS = [
-	'class', 'id', 'type', 'href', 'src', 'name', 'placeholder',
-	'aria-label', 'role', 'data-testid', 'data-cy', 'data-test'
+	'class',
+	'id',
+	'type',
+	'href',
+	'src',
+	'name',
+	'placeholder',
+	'aria-label',
+	'role',
+	'data-testid',
+	'data-cy',
+	'data-test'
 ] as const;
 
 /**

@@ -7,7 +7,10 @@
 	"required": ["findings"],
 	"properties": {
 		"generatedAt": { "type": "string", "description": "ISO 8601 timestamp." },
-		"tool": { "type": "string", "description": "What produced the findings, e.g. \"svelte-grab audit\", \"ui_security_scan\", \"svelte-grab-audit skill\"." },
+		"tool": {
+			"type": "string",
+			"description": "What produced the findings, e.g. \"svelte-grab audit\", \"ui_security_scan\", \"svelte-grab-audit skill\"."
+		},
 		"findings": {
 			"type": "array",
 			"items": { "$ref": "#/$defs/finding" }
@@ -30,14 +33,26 @@
 					"description": "Redacted evidence. Secrets appear only as kind:abcd…(len N, sha xxxxxx), never in full."
 				},
 				"source": { "type": "string", "description": "file:line when known." },
-				"rule": { "type": "string", "description": "Static rule id from svelte-grab audit, e.g. secrets/client-exposure." },
+				"rule": {
+					"type": "string",
+					"description": "Static rule id from svelte-grab audit, e.g. secrets/client-exposure."
+				},
 				"file": { "type": "string", "description": "Project-relative file (static findings)." },
 				"line": { "type": "integer", "minimum": 1 },
 				"column": { "type": "integer", "minimum": 1 },
 				"fix": { "type": "string", "minLength": 1 },
-				"check": { "type": "string", "description": "ui_security_scan check (transit, storage, ...) or CHECKLIST.md id (S1, P4, ...)." },
-				"screen": { "type": "string", "description": "Route of the screen the finding was observed on." },
-				"missingFact": { "type": "string", "description": "For needs_validation: the exact fact that would confirm or reject it." }
+				"check": {
+					"type": "string",
+					"description": "ui_security_scan check (transit, storage, ...) or CHECKLIST.md id (S1, P4, ...)."
+				},
+				"screen": {
+					"type": "string",
+					"description": "Route of the screen the finding was observed on."
+				},
+				"missingFact": {
+					"type": "string",
+					"description": "For needs_validation: the exact fact that would confirm or reject it."
+				}
 			},
 			"additionalProperties": true
 		}

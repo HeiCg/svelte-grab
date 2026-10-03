@@ -29,7 +29,13 @@
  *   at least one burst (the tracker's threshold: 20 mutation batches within
  *   1000ms, the Alt+P defaults), else `QUIET`.
  */
-import { extractComponentName, findMetaElement, getSvelteLoc, getSvelteMeta, walkDevStack } from '../utils/component-stack.js';
+import {
+	extractComponentName,
+	findMetaElement,
+	getSvelteLoc,
+	getSvelteMeta,
+	walkDevStack
+} from '../utils/component-stack.js';
 import { createFpsMeter, type FpsMeter } from '../utils/fps-meter.js';
 import { ProfilerTracker } from '../utils/profiler-tracker.js';
 import { shortenPath } from '../utils/shared.js';
@@ -162,17 +168,23 @@ function parseAction(args: Record<string, unknown>): ParsedAction | null {
  */
 export function parseActionObject(raw: unknown, label = 'action'): ParsedAction {
 	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-		throw new Error(`"${label}" must be an object { ref, type: "click"|"input"|"scroll", value?, repeat? }`);
+		throw new Error(
+			`"${label}" must be an object { ref, type: "click"|"input"|"scroll", value?, repeat? }`
+		);
 	}
 	const a = raw as Record<string, unknown>;
 	const ref = optionalString(a, 'ref');
-	if (!ref) throw new Error(`"${label}.ref" is required: an eN ref or a ui:// stable key from ui_find/ui_snapshot`);
+	if (!ref)
+		throw new Error(
+			`"${label}.ref" is required: an eN ref or a ui:// stable key from ui_find/ui_snapshot`
+		);
 	const type = a.type;
 	if (typeof type !== 'string' || !(PROFILE_ACTION_TYPES as readonly string[]).includes(type)) {
 		throw new Error(`"${label}.type" must be one of ${PROFILE_ACTION_TYPES.join(', ')}`);
 	}
 	const value = a.value === undefined || a.value === null ? undefined : a.value;
-	if (value !== undefined && typeof value !== 'string') throw new Error(`"${label}.value" must be a string`);
+	if (value !== undefined && typeof value !== 'string')
+		throw new Error(`"${label}.value" must be a string`);
 	const repeat = optionalInt(a, 'repeat', 1, 1, MAX_ACTION_REPEAT);
 	const action: ParsedAction = { ref, type: type as ProfileActionType, repeat };
 	if (value !== undefined) action.value = value;
@@ -182,7 +194,9 @@ export function parseActionObject(raw: unknown, label = 'action'): ParsedAction 
 	if (action.type === 'scroll' && value !== undefined && value.trim() !== '') {
 		const parts = value.split(',').map((p) => Number(p.trim()));
 		if (parts.length > 2 || parts.some((n) => !Number.isFinite(n))) {
-			throw new Error(`"${label}.value" for scroll must be "dy" or "dx,dy" in px (omit it to scroll into view)`);
+			throw new Error(
+				`"${label}.value" for scroll must be "dy" or "dx,dy" in px (omit it to scroll into view)`
+			);
 		}
 		action.delta = parts.length === 2 ? { x: parts[0], y: parts[1] } : { x: 0, y: parts[0] };
 	}
@@ -210,7 +224,10 @@ function dispatchClick(el: Element): void {
 	el.dispatchEvent(new ME('click', { ...base, buttons: 0, detail: 1 }));
 }
 
-function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, value: string): void {
+function setNativeValue(
+	el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+	value: string
+): void {
 	// The prototype setter, so frameworks that shadow `value` still see the change.
 	const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')?.set;
 	if (setter) setter.call(el, value);
@@ -226,10 +243,15 @@ function dispatchInput(el: Element, value: string): void {
 		} else {
 			setNativeValue(field, value);
 		}
-	} else if ((el as HTMLElement).isContentEditable || el.getAttribute('contenteditable') === 'true') {
+	} else if (
+		(el as HTMLElement).isContentEditable ||
+		el.getAttribute('contenteditable') === 'true'
+	) {
 		el.textContent = value;
 	} else {
-		throw new Error(`input action needs an <input>, <textarea>, <select> or contenteditable element, got <${tag}>`);
+		throw new Error(
+			`input action needs an <input>, <textarea>, <select> or contenteditable element, got <${tag}>`
+		);
 	}
 	const view = el.ownerDocument.defaultView;
 	const IE = view && typeof view.InputEvent === 'function' ? view.InputEvent : undefined;
@@ -243,7 +265,8 @@ function dispatchInput(el: Element, value: string): void {
 
 function dispatchScroll(el: Element, delta: { x: number; y: number } | undefined): void {
 	if (!delta) {
-		if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'center', inline: 'nearest' });
+		if (typeof el.scrollIntoView === 'function')
+			el.scrollIntoView({ block: 'center', inline: 'nearest' });
 		return;
 	}
 	const scrollable = el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth;
@@ -258,7 +281,10 @@ function dispatchScroll(el: Element, delta: { x: number; y: number } | undefined
 }
 
 /** Perform one in-page action on `el` (exported for tests). */
-export function performAction(el: Element, action: Pick<ParsedAction, 'type' | 'value' | 'delta'>): void {
+export function performAction(
+	el: Element,
+	action: Pick<ParsedAction, 'type' | 'value' | 'delta'>
+): void {
 	switch (action.type) {
 		case 'click':
 			dispatchClick(el);
@@ -328,11 +354,14 @@ export function verdictLines(components: ProfileComponent[], elapsedMs: number):
 		const busiest = components[0];
 		return [
 			`QUIET no component above the burst threshold (${PROFILE_BURST_THRESHOLD} mutation batches within ${PROFILE_BURST_WINDOW_MS}ms)` +
-				(busiest ? `; busiest: ${busiest.name} ${plural(busiest.mutations, 'mutation')} in ${formatSeconds(elapsedMs)}` : '; no DOM mutations')
+				(busiest
+					? `; busiest: ${busiest.name} ${plural(busiest.mutations, 'mutation')} in ${formatSeconds(elapsedMs)}`
+					: '; no DOM mutations')
 		];
 	}
 	return hot.map(
-		(c) => `HOT ${c.name} ${plural(c.mutations, 'mutation')} in ${formatSeconds(elapsedMs)} (burst x${c.bursts})`
+		(c) =>
+			`HOT ${c.name} ${plural(c.mutations, 'mutation')} in ${formatSeconds(elapsedMs)} (burst x${c.bursts})`
 	);
 }
 
@@ -343,10 +372,17 @@ export async function uiProfile(
 	const registry = options.registry ?? refRegistry;
 	const sleep = options.sleep ?? defaultSleep;
 	const now = options.now ?? defaultNow;
-	const durationMs = optionalInt(args, 'durationMs', DEFAULT_PROFILE_MS, MIN_PROFILE_MS, MAX_PROFILE_MS);
+	const durationMs = optionalInt(
+		args,
+		'durationMs',
+		DEFAULT_PROFILE_MS,
+		MIN_PROFILE_MS,
+		MAX_PROFILE_MS
+	);
 	const component = optionalString(args, 'component');
 	const scopeRefArg = optionalString(args, 'ref');
-	if (component && scopeRefArg) throw new Error('Pass either "component" or "ref" as the scope, not both');
+	if (component && scopeRefArg)
+		throw new Error('Pass either "component" or "ref" as the scope, not both');
 	const action = parseAction(args);
 
 	const notes: string[] = [];
@@ -357,22 +393,28 @@ export async function uiProfile(
 	if (scopeRefArg) {
 		const resolved = registry.resolve(scopeRefArg);
 		if (!resolved) {
-			throw new Error(`Unknown ref "${scopeRefArg}": the element is gone or the ref is invalid. Run ui_find or ui_snapshot for fresh refs.`);
+			throw new Error(
+				`Unknown ref "${scopeRefArg}": the element is gone or the ref is invalid. Run ui_find or ui_snapshot for fresh refs.`
+			);
 		}
 		scopeEl = resolved.element;
 		scopeRef = resolved.ref;
-		if (resolved.rebound) notes.push(`scope ${resolved.previous} was stale; rebound to ${resolved.ref}`);
+		if (resolved.rebound)
+			notes.push(`scope ${resolved.previous} was stale; rebound to ${resolved.ref}`);
 	}
 	let actionEl: Element | null = null;
 	let actionRef: string | null = null;
 	if (action) {
 		const resolved = registry.resolve(action.ref);
 		if (!resolved) {
-			throw new Error(`Unknown action ref "${action.ref}": the element is gone or the ref is invalid. Run ui_find or ui_snapshot for fresh refs.`);
+			throw new Error(
+				`Unknown action ref "${action.ref}": the element is gone or the ref is invalid. Run ui_find or ui_snapshot for fresh refs.`
+			);
 		}
 		actionEl = resolved.element;
 		actionRef = resolved.ref;
-		if (resolved.rebound) notes.push(`action ${resolved.previous} was stale; rebound to ${resolved.ref}`);
+		if (resolved.rebound)
+			notes.push(`action ${resolved.previous} was stale; rebound to ${resolved.ref}`);
 	}
 
 	const filter = component
@@ -386,7 +428,9 @@ export async function uiProfile(
 	});
 
 	const fpsSamples: number[] = [];
-	const meter = (options.fpsMeter ?? ((onSample) => createFpsMeter(60, { onSample })))((fps) => fpsSamples.push(fps));
+	const meter = (options.fpsMeter ?? ((onSample) => createFpsMeter(60, { onSample })))((fps) =>
+		fpsSamples.push(fps)
+	);
 	const longFrames = (options.longFrames ?? observeLongFrames)();
 	tracker.start();
 	const started = now();
@@ -412,7 +456,9 @@ export async function uiProfile(
 					performAction(el, action);
 					performed++;
 				} catch (err) {
-					skipped.push(`run ${i + 1}/${action.repeat}: ${err instanceof Error ? err.message : String(err)}`);
+					skipped.push(
+						`run ${i + 1}/${action.repeat}: ${err instanceof Error ? err.message : String(err)}`
+					);
 				}
 			}
 			if (durationMs > at) await sleep(durationMs - at);
@@ -432,10 +478,16 @@ export async function uiProfile(
 	// ---- aggregate
 	const profiles = tracker.getProfiles();
 	const batchesByFile = new Map<string, number>();
-	for (const e of tracker.getEvents()) batchesByFile.set(e.componentFile, (batchesByFile.get(e.componentFile) ?? 0) + 1);
+	for (const e of tracker.getEvents())
+		batchesByFile.set(e.componentFile, (batchesByFile.get(e.componentFile) ?? 0) + 1);
 
 	const kept = profiles.slice(0, MAX_DATA_COMPONENTS);
-	const tops = kept.map((p) => tracker.getTopElements(p.file, TOP_ELEMENTS * 2).filter((t) => t.element.isConnected).slice(0, TOP_ELEMENTS));
+	const tops = kept.map((p) =>
+		tracker
+			.getTopElements(p.file, TOP_ELEMENTS * 2)
+			.filter((t) => t.element.isConnected)
+			.slice(0, TOP_ELEMENTS)
+	);
 	const doc = (actionEl ?? scopeEl)?.ownerDocument ?? document;
 	const keys = computeStableKeys(
 		tops.flat().map((t) => t.element),
@@ -474,15 +526,24 @@ export async function uiProfile(
 					samples: fpsSamples.length
 				}
 			: null;
-	if (!fps) notes.push('FPS unavailable: no animation frames painted (tab hidden or requestAnimationFrame missing)');
+	if (!fps)
+		notes.push(
+			'FPS unavailable: no animation frames painted (tab hidden or requestAnimationFrame missing)'
+		);
 	if (!longFrames.type) {
-		notes.push('long frames unavailable: PerformanceObserver supports neither long-animation-frame nor longtask here');
+		notes.push(
+			'long frames unavailable: PerformanceObserver supports neither long-animation-frame nor longtask here'
+		);
 	}
 	notes.push(...skipped);
 
 	// ---- text
 	const lines = verdictLines(components, elapsedMs);
-	const scopeText = component ? `component ${component}` : scopeRef ? `ref ${scopeRef} subtree` : 'page';
+	const scopeText = component
+		? `component ${component}`
+		: scopeRef
+			? `ref ${scopeRef} subtree`
+			: 'page';
 	const actionText = action
 		? `, action: ${action.type} ${actionRef}${action.value !== undefined ? ` ${JSON.stringify(action.value)}` : ''} x${action.repeat}` +
 			`${performed !== action.repeat ? ` (${performed} performed)` : ''} (isTrusted=false)`
@@ -505,10 +566,14 @@ export async function uiProfile(
 				);
 			}
 		}
-		if (profiles.length > shown.length) lines.push(`  … ${profiles.length - shown.length} more components`);
+		if (profiles.length > shown.length)
+			lines.push(`  … ${profiles.length - shown.length} more components`);
 	}
 
-	if (fps) lines.push(`FPS avg ${fps.avg}${fps.min !== null ? `, min ${fps.min}` : ''} (${plural(fps.samples, 'whole-second sample')})`);
+	if (fps)
+		lines.push(
+			`FPS avg ${fps.avg}${fps.min !== null ? `, min ${fps.min}` : ''} (${plural(fps.samples, 'whole-second sample')})`
+		);
 	if (longFrames.type) {
 		lines.push(
 			`LONG FRAMES ${longFrameStats.count}${longFrameStats.count > 0 ? `, worst ${longFrameStats.worstMs}ms` : ''} (${longFrames.type}, > 50ms)`

@@ -57,7 +57,7 @@ export function createGlobalAPI(): { api: SvelteGrabAPI; callbacks: APICallbacks
 		if (window.__SVELTE_GRAB__) {
 			console.warn(
 				'[SvelteGrab] Multiple instances detected. Previous instance will be replaced. ' +
-				'Use a single <SvelteGrab /> or <SvelteDevKit /> in your root layout.'
+					'Use a single <SvelteGrab /> or <SvelteDevKit /> in your root layout.'
 			);
 		}
 		window.__SVELTE_GRAB__ = api;

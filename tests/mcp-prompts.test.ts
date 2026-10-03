@@ -58,7 +58,9 @@ describe('MCP prompts (in-memory, real SDK client)', () => {
 	});
 
 	it('security-audit inlines the audit workflow and the security checklist', async () => {
-		const text = textOf(await client.getPrompt({ name: 'security-audit', arguments: { screen: '/settings' } }));
+		const text = textOf(
+			await client.getPrompt({ name: 'security-audit', arguments: { screen: '/settings' } })
+		);
 		expect(text).toContain('security audit of the screen "/settings"');
 		expect(text).toContain('## Phase 1: Recon');
 		expect(text).toContain(`## ${SECURITY_CHECKLIST_HEADING}`);
@@ -73,7 +75,9 @@ describe('MCP prompts (in-memory, real SDK client)', () => {
 	});
 
 	it('performance-audit inlines the performance checklist', async () => {
-		const text = textOf(await client.getPrompt({ name: 'performance-audit', arguments: { screen: 'home' } }));
+		const text = textOf(
+			await client.getPrompt({ name: 'performance-audit', arguments: { screen: 'home' } })
+		);
 		expect(text).toContain('performance audit of the screen "home"');
 		expect(text).toContain(`## ${PERFORMANCE_CHECKLIST_HEADING}`);
 		expect(text).toContain('| P1 |');
@@ -121,12 +125,19 @@ describe('MCP prompts on the real HTTP server', () => {
 
 	it('serves prompts/list and prompts/get over /mcp', async () => {
 		const client = new Client({ name: 'test', version: '1.0.0' });
-		await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`)));
+		await client.connect(
+			new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`))
+		);
 		try {
 			expect(client.getServerCapabilities()?.prompts).toBeDefined();
 			const { prompts } = await client.listPrompts();
 			expect(prompts.map((p) => p.name)).toEqual([...PROMPT_NAMES]);
-			const text = textOf(await client.getPrompt({ name: 'security-audit', arguments: { url: 'http://localhost:5173/' } }));
+			const text = textOf(
+				await client.getPrompt({
+					name: 'security-audit',
+					arguments: { url: 'http://localhost:5173/' }
+				})
+			);
 			expect(text).toContain('http://localhost:5173/');
 			expect(text).toContain(`## ${SECURITY_CHECKLIST_HEADING}`);
 			// Tools still served next to the prompts.

@@ -91,7 +91,9 @@ export function formatConsoleArgs(args: unknown[]): string {
 		parts = [args[0].replace(/%c/g, ''), ...args.slice(1 + styles)];
 	}
 	const message = parts.map(stringifyArg).join(' ').replace(/\s+/g, ' ').trim();
-	return message.length > MAX_MESSAGE_LENGTH ? message.slice(0, MAX_MESSAGE_LENGTH - 1) + '…' : message;
+	return message.length > MAX_MESSAGE_LENGTH
+		? message.slice(0, MAX_MESSAGE_LENGTH - 1) + '…'
+		: message;
 }
 
 function errorStack(value: unknown): string | undefined {
@@ -191,7 +193,12 @@ export class ConsoleCapture {
 				err instanceof Error
 					? `Uncaught ${err.name}: ${err.message}`
 					: `Uncaught ${typeof e.message === 'string' && e.message ? e.message : 'error'}`;
-			this.record({ level: 'error', origin: 'uncaught', message: formatConsoleArgs([message]), source });
+			this.record({
+				level: 'error',
+				origin: 'uncaught',
+				message: formatConsoleArgs([message]),
+				source
+			});
 		};
 		const onRejection = (event: Event) => {
 			const reason: unknown = (event as PromiseRejectionEvent).reason;

@@ -113,7 +113,9 @@ describe('ui_annotations', () => {
 	});
 
 	it('rejects a non-boolean clear', () => {
-		expect(() => uiAnnotations({ clear: 'yes' }, store, registry)).toThrow('"clear" must be a boolean');
+		expect(() => uiAnnotations({ clear: 'yes' }, store, registry)).toThrow(
+			'"clear" must be a boolean'
+		);
 	});
 
 	it('rebinds a re-rendered element by stable key and flags elements that are gone', () => {
@@ -123,7 +125,9 @@ describe('ui_annotations', () => {
 
 		// Re-render card b: same source/role/name, new node.
 		const clone = cards[1].cloneNode(true) as HTMLElement;
-		Object.assign(clone, { __svelte_meta: (cards[1] as unknown as { __svelte_meta: unknown }).__svelte_meta });
+		Object.assign(clone, {
+			__svelte_meta: (cards[1] as unknown as { __svelte_meta: unknown }).__svelte_meta
+		});
 		clone.removeAttribute(REF_ATTR);
 		cards[1].replaceWith(clone);
 		h1.remove();

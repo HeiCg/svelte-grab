@@ -6,11 +6,7 @@
 
 import type { WebSocket as WsSocket } from 'ws';
 import type { AgentProvider, AgentProviderCallbacks } from './providers/base.js';
-import type {
-	AgentStatusMessage,
-	AgentDoneMessage,
-	AgentErrorMessage
-} from './protocol.js';
+import type { AgentStatusMessage, AgentDoneMessage, AgentErrorMessage } from './protocol.js';
 
 export interface ConnectRelayOptions {
 	/** Port of the relay server. Default: 4722 */
@@ -62,7 +58,8 @@ interface InvokeHandlerMessage {
  */
 export async function connectToRelay(options: ConnectRelayOptions): Promise<RelayConnection> {
 	const { port = 4722, url, provider } = options;
-	const wsUrl = url ?? `ws://localhost:${port}?handler=true&agentId=${encodeURIComponent(provider.name)}`;
+	const wsUrl =
+		url ?? `ws://localhost:${port}?handler=true&agentId=${encodeURIComponent(provider.name)}`;
 
 	// Lazy-load ws
 	let WebSocket: typeof WsSocket;

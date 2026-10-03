@@ -126,7 +126,9 @@ export class AnnotationStore<T = unknown> {
 	}
 
 	setInstruction(text: string): void {
-		this.instructionText = String(text ?? '').trim().slice(0, MAX_INSTRUCTION_LENGTH);
+		this.instructionText = String(text ?? '')
+			.trim()
+			.slice(0, MAX_INSTRUCTION_LENGTH);
 		this.emit();
 	}
 
@@ -171,7 +173,9 @@ export class AnnotationStore<T = unknown> {
 }
 
 function normalizeComment(comment: string): string {
-	return String(comment ?? '').trim().slice(0, MAX_COMMENT_LENGTH);
+	return String(comment ?? '')
+		.trim()
+		.slice(0, MAX_COMMENT_LENGTH);
 }
 
 const LOCATOR_HINT =

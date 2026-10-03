@@ -30,14 +30,7 @@
 		children: Snippet;
 	}
 
-	let {
-		onclick,
-		block = true,
-		disabled = false,
-		title,
-		ariaLabel,
-		children
-	}: Props = $props();
+	let { onclick, block = true, disabled = false, title, ariaLabel, children }: Props = $props();
 </script>
 
 <button

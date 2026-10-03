@@ -12,15 +12,15 @@ const KNOWN_PROVIDERS: Record<string, { name: string; description: string; peerD
 		description: 'Claude Code via @anthropic-ai/claude-agent-sdk',
 		peerDep: '@anthropic-ai/claude-agent-sdk'
 	},
-	'cursor': {
+	cursor: {
 		name: 'cursor',
-		description: 'Cursor via cursor-agent CLI',
+		description: 'Cursor via cursor-agent CLI'
 	},
-	'copilot': {
+	copilot: {
 		name: 'copilot',
-		description: 'GitHub Copilot via copilot CLI',
+		description: 'GitHub Copilot via copilot CLI'
 	},
-	'codex': {
+	codex: {
 		name: 'codex',
 		description: 'OpenAI Codex via @openai/codex-sdk',
 		peerDep: '@openai/codex-sdk'
@@ -54,7 +54,7 @@ export function add(providerName?: string, options: AddOptions = {}): void {
 	const beforeJson = JSON.stringify(config, null, 2);
 
 	// Check if already added
-	const existing = config.providers?.find(p => p.name === providerName);
+	const existing = config.providers?.find((p) => p.name === providerName);
 	if (existing) {
 		console.log(`Provider "${providerName}" is already configured.`);
 		return;

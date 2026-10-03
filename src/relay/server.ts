@@ -39,7 +39,9 @@ interface SessionEntry {
 	lastContext: { content: string[]; prompt: string; selectedCount: number };
 }
 
-export async function createRelayServer(options: RelayServerOptions = {}): Promise<{ close: () => void }> {
+export async function createRelayServer(
+	options: RelayServerOptions = {}
+): Promise<{ close: () => void }> {
 	const { port: preferredPort = 4722, providers = [] } = options;
 
 	// Lazy-load ws
@@ -86,7 +88,13 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 		host: LOOPBACK_HOST,
 		port,
 		maxPayload: MAX_PAYLOAD,
-		verifyClient: (info: { origin?: string; req?: { url?: string; headers?: Record<string, string | string[] | undefined> } }, cb: (ok: boolean, code?: number, msg?: string) => void) => {
+		verifyClient: (
+			info: {
+				origin?: string;
+				req?: { url?: string; headers?: Record<string, string | string[] | undefined> };
+			},
+			cb: (ok: boolean, code?: number, msg?: string) => void
+		) => {
 			if (!isOriginAllowed(info.origin, security)) {
 				cb(false, 403, 'Origin not allowed');
 				return;
@@ -104,7 +112,9 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 		console.log(`[svelte-grab relay] Port ${preferredPort} was in use, using ${port} instead`);
 	}
 	console.log(`[svelte-grab relay] Listening on ws://localhost:${port}`);
-	console.log(`[svelte-grab relay] Registered agents: ${providers.map(p => p.name).join(', ') || 'none'}`);
+	console.log(
+		`[svelte-grab relay] Registered agents: ${providers.map((p) => p.name).join(', ') || 'none'}`
+	);
 	logSecurityBanner('relay', security);
 
 	wss.on('connection', (ws: WsSocket) => {
@@ -212,7 +222,9 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 
 				case 'agent-undo': {
 					const session = sessionStore.get(msg.sessionId);
-					const provider = session ? providerMap.get(session.agentId) : providerMap.values().next().value;
+					const provider = session
+						? providerMap.get(session.agentId)
+						: providerMap.values().next().value;
 					if (provider) {
 						await provider.undo(msg.sessionId, createCallbacks(msg.sessionId));
 					}
@@ -221,7 +233,9 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 
 				case 'agent-redo': {
 					const session = sessionStore.get(msg.sessionId);
-					const provider = session ? providerMap.get(session.agentId) : providerMap.values().next().value;
+					const provider = session
+						? providerMap.get(session.agentId)
+						: providerMap.values().next().value;
 					if (provider) {
 						await provider.redo(msg.sessionId, createCallbacks(msg.sessionId));
 					}
@@ -230,7 +244,9 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 
 				case 'agent-resume': {
 					const session = sessionStore.get(msg.sessionId);
-					const provider = session ? providerMap.get(session.agentId) : providerMap.values().next().value;
+					const provider = session
+						? providerMap.get(session.agentId)
+						: providerMap.values().next().value;
 					if (provider) {
 						await provider.resume(msg.sessionId, msg.prompt, createCallbacks(msg.sessionId));
 					}
@@ -251,7 +267,11 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 
 					const provider = providerMap.get(session.agentId);
 					if (provider) {
-						await provider.handleRequest(msg.sessionId, session.lastContext, createCallbacks(msg.sessionId));
+						await provider.handleRequest(
+							msg.sessionId,
+							session.lastContext,
+							createCallbacks(msg.sessionId)
+						);
 					}
 					break;
 				}

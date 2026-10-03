@@ -49,7 +49,9 @@ export const FINDING_SCHEMA = {
 					type: 'object',
 					required: [...SEVERITIES],
 					additionalProperties: false,
-					properties: Object.fromEntries(SEVERITIES.map((s) => [s, { type: 'integer', minimum: 0 }]))
+					properties: Object.fromEntries(
+						SEVERITIES.map((s) => [s, { type: 'integer', minimum: 0 }])
+					)
 				},
 				byVerdict: {
 					type: 'object',
@@ -65,7 +67,19 @@ export const FINDING_SCHEMA = {
 	$defs: {
 		finding: {
 			type: 'object',
-			required: ['id', 'rule', 'severity', 'verdict', 'title', 'evidence', 'file', 'line', 'column', 'source', 'fix'],
+			required: [
+				'id',
+				'rule',
+				'severity',
+				'verdict',
+				'title',
+				'evidence',
+				'file',
+				'line',
+				'column',
+				'source',
+				'fix'
+			],
 			additionalProperties: false,
 			properties: {
 				id: { type: 'string', pattern: '^[a-z0-9-]+/[a-z0-9-]+:[0-9a-f]{6}$' },
@@ -107,7 +121,8 @@ function typeMatches(value: unknown, type: string): boolean {
 function resolveRef(root: Schema, ref: string): Schema {
 	if (!ref.startsWith('#/')) throw new Error(`Unsupported $ref ${ref}`);
 	let node: unknown = root;
-	for (const part of ref.slice(2).split('/')) node = (node as Schema)[part.replace(/~1/g, '/').replace(/~0/g, '~')];
+	for (const part of ref.slice(2).split('/'))
+		node = (node as Schema)[part.replace(/~1/g, '/').replace(/~0/g, '~')];
 	if (!node || typeof node !== 'object') throw new Error(`Unresolvable $ref ${ref}`);
 	return node as Schema;
 }
@@ -119,7 +134,11 @@ function resolveRef(root: Schema, ref: string): Schema {
  * `pattern`, `minimum`. Unknown keywords (`format`, `description`, ...) are
  * annotations and ignored.
  */
-export function validateAgainstSchema(value: unknown, schema: Schema, root: Schema = schema): ValidationResult {
+export function validateAgainstSchema(
+	value: unknown,
+	schema: Schema,
+	root: Schema = schema
+): ValidationResult {
 	const errors: string[] = [];
 	const check = (v: unknown, s: Schema, path: string): void => {
 		if (typeof s.$ref === 'string') {
@@ -128,7 +147,8 @@ export function validateAgainstSchema(value: unknown, schema: Schema, root: Sche
 		}
 		const at = path || '/';
 		if ('const' in s && v !== s.const) errors.push(`${at}: must equal ${JSON.stringify(s.const)}`);
-		if (Array.isArray(s.enum) && !s.enum.includes(v as never)) errors.push(`${at}: must be one of ${s.enum.join(', ')}`);
+		if (Array.isArray(s.enum) && !s.enum.includes(v as never))
+			errors.push(`${at}: must be one of ${s.enum.join(', ')}`);
 		if (s.type !== undefined) {
 			const types = Array.isArray(s.type) ? (s.type as string[]) : [s.type as string];
 			if (!types.some((t) => typeMatches(v, t))) {
@@ -137,10 +157,13 @@ export function validateAgainstSchema(value: unknown, schema: Schema, root: Sche
 			}
 		}
 		if (typeof v === 'string') {
-			if (typeof s.minLength === 'number' && v.length < s.minLength) errors.push(`${at}: shorter than ${s.minLength}`);
-			if (typeof s.pattern === 'string' && !new RegExp(s.pattern, 'u').test(v)) errors.push(`${at}: does not match ${s.pattern}`);
+			if (typeof s.minLength === 'number' && v.length < s.minLength)
+				errors.push(`${at}: shorter than ${s.minLength}`);
+			if (typeof s.pattern === 'string' && !new RegExp(s.pattern, 'u').test(v))
+				errors.push(`${at}: does not match ${s.pattern}`);
 		}
-		if (typeof v === 'number' && typeof s.minimum === 'number' && v < s.minimum) errors.push(`${at}: below ${s.minimum}`);
+		if (typeof v === 'number' && typeof s.minimum === 'number' && v < s.minimum)
+			errors.push(`${at}: below ${s.minimum}`);
 		if (Array.isArray(v) && s.items && typeof s.items === 'object') {
 			v.forEach((item, i) => check(item, s.items as Schema, `${path}/${i}`));
 		}
@@ -148,11 +171,13 @@ export function validateAgainstSchema(value: unknown, schema: Schema, root: Sche
 			const obj = v as Record<string, unknown>;
 			const props = (s.properties ?? {}) as Record<string, Schema>;
 			if (Array.isArray(s.required)) {
-				for (const key of s.required as string[]) if (!(key in obj)) errors.push(`${at}: missing required "${key}"`);
+				for (const key of s.required as string[])
+					if (!(key in obj)) errors.push(`${at}: missing required "${key}"`);
 			}
 			for (const [key, child] of Object.entries(obj)) {
 				if (key in props) check(child, props[key], `${path}/${key}`);
-				else if (s.additionalProperties === false) errors.push(`${at}: unexpected property "${key}"`);
+				else if (s.additionalProperties === false)
+					errors.push(`${at}: unexpected property "${key}"`);
 			}
 		}
 	};

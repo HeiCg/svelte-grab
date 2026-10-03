@@ -58,19 +58,27 @@ export function isFrameworkPackage(name: string): boolean {
 
 /** Parse `npm audit --json` output into findings, or throw with the npm error summary. */
 export function parseNpmAudit(stdout: string, packageJsonText: string | null): RawFinding[] {
-	let data: { vulnerabilities?: Record<string, NpmVulnerability>; error?: { code?: string; summary?: string } };
+	let data: {
+		vulnerabilities?: Record<string, NpmVulnerability>;
+		error?: { code?: string; summary?: string };
+	};
 	try {
 		data = JSON.parse(stdout);
 	} catch {
 		throw new Error('npm audit did not return JSON');
 	}
-	if (data.error) throw new Error(`npm audit failed: ${data.error.code ?? ''} ${data.error.summary ?? ''}`.trim());
+	if (data.error)
+		throw new Error(
+			`npm audit failed: ${data.error.code ?? ''} ${data.error.summary ?? ''}`.trim()
+		);
 	const starts = packageJsonText ? lineStarts(packageJsonText) : null;
 	const findings: RawFinding[] = [];
 	for (const [key, vuln] of Object.entries(data.vulnerabilities ?? {})) {
 		const name = vuln.name ?? key;
 		const severity = SEVERITY_MAP[vuln.severity ?? ''] ?? 'low';
-		const advisories = (vuln.via ?? []).filter((v): v is NpmVia => typeof v === 'object' && v !== null);
+		const advisories = (vuln.via ?? []).filter(
+			(v): v is NpmVia => typeof v === 'object' && v !== null
+		);
 		const via = (vuln.via ?? []).filter((v): v is string => typeof v === 'string');
 		const titles = advisories.map((a) => `${a.title ?? 'advisory'}${a.url ? ` (${a.url})` : ''}`);
 		const fix =
@@ -101,9 +109,16 @@ export function parseNpmAudit(stdout: string, packageJsonText: string | null): R
 }
 
 /** Run npm audit in `root`; findings plus notes (never throws). */
-export function dependencyAdvisories(root: string, runner: NpmAuditRunner = defaultNpmAudit): { findings: RawFinding[]; notes: string[] } {
+export function dependencyAdvisories(
+	root: string,
+	runner: NpmAuditRunner = defaultNpmAudit
+): { findings: RawFinding[]; notes: string[] } {
 	const pkgPath = join(root, 'package.json');
-	if (!existsSync(pkgPath)) return { findings: [], notes: ['Dependency advisories skipped: no package.json at the scan root.'] };
+	if (!existsSync(pkgPath))
+		return {
+			findings: [],
+			notes: ['Dependency advisories skipped: no package.json at the scan root.']
+		};
 	let pkgText: string | null = null;
 	try {
 		pkgText = readFileSync(pkgPath, 'utf-8');
@@ -113,7 +128,10 @@ export function dependencyAdvisories(root: string, runner: NpmAuditRunner = defa
 	try {
 		const stdout = runner(root, NPM_AUDIT_TIMEOUT_MS);
 		const findings = parseNpmAudit(stdout, pkgText);
-		return { findings, notes: [`Dependency advisories: npm audit reported ${findings.length} vulnerable package(s).`] };
+		return {
+			findings,
+			notes: [`Dependency advisories: npm audit reported ${findings.length} vulnerable package(s).`]
+		};
 	} catch (err) {
 		return { findings: [], notes: [`Dependency advisories skipped: ${(err as Error).message}`] };
 	}

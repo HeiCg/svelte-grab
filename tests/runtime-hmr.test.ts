@@ -39,7 +39,10 @@ class FakeHot implements HotContextLike {
 }
 
 function update(...paths: string[]) {
-	return { type: 'update', updates: paths.map((path) => ({ type: 'js-update', path, acceptedPath: path, timestamp: 1 })) };
+	return {
+		type: 'update',
+		updates: paths.map((path) => ({ type: 'js-update', path, acceptedPath: path, timestamp: 1 }))
+	};
 }
 
 function emitUpdate(hot: FakeHot, ...paths: string[]) {
@@ -85,7 +88,9 @@ afterEach(() => {
 
 describe('path matching', () => {
 	it('normalizes Vite update paths', () => {
-		expect(normalizeHmrPath('/src/lib/Card.svelte?svelte&type=style&lang.css')).toBe('/src/lib/Card.svelte');
+		expect(normalizeHmrPath('/src/lib/Card.svelte?svelte&type=style&lang.css')).toBe(
+			'/src/lib/Card.svelte'
+		);
 		expect(normalizeHmrPath('/@fs/Users/me/app/src/x.ts?t=1')).toBe('/Users/me/app/src/x.ts');
 		expect(normalizeHmrPath('.\\src\\x.ts')).toBe('src/x.ts');
 	});
@@ -93,14 +98,25 @@ describe('path matching', () => {
 	it('suffix-matches on path boundaries, both directions', () => {
 		expect(hmrPathMatches('/src/components/Card.svelte', 'Card.svelte')).toBe(true);
 		expect(hmrPathMatches('/src/components/Card.svelte', 'src/components/Card.svelte')).toBe(true);
-		expect(hmrPathMatches('/src/components/Card.svelte', '/Users/me/app/src/components/Card.svelte')).toBe(true);
+		expect(
+			hmrPathMatches('/src/components/Card.svelte', '/Users/me/app/src/components/Card.svelte')
+		).toBe(true);
 		expect(hmrPathMatches('/src/components/FixtureCard.svelte', 'Card.svelte')).toBe(false);
-		expect(hmrPathMatches('/src/components/Card.svelte?svelte&type=style&lang.css', 'Card.svelte')).toBe(true);
+		expect(
+			hmrPathMatches('/src/components/Card.svelte?svelte&type=style&lang.css', 'Card.svelte')
+		).toBe(true);
 		expect(hmrPathMatches('/src/a.ts', '')).toBe(false);
 	});
 
 	it('full reloads and file-less errors match any filter', () => {
-		const base: HmrRecord = { kind: 'update', at: 1, files: ['/src/a.ts'], errors: [], consoleErrors: 0, source: 'vite-hmr' };
+		const base: HmrRecord = {
+			kind: 'update',
+			at: 1,
+			files: ['/src/a.ts'],
+			errors: [],
+			consoleErrors: 0,
+			source: 'vite-hmr'
+		};
 		expect(recordMatches(base, undefined)).toBe(true);
 		expect(recordMatches(base, ['b.ts'])).toBe(false);
 		expect(recordMatches({ ...base, kind: 'full-reload' }, ['b.ts'])).toBe(true);
@@ -115,7 +131,15 @@ describe('HmrTracker', () => {
 		expect(hot.count()).toBe(4);
 		emitUpdate(hot, '/src/A.svelte', '/src/A.svelte?svelte&type=style&lang.css');
 		expect(tracker.log()).toEqual([
-			{ kind: 'update', at: 1_000, startedAt: 1_000, files: ['/src/A.svelte'], errors: [], consoleErrors: 0, source: 'vite-hmr' }
+			{
+				kind: 'update',
+				at: 1_000,
+				startedAt: 1_000,
+				files: ['/src/A.svelte'],
+				errors: [],
+				consoleErrors: 0,
+				source: 'vite-hmr'
+			}
 		]);
 		tracker.release();
 		expect(hot.count()).toBe(4);
@@ -143,12 +167,19 @@ describe('HmrTracker', () => {
 		tracker.retain();
 		hot.emit('vite:error', {
 			type: 'error',
-			err: { message: 'Unexpected token', plugin: 'vite-plugin-svelte', id: '/Users/me/app/src/Card.svelte', loc: { line: 4 } }
+			err: {
+				message: 'Unexpected token',
+				plugin: 'vite-plugin-svelte',
+				id: '/Users/me/app/src/Card.svelte',
+				loc: { line: 4 }
+			}
 		});
 		const [rec] = tracker.log();
 		expect(rec.kind).toBe('error');
 		expect(rec.files).toEqual(['/Users/me/app/src/Card.svelte']);
-		expect(rec.errors[0]).toBe('[vite-plugin-svelte] Unexpected token (/Users/me/app/src/Card.svelte:4)');
+		expect(rec.errors[0]).toBe(
+			'[vite-plugin-svelte] Unexpected token (/Users/me/app/src/Card.svelte:4)'
+		);
 	});
 
 	it('counts console errors and uncaught errors against the latest update', () => {
@@ -177,7 +208,13 @@ describe('HmrTracker', () => {
 
 	it('reads console errors from the shared console capture and never wraps console.error itself', () => {
 		const capture = new ConsoleCapture({ target: window, now: () => clock });
-		const t = new HmrTracker({ hot, storage: null, now: () => clock, pluginInfo: () => null, capture });
+		const t = new HmrTracker({
+			hot,
+			storage: null,
+			now: () => clock,
+			pluginInfo: () => null,
+			capture
+		});
 		const original = console.error;
 		capture.retain();
 		const wrapped = console.error;
@@ -195,20 +232,31 @@ describe('HmrTracker', () => {
 	});
 
 	it('uses the plugin bridge only without import.meta.hot', () => {
-		const viaBridge = new HmrTracker({ hot: null, storage: null, now: () => clock, pluginInfo: () => null });
+		const viaBridge = new HmrTracker({
+			hot: null,
+			storage: null,
+			now: () => clock,
+			pluginInfo: () => null
+		});
 		expect(viaBridge.source).toBe('heuristic');
 		viaBridge.retain();
 		window.dispatchEvent(
-			new CustomEvent(HMR_BRIDGE_EVENT, { detail: { type: 'vite:afterUpdate', payload: update('/src/B.svelte') } })
+			new CustomEvent(HMR_BRIDGE_EVENT, {
+				detail: { type: 'vite:afterUpdate', payload: update('/src/B.svelte') }
+			})
 		);
 		expect(viaBridge.source).toBe('plugin');
-		expect(viaBridge.log()).toMatchObject([{ kind: 'update', files: ['/src/B.svelte'], source: 'plugin' }]);
+		expect(viaBridge.log()).toMatchObject([
+			{ kind: 'update', files: ['/src/B.svelte'], source: 'plugin' }
+		]);
 		viaBridge.release();
 
 		// With import.meta.hot the same bridged event is ignored (no double count).
 		tracker.retain();
 		window.dispatchEvent(
-			new CustomEvent(HMR_BRIDGE_EVENT, { detail: { type: 'vite:afterUpdate', payload: update('/src/B.svelte') } })
+			new CustomEvent(HMR_BRIDGE_EVENT, {
+				detail: { type: 'vite:afterUpdate', payload: update('/src/B.svelte') }
+			})
 		);
 		expect(tracker.log()).toEqual([]);
 		expect(tracker.source).toBe('vite-hmr');
@@ -220,13 +268,22 @@ describe('HmrTracker', () => {
 	});
 
 	it('holds a full reload briefly (bridge waitUntil) only when a waiter is pending', async () => {
-		const t = new HmrTracker({ hot: null, storage: null, now: () => clock, pluginInfo: () => ({ hmrBridge: true }) });
+		const t = new HmrTracker({
+			hot: null,
+			storage: null,
+			now: () => clock,
+			pluginInfo: () => ({ hmrBridge: true })
+		});
 		t.retain();
 		const holds: Promise<unknown>[] = [];
 		const fire = () =>
 			window.dispatchEvent(
 				new CustomEvent(HMR_BRIDGE_EVENT, {
-					detail: { type: 'vite:beforeFullReload', payload: { type: 'full-reload' }, waitUntil: (p: Promise<unknown>) => holds.push(p) }
+					detail: {
+						type: 'vite:beforeFullReload',
+						payload: { type: 'full-reload' },
+						waitUntil: (p: Promise<unknown>) => holds.push(p)
+					}
 				})
 			);
 		fire();
@@ -249,7 +306,10 @@ describe('ui_wait_for_hmr', () => {
 
 	it('resolves on a matching update after the call, ignoring other files', async () => {
 		const registry = new RefRegistry();
-		const pending = uiWaitForHmr({ files: ['Card.svelte'] }, { tracker, registry, now: () => clock, settle: noSettle });
+		const pending = uiWaitForHmr(
+			{ files: ['Card.svelte'] },
+			{ tracker, registry, now: () => clock, settle: noSettle }
+		);
 		clock = 1_100;
 		emitUpdate(hot, '/src/Other.svelte');
 		emitUpdate(hot, '/src/FixtureCard.svelte'); // boundary: not Card.svelte
@@ -276,12 +336,24 @@ describe('ui_wait_for_hmr', () => {
 		emitUpdate(hot, '/src/lib/Card.svelte');
 		clock = 2_000;
 
-		const out = await uiWaitForHmr({ files: ['Card.svelte'], since: 900 }, { tracker, now: () => clock, settle: noSettle, registry: new RefRegistry() });
-		expect(out.data).toMatchObject({ status: 'updated', updated: ['/src/lib/Card.svelte'], at: 1_000 });
+		const out = await uiWaitForHmr(
+			{ files: ['Card.svelte'], since: 900 },
+			{ tracker, now: () => clock, settle: noSettle, registry: new RefRegistry() }
+		);
+		expect(out.data).toMatchObject({
+			status: 'updated',
+			updated: ['/src/lib/Card.svelte'],
+			at: 1_000
+		});
 
 		vi.useFakeTimers();
-		const late = uiWaitForHmr({ files: ['Card.svelte'], timeoutMs: 500 }, { tracker, now: () => clock, settle: noSettle, registry: new RefRegistry() });
-		const assertion = expect(late).rejects.toThrow(/No HMR update touching Card\.svelte within 0\.5s \(source: vite-hmr\)\. Recent updates: update \/src\/lib\/Card\.svelte/);
+		const late = uiWaitForHmr(
+			{ files: ['Card.svelte'], timeoutMs: 500 },
+			{ tracker, now: () => clock, settle: noSettle, registry: new RefRegistry() }
+		);
+		const assertion = expect(late).rejects.toThrow(
+			/No HMR update touching Card\.svelte within 0\.5s \(source: vite-hmr\)\. Recent updates: update \/src\/lib\/Card\.svelte/
+		);
 		await vi.advanceTimersByTimeAsync(600);
 		await assertion;
 	});
@@ -294,22 +366,37 @@ describe('ui_wait_for_hmr', () => {
 		emitUpdate(hot, '/src/B.svelte');
 		clock = 1_800;
 		emitUpdate(hot, '/src/C.svelte');
-		const out = await uiWaitForHmr({ files: ['A.svelte', 'B.svelte'], since: 1_000 }, { tracker, now: () => 2_000, settle: noSettle, registry: new RefRegistry() });
+		const out = await uiWaitForHmr(
+			{ files: ['A.svelte', 'B.svelte'], since: 1_000 },
+			{ tracker, now: () => 2_000, settle: noSettle, registry: new RefRegistry() }
+		);
 		expect(out.data).toMatchObject({ updated: ['/src/A.svelte', '/src/B.svelte'], at: 1_500 });
 	});
 
 	it('a vite:error for the file resolves with status "error"', async () => {
-		const pending = uiWaitForHmr({ files: ['Card.svelte'] }, { tracker, now: () => clock, settle: noSettle, registry: new RefRegistry() });
+		const pending = uiWaitForHmr(
+			{ files: ['Card.svelte'] },
+			{ tracker, now: () => clock, settle: noSettle, registry: new RefRegistry() }
+		);
 		hot.emit('vite:error', { err: { message: 'Expected }', id: '/app/src/lib/Card.svelte' } });
 		const out = await pending;
-		expect(out.data).toMatchObject({ status: 'error', errors: ['Expected } (/app/src/lib/Card.svelte)'] });
+		expect(out.data).toMatchObject({
+			status: 'error',
+			errors: ['Expected } (/app/src/lib/Card.svelte)']
+		});
 		expect(out.text).toMatch(/^Vite reported an error instead of an update/);
 	});
 
 	it('a full reload answers immediately and says the refs are gone', async () => {
 		const settle = vi.fn(noSettle);
-		const pending = uiWaitForHmr({ files: ['main.ts'] }, { tracker, now: () => clock, settle, registry: new RefRegistry() });
-		const holds = hot.emit('vite:beforeFullReload', { type: 'full-reload', triggeredBy: '/app/src/main.ts' });
+		const pending = uiWaitForHmr(
+			{ files: ['main.ts'] },
+			{ tracker, now: () => clock, settle, registry: new RefRegistry() }
+		);
+		const holds = hot.emit('vite:beforeFullReload', {
+			type: 'full-reload',
+			triggeredBy: '/app/src/main.ts'
+		});
 		const out = await pending;
 		expect(out.data).toMatchObject({ status: 'full-reload', updated: ['/app/src/main.ts'] });
 		expect(out.text).toMatch(/^Full page reload \(triggered by \/app\/src\/main\.ts\)/);
@@ -335,17 +422,28 @@ describe('ui_wait_for_hmr', () => {
 		emitUpdate(hot, '/src/lib/Button.svelte');
 
 		const out = await pending;
-		const data = out.data as { rebound: { from: string; to: string }[]; lost: string[]; kept: number };
+		const data = out.data as {
+			rebound: { from: string; to: string }[];
+			lost: string[];
+			kept: number;
+		};
 		expect(data.kept).toBe(1);
 		expect(data.lost).toEqual([goneRef]);
 		expect(data.rebound).toHaveLength(1);
 		expect(data.rebound[0].from).toBe(oldRef);
 		const newRef = data.rebound[0].to;
 		expect(fresh.getAttribute('data-sg-ref')).toBe(newRef);
-		expect(out.text).toContain(`Refs: 1 kept, 1 rebound (${oldRef} -> ${newRef}), 1 lost (${goneRef})`);
+		expect(out.text).toContain(
+			`Refs: 1 kept, 1 rebound (${oldRef} -> ${newRef}), 1 lost (${goneRef})`
+		);
 
 		// The old ref keeps resolving to the replacement.
-		expect(registry.resolve(oldRef)).toMatchObject({ element: fresh, ref: newRef, rebound: true, previous: oldRef });
+		expect(registry.resolve(oldRef)).toMatchObject({
+			element: fresh,
+			ref: newRef,
+			rebound: true,
+			previous: oldRef
+		});
 		expect(registry.resolve(goneRef)).toBeNull();
 		expect(registry.resolve(keptRef)?.element).toBe(h1);
 
@@ -376,7 +474,10 @@ describe('ui_wait_for_hmr', () => {
 	it('falls back to a DOM-mutation heuristic without any HMR source', async () => {
 		const t = new HmrTracker({ hot: null, storage: null, pluginInfo: () => null });
 		document.body.append(h('div', { id: 'app' }));
-		const pending = uiWaitForHmr({ files: ['Card.svelte'] }, { tracker: t, registry: new RefRegistry(), settle: noSettle });
+		const pending = uiWaitForHmr(
+			{ files: ['Card.svelte'] },
+			{ tracker: t, registry: new RefRegistry(), settle: noSettle }
+		);
 		await Promise.resolve();
 		document.getElementById('app')!.append(h('p', {}, 'changed'));
 		const out = await pending;
@@ -386,11 +487,18 @@ describe('ui_wait_for_hmr', () => {
 	});
 
 	it('validates args and clamps the timeout', async () => {
-		await expect(uiWaitForHmr({ files: [1] }, { tracker })).rejects.toThrow('"files" must be an array of strings');
-		await expect(uiWaitForHmr({ since: 'yesterday' }, { tracker })).rejects.toThrow('"since" must be a number');
+		await expect(uiWaitForHmr({ files: [1] }, { tracker })).rejects.toThrow(
+			'"files" must be an array of strings'
+		);
+		await expect(uiWaitForHmr({ since: 'yesterday' }, { tracker })).rejects.toThrow(
+			'"since" must be a number'
+		);
 
 		vi.useFakeTimers();
-		const pending = uiWaitForHmr({ timeoutMs: 999_999 }, { tracker, now: () => clock, settle: noSettle });
+		const pending = uiWaitForHmr(
+			{ timeoutMs: 999_999 },
+			{ tracker, now: () => clock, settle: noSettle }
+		);
 		const assertion = expect(pending).rejects.toThrow(`within ${MAX_HMR_TIMEOUT_MS / 1000}s`);
 		await vi.advanceTimersByTimeAsync(MAX_HMR_TIMEOUT_MS - 10);
 		expect(tracker.waiterCount).toBe(1);
@@ -400,11 +508,19 @@ describe('ui_wait_for_hmr', () => {
 
 	it('goes through dispatchRuntimeCommand with ok:false on timeout', async () => {
 		vi.useFakeTimers();
-		const outcome = dispatchRuntimeCommand('ui_wait_for_hmr', { timeoutMs: 50 }, {
-			ui_wait_for_hmr: (args) => uiWaitForHmr(args, { tracker, now: () => clock, settle: noSettle })
-		});
+		const outcome = dispatchRuntimeCommand(
+			'ui_wait_for_hmr',
+			{ timeoutMs: 50 },
+			{
+				ui_wait_for_hmr: (args) =>
+					uiWaitForHmr(args, { tracker, now: () => clock, settle: noSettle })
+			}
+		);
 		await vi.advanceTimersByTimeAsync(60);
-		await expect(outcome).resolves.toMatchObject({ ok: false, error: expect.stringContaining('No HMR update at all within 0.05s') });
+		await expect(outcome).resolves.toMatchObject({
+			ok: false,
+			error: expect.stringContaining('No HMR update at all within 0.05s')
+		});
 	});
 
 	it('persists the log so since works across a full reload', async () => {
@@ -413,8 +529,16 @@ describe('ui_wait_for_hmr', () => {
 		hot.emit('vite:beforeFullReload', { type: 'full-reload', triggeredBy: '/app/src/main.ts' });
 		expect(JSON.parse(storage.getItem(HMR_LOG_STORAGE_KEY)!)).toHaveLength(1);
 
-		const reloaded = new HmrTracker({ hot: new FakeHot(), storage, now: () => 4_000, pluginInfo: () => null });
-		const out = await uiWaitForHmr({ since: 2_500 }, { tracker: reloaded, now: () => 4_000, settle: noSettle, registry: new RefRegistry() });
+		const reloaded = new HmrTracker({
+			hot: new FakeHot(),
+			storage,
+			now: () => 4_000,
+			pluginInfo: () => null
+		});
+		const out = await uiWaitForHmr(
+			{ since: 2_500 },
+			{ tracker: reloaded, now: () => 4_000, settle: noSettle, registry: new RefRegistry() }
+		);
 		expect(out.data).toMatchObject({ status: 'full-reload', updated: ['/app/src/main.ts'] });
 		expect(out.text).toContain('fully reloaded');
 	});

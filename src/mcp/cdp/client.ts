@@ -49,7 +49,9 @@ export function parseCdpUrl(raw: string): CdpConfig {
 		throw new Error(`Invalid --cdp URL "${raw}": expected e.g. http://127.0.0.1:9222`);
 	}
 	if (!ALLOWED_PROTOCOLS.has(url.protocol)) {
-		throw new Error(`Invalid --cdp URL "${raw}": use http://, https:// or ws:// (e.g. http://127.0.0.1:9222)`);
+		throw new Error(
+			`Invalid --cdp URL "${raw}": use http://, https:// or ws:// (e.g. http://127.0.0.1:9222)`
+		);
 	}
 	if (!isLoopbackHostname(url.hostname)) {
 		throw new Error(
@@ -127,9 +129,18 @@ export interface PickedTarget {
  * ignores the hash and a trailing slash. Among several matches the one whose
  * title equals `title` wins. `null` when no page target matches.
  */
-export function pickTarget(targets: readonly CdpTarget[], tabUrl: string, title?: string): PickedTarget | null {
+export function pickTarget(
+	targets: readonly CdpTarget[],
+	tabUrl: string,
+	title?: string
+): PickedTarget | null {
 	const pages = targets.filter(
-		(t) => t && t.type === 'page' && typeof t.url === 'string' && typeof t.webSocketDebuggerUrl === 'string' && t.webSocketDebuggerUrl
+		(t) =>
+			t &&
+			t.type === 'page' &&
+			typeof t.url === 'string' &&
+			typeof t.webSocketDebuggerUrl === 'string' &&
+			t.webSocketDebuggerUrl
 	);
 	let matches = pages.filter((t) => t.url === tabUrl);
 	if (matches.length === 0) {
@@ -148,12 +159,18 @@ export function pickTarget(targets: readonly CdpTarget[], tabUrl: string, title?
 export interface WebSocketLike {
 	send(data: string): void;
 	close(): void;
-	addEventListener(type: 'open' | 'message' | 'error' | 'close', listener: (event: { data?: unknown; message?: string }) => void): void;
+	addEventListener(
+		type: 'open' | 'message' | 'error' | 'close',
+		listener: (event: { data?: unknown; message?: string }) => void
+	): void;
 }
 
 export type WebSocketFactory = (url: string) => WebSocketLike;
 
-export type FetchLike = (url: string, init?: { signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+export type FetchLike = (
+	url: string,
+	init?: { signal?: AbortSignal }
+) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 /** Node's global `WebSocket` (Node 22+). */
 export const defaultWebSocketFactory: WebSocketFactory = (url) => {
@@ -189,7 +206,9 @@ export class CdpSession implements CdpSessionLike {
 	) {
 		ws.addEventListener('message', (event) => this.onMessage(event.data));
 		ws.addEventListener('close', () => this.onClose('CDP connection closed'));
-		ws.addEventListener('error', (event) => this.onClose(`CDP connection error${event?.message ? `: ${event.message}` : ''}`));
+		ws.addEventListener('error', (event) =>
+			this.onClose(`CDP connection error${event?.message ? `: ${event.message}` : ''}`)
+		);
 	}
 
 	/** Open a WebSocket to `url` and resolve once it is open. */
@@ -228,9 +247,15 @@ export class CdpSession implements CdpSessionLike {
 			);
 			ws.addEventListener('open', () => finish(null));
 			ws.addEventListener('error', (event) =>
-				finish(new Error(`Could not open the CDP WebSocket ${url}${event?.message ? `: ${event.message}` : ''}`))
+				finish(
+					new Error(
+						`Could not open the CDP WebSocket ${url}${event?.message ? `: ${event.message}` : ''}`
+					)
+				)
 			);
-			ws.addEventListener('close', () => finish(new Error(`CDP WebSocket ${url} closed before opening`)));
+			ws.addEventListener('close', () =>
+				finish(new Error(`CDP WebSocket ${url} closed before opening`))
+			);
 		});
 	}
 
@@ -238,7 +263,11 @@ export class CdpSession implements CdpSessionLike {
 		return this.pending.size;
 	}
 
-	send<T = unknown>(method: string, params: Record<string, unknown> = {}, timeoutMs: number = this.timeoutMs): Promise<T> {
+	send<T = unknown>(
+		method: string,
+		params: Record<string, unknown> = {},
+		timeoutMs: number = this.timeoutMs
+	): Promise<T> {
 		if (this.closed) return Promise.reject(new Error(`CDP ${method} failed: connection closed`));
 		const id = ++this.nextId;
 		return new Promise<T>((resolve, reject) => {
@@ -252,7 +281,9 @@ export class CdpSession implements CdpSessionLike {
 			} catch (err) {
 				clearTimeout(timer);
 				this.pending.delete(id);
-				reject(new Error(`CDP ${method} failed: ${err instanceof Error ? err.message : String(err)}`));
+				reject(
+					new Error(`CDP ${method} failed: ${err instanceof Error ? err.message : String(err)}`)
+				);
 			}
 		});
 	}
@@ -280,7 +311,10 @@ export class CdpSession implements CdpSessionLike {
 		this.pending.delete(message.id);
 		clearTimeout(call.timer);
 		if (message.error) {
-			const detail = typeof message.error.message === 'string' ? message.error.message : JSON.stringify(message.error);
+			const detail =
+				typeof message.error.message === 'string'
+					? message.error.message
+					: JSON.stringify(message.error);
 			call.reject(new Error(`CDP ${call.method} failed: ${detail}`));
 		} else {
 			call.resolve(message.result ?? {});
@@ -304,12 +338,16 @@ export interface CdpConnectOptions {
 }
 
 /** `GET <cdp>/json/list`. */
-export async function listTargets(config: CdpConfig, options: CdpConnectOptions = {}): Promise<CdpTarget[]> {
+export async function listTargets(
+	config: CdpConfig,
+	options: CdpConnectOptions = {}
+): Promise<CdpTarget[]> {
 	const fetchImpl = options.fetch ?? (globalThis.fetch as unknown as FetchLike);
 	const timeoutMs = options.timeoutMs ?? DEFAULT_CDP_TIMEOUT_MS;
 	let body: unknown;
 	try {
-		const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
+		const signal =
+			typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
 		const res = await fetchImpl(`${config.httpUrl}/json/list`, signal ? { signal } : undefined);
 		if (!res.ok) throw new Error(`HTTP ${res.status}`);
 		body = await res.json();
@@ -352,8 +390,13 @@ export async function connectToTab(
 	} catch {
 		throw new Error(`Invalid webSocketDebuggerUrl "${wsUrl}" from ${config.httpUrl}`);
 	}
-	if ((parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') || !isLoopbackHostname(parsed.hostname)) {
-		throw new Error(`Refusing CDP WebSocket "${wsUrl}": only ws:// on 127.0.0.1, localhost or [::1] is allowed`);
+	if (
+		(parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') ||
+		!isLoopbackHostname(parsed.hostname)
+	) {
+		throw new Error(
+			`Refusing CDP WebSocket "${wsUrl}": only ws:// on 127.0.0.1, localhost or [::1] is allowed`
+		);
 	}
 	const session = await CdpSession.connect(wsUrl, options);
 	return { session, target: picked.target, ambiguous: picked.ambiguous };

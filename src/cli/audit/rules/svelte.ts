@@ -50,7 +50,8 @@ const SANITIZER = /(?:sanitize|purify|escape|dompurify|xss)/i;
 function isLiteralExpression(expr: Node | undefined): boolean {
 	if (!expr) return false;
 	if (expr.type === 'Literal') return true;
-	if (expr.type === 'TemplateLiteral') return Array.isArray(expr.expressions) && expr.expressions.length === 0;
+	if (expr.type === 'TemplateLiteral')
+		return Array.isArray(expr.expressions) && expr.expressions.length === 0;
 	return false;
 }
 
@@ -114,7 +115,8 @@ function isRelativeOrSafeHref(href: string): boolean {
 function targetBlankRule(element: Node, text: string, sink: FindingSink): void {
 	if (element.name !== 'a' && element.name !== 'area') return;
 	const target = attribute(element, 'target');
-	if (!target.present || target.value === null || target.value.trim().toLowerCase() !== '_blank') return;
+	if (!target.present || target.value === null || target.value.trim().toLowerCase() !== '_blank')
+		return;
 	if (hasSpread(element)) return;
 	const rel = attribute(element, 'rel');
 	if (rel.present && (rel.value === null || /\bno(?:opener|referrer)\b/i.test(rel.value))) return;
@@ -140,7 +142,11 @@ function inlineHandlerRule(element: Node, text: string, sink: FindingSink): void
 	for (const attr of attrs) {
 		if (attr.type !== 'Attribute' || !/^on[a-z]+$/i.test(String(attr.name))) continue;
 		const value = attr.value;
-		if (!Array.isArray(value) || !value.some((v) => isNode(v) && v.type === 'Text' && String(v.data ?? '').trim())) continue;
+		if (
+			!Array.isArray(value) ||
+			!value.some((v) => isNode(v) && v.type === 'Text' && String(v.data ?? '').trim())
+		)
+			continue;
 		sink.add(
 			'svelte/inline-handler-string',
 			attr.start,
@@ -161,7 +167,8 @@ function regexHtmlRule(text: string, sink: FindingSink): void {
 		const close = matchBracket(text, open);
 		if (close === -1) continue;
 		const expr = text.slice(open + m[0].length, close - 1).trim();
-		if (/^(['"])[\s\S]*\1$/.test(expr) || /^`[^`$]*`$/.test(expr) || isSanitizerCall(expr)) continue;
+		if (/^(['"])[\s\S]*\1$/.test(expr) || /^`[^`$]*`$/.test(expr) || isSanitizerCall(expr))
+			continue;
 		reportHtml(sink, open, expr);
 	}
 }
@@ -181,11 +188,14 @@ export function svelteRules(file: SourceFile, ctx: RuleContext): FindingSink {
 	try {
 		ast = ctx.parseSvelte(text, { modern: true, filename: file.rel });
 	} catch (err) {
-		ctx.notes.push(`${file.rel}: Svelte parse error (${(err as Error).message.split('\n')[0]}); {@html} checked with the regex fallback, attribute rules skipped.`);
+		ctx.notes.push(
+			`${file.rel}: Svelte parse error (${(err as Error).message.split('\n')[0]}); {@html} checked with the regex fallback, attribute rules skipped.`
+		);
 		regexHtmlRule(text, sink);
 		return sink;
 	}
-	const fragment = (ast as { fragment?: unknown; html?: unknown }).fragment ?? (ast as { html?: unknown }).html;
+	const fragment =
+		(ast as { fragment?: unknown; html?: unknown }).fragment ?? (ast as { html?: unknown }).html;
 	walk(fragment, (node) => {
 		if (node.type === 'HtmlTag' || node.type === 'RawMustacheTag') {
 			const expr = isNode(node.expression) ? node.expression : undefined;

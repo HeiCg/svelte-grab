@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { CommandChannel, MAX_COMMAND_TIMEOUT_MS, type RuntimeCommandMessage } from '../src/mcp/runtime/command-channel.js';
+import {
+	CommandChannel,
+	MAX_COMMAND_TIMEOUT_MS,
+	type RuntimeCommandMessage
+} from '../src/mcp/runtime/command-channel.js';
 import { TabRegistry } from '../src/mcp/runtime/tab-registry.js';
 import {
 	forwardProfile,
@@ -11,7 +15,11 @@ import {
 	MAX_PROFILE_MS,
 	UI_PROFILE_ACTIONS
 } from '../src/mcp/runtime/profile-tool.js';
-import { registerRuntimeTools, type McpToolConfig, type McpToolHandler } from '../src/mcp/runtime/tools.js';
+import {
+	registerRuntimeTools,
+	type McpToolConfig,
+	type McpToolHandler
+} from '../src/mcp/runtime/tools.js';
 import * as page from '../src/lib/runtime/profile.js';
 
 function hello(tabId: string) {
@@ -54,7 +62,10 @@ describe('ui_profile (server)', () => {
 						id: msg.id,
 						tabId: msg.targetTabId,
 						ok: true,
-						result: { text: 'HOT HotFixture 90 mutations in 1.5s (burst x2)', data: { verdict: 'HOT' } }
+						result: {
+							text: 'HOT HotFixture 90 mutations in 1.5s (burst x2)',
+							data: { verdict: 'HOT' }
+						}
 					})
 				);
 				return 1;
@@ -66,7 +77,12 @@ describe('ui_profile (server)', () => {
 			return send(tool, args, opts);
 		};
 		const action = { ref: 'e3', type: 'click', repeat: 2 };
-		const out = await forwardProfile(channel, { durationMs: 1_500, action, component: 'HotFixture', tabId: 'a' });
+		const out = await forwardProfile(channel, {
+			durationMs: 1_500,
+			action,
+			component: 'HotFixture',
+			tabId: 'a'
+		});
 		expect(sent[0]).toMatchObject({
 			targetTabId: 'a',
 			tool: 'ui_profile',
@@ -90,7 +106,12 @@ describe('ui_profile (server)', () => {
 			registry,
 			broadcast: (msg) => {
 				queueMicrotask(() =>
-					channel.settle({ id: msg.id, tabId: msg.targetTabId, ok: false, error: 'Unknown action ref "e9"' })
+					channel.settle({
+						id: msg.id,
+						tabId: msg.targetTabId,
+						ok: false,
+						error: 'Unknown action ref "e9"'
+					})
 				);
 				return 1;
 			}
@@ -104,15 +125,25 @@ describe('ui_profile (server)', () => {
 	it('registers with a description pointing agents at ui_verify and explaining mutations vs re-renders', () => {
 		const tools = new Map<string, { config: McpToolConfig; handler: McpToolHandler }>();
 		const channel = new CommandChannel({ registry: new TabRegistry(), broadcast: () => 1 });
-		registerProfileTool({ registerTool: (name, config, handler) => tools.set(name, { config, handler }) }, fakeZ, {
-			channel,
-			tabIdHint: 'hint'
-		});
+		registerProfileTool(
+			{ registerTool: (name, config, handler) => tools.set(name, { config, handler }) },
+			fakeZ,
+			{
+				channel,
+				tabIdHint: 'hint'
+			}
+		);
 		const { config } = tools.get('ui_profile')!;
 		expect(config.title).toBeTruthy();
 		expect(config.description).toMatch(/^Use after ui_verify/);
 		expect(config.description).toContain('Svelte 5 has no component re-renders');
-		expect(Object.keys(config.inputSchema!)).toEqual(['durationMs', 'action', 'component', 'ref', 'tabId']);
+		expect(Object.keys(config.inputSchema!)).toEqual([
+			'durationMs',
+			'action',
+			'component',
+			'ref',
+			'tabId'
+		]);
 	});
 
 	it('registerRuntimeTools includes ui_profile', () => {

@@ -141,8 +141,7 @@ function updateFiles(payload: unknown): string[] {
 function errorRecordParts(payload: unknown): { files: string[]; message: string } {
 	const err = isObject(payload) && isObject(payload.err) ? payload.err : {};
 	const loc = isObject(err.loc) ? err.loc : {};
-	const file =
-		typeof err.id === 'string' ? err.id : typeof loc.file === 'string' ? loc.file : '';
+	const file = typeof err.id === 'string' ? err.id : typeof loc.file === 'string' ? loc.file : '';
 	let message = typeof err.message === 'string' ? err.message : 'Unknown Vite error';
 	if (typeof err.plugin === 'string') message = `[${err.plugin}] ${message}`;
 	if (file && !message.includes(file)) {
@@ -410,7 +409,8 @@ export class HmrTracker {
 	private push(record: HmrRecord): void {
 		this.load();
 		this.records.push(record);
-		if (this.records.length > HMR_LOG_SIZE) this.records.splice(0, this.records.length - HMR_LOG_SIZE);
+		if (this.records.length > HMR_LOG_SIZE)
+			this.records.splice(0, this.records.length - HMR_LOG_SIZE);
 		this.persist();
 		for (const waiter of [...this.waiters]) {
 			if (record.at >= waiter.after && recordMatches(record, waiter.files)) waiter.resolve(record);
@@ -475,7 +475,9 @@ export class HmrTracker {
 		const MO = (globalThis as { MutationObserver?: typeof MutationObserver }).MutationObserver;
 		if (!doc?.body || !MO) {
 			return Promise.reject(
-				new Error('No HMR source available: no import.meta.hot, no svelte-grab/vite plugin, no DOM.')
+				new Error(
+					'No HMR source available: no import.meta.hot, no svelte-grab/vite plugin, no DOM.'
+				)
 			);
 		}
 		return new Promise<HmrRecord>((resolve, reject) => {
@@ -516,9 +518,7 @@ export class HmrTracker {
 	private timeoutText(options: Pick<WaitForOptions, 'files' | 'timeoutMs' | 'after'>): string {
 		const seconds = Number((options.timeoutMs / 1000).toFixed(3));
 		const what =
-			options.files && options.files.length > 0
-				? `touching ${options.files.join(', ')}`
-				: 'at all';
+			options.files && options.files.length > 0 ? `touching ${options.files.join(', ')}` : 'at all';
 		const source = this.source;
 		let text = `No HMR update ${what} within ${seconds}s (source: ${source}).`;
 		if (source === 'heuristic') {
@@ -528,7 +528,10 @@ export class HmrTracker {
 		const recent = this.records.slice(-3);
 		if (recent.length > 0) {
 			text += ` Recent updates: ${recent
-				.map((r) => `${r.kind} ${r.files.join(', ') || '(no files)'} at ${new Date(r.at).toISOString()}`)
+				.map(
+					(r) =>
+						`${r.kind} ${r.files.join(', ') || '(no files)'} at ${new Date(r.at).toISOString()}`
+				)
 				.join('; ')}.`;
 		}
 		if (this.pending) text += ' An update is still being applied.';
@@ -715,7 +718,9 @@ async function summarize(
 				'Add svelte-grab/vite to your Vite plugins for exact HMR tracking.'
 		);
 	} else {
-		lines.push(`HMR update applied (source: ${source}): ${updated.join(', ') || '(no files reported)'}`);
+		lines.push(
+			`HMR update applied (source: ${source}): ${updated.join(', ') || '(no files reported)'}`
+		);
 	}
 	for (const e of errors) lines.push(`  error: ${e}`);
 	lines.push(formatRebind(report));

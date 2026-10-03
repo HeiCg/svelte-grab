@@ -15,7 +15,17 @@ import { lstatSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { isCodeFile, isEnvFile } from './source.js';
 
-export const DEFAULT_IGNORES = ['node_modules', 'dist', 'build', '.svelte-kit', '.git', 'coverage', '.vercel', '.netlify', '.output'];
+export const DEFAULT_IGNORES = [
+	'node_modules',
+	'dist',
+	'build',
+	'.svelte-kit',
+	'.git',
+	'coverage',
+	'.vercel',
+	'.netlify',
+	'.output'
+];
 export const DEFAULT_MAX_FILE_SIZE = 1024 * 1024;
 
 interface IgnoreRule {
@@ -47,7 +57,13 @@ function globToRegex(glob: string): string {
 			const end = glob.indexOf(']', i + 1);
 			if (end === -1) re += '\\[';
 			else {
-				re += '[' + glob.slice(i + 1, end).replace(/^!/, '^').replace(/\\/g, '\\\\') + ']';
+				re +=
+					'[' +
+					glob
+						.slice(i + 1, end)
+						.replace(/^!/, '^')
+						.replace(/\\/g, '\\\\') +
+					']';
 				i = end;
 			}
 		} else if (ch === '\\' && i + 1 < glob.length) {

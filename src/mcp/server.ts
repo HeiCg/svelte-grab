@@ -13,8 +13,17 @@ import {
 	type SecurityOptions
 } from '../utils/security.js';
 import { TabRegistry } from './runtime/tab-registry.js';
-import { CommandChannel, type RuntimeCommandMessage, type SendOptions } from './runtime/command-channel.js';
-import { parseHelloPayload, parseResultPayload, isPlainObject, type RuntimeResultData } from './runtime/validate.js';
+import {
+	CommandChannel,
+	type RuntimeCommandMessage,
+	type SendOptions
+} from './runtime/command-channel.js';
+import {
+	parseHelloPayload,
+	parseResultPayload,
+	isPlainObject,
+	type RuntimeResultData
+} from './runtime/validate.js';
 import { registerRuntimeTools, type McpToolServer, type ZodNamespace } from './runtime/tools.js';
 import { resolveCdpConfig, type CdpConfig } from './cdp/client.js';
 import { registerSkillPrompts, type McpPromptServer } from './prompts.js';
@@ -51,7 +60,9 @@ interface ListenInfo {
  */
 function readPackageVersion(): string {
 	try {
-		const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
+		const pkg = JSON.parse(
+			readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
+		) as {
 			name?: unknown;
 			version?: unknown;
 		};
@@ -296,7 +307,10 @@ function respondTooLarge(req: IncomingMessage, res: ServerResponse): void {
  * (413 too large, 400 invalid JSON). Returns `undefined` after writing the
  * error response.
  */
-async function readJsonBody(req: IncomingMessage, res: ServerResponse): Promise<{ data: unknown } | undefined> {
+async function readJsonBody(
+	req: IncomingMessage,
+	res: ServerResponse
+): Promise<{ data: unknown } | undefined> {
 	let body: string;
 	try {
 		body = await readBody(req);
@@ -376,14 +390,19 @@ async function handleMcpProtocol(req: IncomingMessage, res: ServerResponse): Pro
 			respondTooLarge(req, res);
 		} else {
 			// Same JSON-RPC parse error the SDK returns for a malformed body.
-			sendJson(res, 400, { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error: Invalid JSON' }, id: null });
+			sendJson(res, 400, {
+				jsonrpc: '2.0',
+				error: { code: -32700, message: 'Parse error: Invalid JSON' },
+				id: null
+			});
 		}
 		return;
 	}
 
 	try {
 		const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
-		const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
+		const { StreamableHTTPServerTransport } =
+			await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
 		const { z } = await import('zod');
 
 		const server = new McpServer({
@@ -431,7 +450,7 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 			description:
 				'Waits for the user to select a component in the browser and send context via svelte-grab. ' +
 				'This tool BLOCKS until the user Alt+Clicks an element and submits their prompt. ' +
-				'Returns the component context (file paths, component stack, HTML) plus the user\'s instruction. ' +
+				"Returns the component context (file paths, component stack, HTML) plus the user's instruction. " +
 				'Call this in a loop to continuously receive instructions from the browser. ' +
 				'The user selects a component, types what they want changed, and hits Enter — you receive everything here.'
 		},
@@ -490,7 +509,12 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 		async () => {
 			if (!storedContext) {
 				return {
-					content: [{ type: 'text', text: 'No context available. Alt+Click an element in the browser with svelte-grab active.' }]
+					content: [
+						{
+							type: 'text',
+							text: 'No context available. Alt+Click an element in the browser with svelte-grab active.'
+						}
+					]
 				};
 			}
 
@@ -518,17 +542,18 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 		async () => {
 			if (sessionHistory.length === 0) {
 				return {
-					content: [{ type: 'text', text: 'No previous actions to undo. No session history available.' }]
+					content: [
+						{ type: 'text', text: 'No previous actions to undo. No session history available.' }
+					]
 				};
 			}
 
 			const lastEntry = sessionHistory[sessionHistory.length - 1];
-			const contextInfo = lastEntry.content.length > 0
-				? `\n\nOriginal context was:\n${lastEntry.content.join('\n')}`
-				: '';
-			const promptInfo = lastEntry.prompt
-				? `\nOriginal instruction was: ${lastEntry.prompt}`
-				: '';
+			const contextInfo =
+				lastEntry.content.length > 0
+					? `\n\nOriginal context was:\n${lastEntry.content.join('\n')}`
+					: '';
+			const promptInfo = lastEntry.prompt ? `\nOriginal instruction was: ${lastEntry.prompt}` : '';
 
 			return {
 				content: [{ type: 'text', text: `Undo the last change.${promptInfo}${contextInfo}` }]
@@ -553,14 +578,20 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 			const entries = sessionHistory.slice(-20).map((entry) => {
 				const time = new Date(entry.timestamp).toLocaleTimeString();
 				const prompt = entry.prompt ? `Prompt: ${entry.prompt}` : 'No prompt';
-				const contentPreview = entry.content.length > 0
-					? `Content: ${entry.content[0].slice(0, 100)}${entry.content[0].length > 100 ? '...' : ''}`
-					: 'No content';
+				const contentPreview =
+					entry.content.length > 0
+						? `Content: ${entry.content[0].slice(0, 100)}${entry.content[0].length > 100 ? '...' : ''}`
+						: 'No content';
 				return `[${time}] ${entry.id}\n  ${prompt}\n  ${contentPreview}`;
 			});
 
 			return {
-				content: [{ type: 'text', text: `Session history (${sessionHistory.length} entries):\n\n${entries.join('\n\n')}` }]
+				content: [
+					{
+						type: 'text',
+						text: `Session history (${sessionHistory.length} entries):\n\n${entries.join('\n\n')}`
+					}
+				]
 			};
 		}
 	);
@@ -576,7 +607,12 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 			const section = extractToolSection('A11yReporter');
 			if (!section) {
 				return {
-					content: [{ type: 'text', text: 'No a11y report available. Press Alt+A in the browser to audit the page, or Alt+Shift+RightClick an element (Alt+RightClick when using SvelteA11yReporter on its own).' }]
+					content: [
+						{
+							type: 'text',
+							text: 'No a11y report available. Press Alt+A in the browser to audit the page, or Alt+Shift+RightClick an element (Alt+RightClick when using SvelteA11yReporter on its own).'
+						}
+					]
 				};
 			}
 			return { content: [{ type: 'text', text: section }] };
@@ -594,7 +630,12 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 			const section = extractToolSection('StyleGrab');
 			if (!section) {
 				return {
-					content: [{ type: 'text', text: 'No style context available. Use Alt+Ctrl+Click on an element in the browser to capture styles.' }]
+					content: [
+						{
+							type: 'text',
+							text: 'No style context available. Use Alt+Ctrl+Click on an element in the browser to capture styles.'
+						}
+					]
 				};
 			}
 			return { content: [{ type: 'text', text: section }] };
@@ -612,7 +653,12 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 			const section = extractToolSection('ErrorContext');
 			if (!section) {
 				return {
-					content: [{ type: 'text', text: 'No error context available. Errors are captured automatically when SvelteErrorContext is active.' }]
+					content: [
+						{
+							type: 'text',
+							text: 'No error context available. Errors are captured automatically when SvelteErrorContext is active.'
+						}
+					]
 				};
 			}
 			return { content: [{ type: 'text', text: section }] };
@@ -630,7 +676,12 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 			const section = extractToolSection('RenderProfiler');
 			if (!section) {
 				return {
-					content: [{ type: 'text', text: 'No profiler data available. Use Alt+P in the browser to start profiling.' }]
+					content: [
+						{
+							type: 'text',
+							text: 'No profiler data available. Use Alt+P in the browser to start profiling.'
+						}
+					]
 				};
 			}
 			return { content: [{ type: 'text', text: section }] };
@@ -641,7 +692,8 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 		'list_available_tools',
 		{
 			title: 'List available tool data',
-			description: 'Lists which svelte-grab tools have data available and when it was last captured.'
+			description:
+				'Lists which svelte-grab tools have data available and when it was last captured.'
 		},
 		async () => {
 			const tools: string[] = [];
@@ -662,7 +714,12 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 
 			if (tools.length === 0) {
 				return {
-					content: [{ type: 'text', text: 'No tool data available. Use svelte-grab tools in the browser to capture context.' }]
+					content: [
+						{
+							type: 'text',
+							text: 'No tool data available. Use svelte-grab tools in the browser to capture context.'
+						}
+					]
 				};
 			}
 
@@ -673,7 +730,11 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 	);
 
 	// Agent runtime: ui_tabs (server-only), ui_snapshot / ui_find / ui_inspect (page round trip).
-	registerRuntimeTools(server, z, { registry: tabRegistry, channel: commandChannel, cdp: () => cdpConfig });
+	registerRuntimeTools(server, z, {
+		registry: tabRegistry,
+		channel: commandChannel,
+		cdp: () => cdpConfig
+	});
 
 	// Prompts: the packaged skills (svelte-grab-loop, security-audit, performance-audit).
 	registerSkillPrompts(server, z);
@@ -728,7 +789,7 @@ function createHttpHandler(listen: ListenInfo) {
 			res.writeHead(200, {
 				'Content-Type': 'text/event-stream',
 				'Cache-Control': 'no-cache',
-				'Connection': 'keep-alive'
+				Connection: 'keep-alive'
 			});
 
 			// Send current status immediately
@@ -743,7 +804,11 @@ function createHttpHandler(listen: ListenInfo) {
 				const oldest = sseClients.values().next().value;
 				if (oldest) {
 					sseClients.delete(oldest);
-					try { oldest.end(); } catch { /* ignore */ }
+					try {
+						oldest.end();
+					} catch {
+						/* ignore */
+					}
 				}
 			}
 			sseClients.add(res);
@@ -759,7 +824,9 @@ function createHttpHandler(listen: ListenInfo) {
 			const body = await readJsonBody(req, res);
 			if (!body) return;
 			if (!isValidContextPayload(body.data)) {
-				sendJson(res, 400, { error: 'Invalid payload. Expected { content: string[], prompt?: string }' });
+				sendJson(res, 400, {
+					error: 'Invalid payload. Expected { content: string[], prompt?: string }'
+				});
 				return;
 			}
 			processIncomingContext(body.data);
@@ -822,7 +889,9 @@ function createHttpHandler(listen: ListenInfo) {
 /**
  * Start the HTTP server on the given port.
  */
-async function startHttpListener(preferredPort: number): Promise<{ close: () => void; port: number }> {
+async function startHttpListener(
+	preferredPort: number
+): Promise<{ close: () => void; port: number }> {
 	const lastPort = preferredPort + MCP_PORT_RANGE_SIZE - 1;
 	let port: number;
 	try {
@@ -857,14 +926,18 @@ async function startHttpListener(preferredPort: number): Promise<{ close: () => 
 /**
  * Start the MCP server in HTTP mode.
  */
-async function startHttpServer(preferredPort: number): Promise<{ close: () => void; port: number }> {
+async function startHttpServer(
+	preferredPort: number
+): Promise<{ close: () => void; port: number }> {
 	const { close, port } = await startHttpListener(preferredPort);
 
 	console.log(`[svelte-grab mcp] HTTP server listening on http://localhost:${port}`);
 	console.log(`[svelte-grab mcp] Health check: http://localhost:${port}/health`);
 	console.log(`[svelte-grab mcp] Context endpoint: POST http://localhost:${port}/context`);
 	console.log(`[svelte-grab mcp] SSE events: http://localhost:${port}/events`);
-	console.log(`[svelte-grab mcp] Runtime channel: POST http://localhost:${port}/runtime/hello, /runtime/result`);
+	console.log(
+		`[svelte-grab mcp] Runtime channel: POST http://localhost:${port}/runtime/hello, /runtime/result`
+	);
 	logSecurityBanner('mcp', security);
 
 	return { close, port };
@@ -893,12 +966,18 @@ async function startStdioServer(httpPort: number): Promise<void> {
 	try {
 		const { port } = await startHttpListener(httpPort);
 		// Log to stderr since stdout is used by stdio transport.
-		console.error(`[svelte-grab mcp] Sidecar HTTP on http://localhost:${port} (loopback only, Origin-checked).`);
+		console.error(
+			`[svelte-grab mcp] Sidecar HTTP on http://localhost:${port} (loopback only, Origin-checked).`
+		);
 		if (security.token) {
-			console.error(`[svelte-grab mcp] Sidecar token: ${security.token} (present via ?token= or x-svelte-grab-token).`);
+			console.error(
+				`[svelte-grab mcp] Sidecar token: ${security.token} (present via ?token= or x-svelte-grab-token).`
+			);
 		}
 	} catch {
-		console.error(`[svelte-grab mcp] Warning: Could not start sidecar HTTP server on port ${httpPort}`);
+		console.error(
+			`[svelte-grab mcp] Warning: Could not start sidecar HTTP server on port ${httpPort}`
+		);
 	}
 
 	const transport = new StdioServerTransport();
@@ -911,7 +990,9 @@ async function startStdioServer(httpPort: number): Promise<void> {
  * and starts a sidecar HTTP server for browser context.
  * In HTTP mode, starts an HTTP server with /health, /context, /events, and /mcp endpoints.
  */
-export async function startMcpServer(options: McpServerOptions = {}): Promise<{ close: () => void; port: number } | void> {
+export async function startMcpServer(
+	options: McpServerOptions = {}
+): Promise<{ close: () => void; port: number } | void> {
 	const { port = DEFAULT_MCP_PORT, stdio = false } = options;
 
 	// Resolve security config (Origin allowlist + optional token) from

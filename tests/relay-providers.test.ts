@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { ClaudeCodeProvider, type ClaudeAgentSDK, type ClaudeSdkMessage } from '../src/relay/providers/claude-code';
+import {
+	ClaudeCodeProvider,
+	type ClaudeAgentSDK,
+	type ClaudeSdkMessage
+} from '../src/relay/providers/claude-code';
 import {
 	CodexProvider,
 	type CodexClient,
@@ -23,7 +27,11 @@ function recorder() {
 	};
 }
 
-const ctx = (prompt: string) => ({ content: ['<Button> src/Button.svelte:3'], prompt, selectedCount: 1 });
+const ctx = (prompt: string) => ({
+	content: ['<Button> src/Button.svelte:3'],
+	prompt,
+	selectedCount: 1
+});
 
 describe('ClaudeCodeProvider (async generator query API)', () => {
 	function fakeSdk(runs: ClaudeSdkMessage[][]) {
@@ -44,8 +52,17 @@ describe('ClaudeCodeProvider (async generator query API)', () => {
 		const { sdk, calls } = fakeSdk([
 			[
 				{ type: 'system', subtype: 'init', session_id: 'sess-1' },
-				{ type: 'assistant', session_id: 'sess-1', message: { content: [{ type: 'text', text: 'Editing Button' }] } },
-				{ type: 'result', subtype: 'success', session_id: 'sess-1', result: 'Made the button bigger' }
+				{
+					type: 'assistant',
+					session_id: 'sess-1',
+					message: { content: [{ type: 'text', text: 'Editing Button' }] }
+				},
+				{
+					type: 'result',
+					subtype: 'success',
+					session_id: 'sess-1',
+					result: 'Made the button bigger'
+				}
 			],
 			[{ type: 'result', subtype: 'success', session_id: 'sess-1', result: 'ok' }]
 		]);
@@ -68,7 +85,9 @@ describe('ClaudeCodeProvider (async generator query API)', () => {
 	});
 
 	it('reports a non-success result as an error', async () => {
-		const { sdk } = fakeSdk([[{ type: 'result', subtype: 'error_max_turns', errors: ['Reached max turns'] }]]);
+		const { sdk } = fakeSdk([
+			[{ type: 'result', subtype: 'error_max_turns', errors: ['Reached max turns'] }]
+		]);
 		const r = recorder();
 		await new ClaudeCodeProvider(sdk).handleRequest('s', ctx('x'), r.callbacks);
 		expect(r.done).toEqual([]);
@@ -110,7 +129,10 @@ describe('CodexProvider (Codex class + awaited runStreamed)', () => {
 			[
 				{ type: 'thread.started', thread_id: 'th-1' },
 				{ type: 'item.completed', item: { type: 'reasoning', text: 'thinking' } },
-				{ type: 'item.completed', item: { type: 'agent_message', text: 'Done: padding increased' } },
+				{
+					type: 'item.completed',
+					item: { type: 'agent_message', text: 'Done: padding increased' }
+				},
 				{ type: 'turn.completed' }
 			],
 			[{ type: 'item.completed', item: { type: 'agent_message', text: 'ok' } }]
@@ -128,7 +150,9 @@ describe('CodexProvider (Codex class + awaited runStreamed)', () => {
 	});
 
 	it('reports turn.failed as an error', async () => {
-		const { client } = fakeClient([[{ type: 'turn.failed', error: { message: 'sandbox denied' } }]]);
+		const { client } = fakeClient([
+			[{ type: 'turn.failed', error: { message: 'sandbox denied' } }]
+		]);
 		const r = recorder();
 		await new CodexProvider(client).handleRequest('s', ctx('x'), r.callbacks);
 		expect(r.done).toEqual([]);

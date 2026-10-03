@@ -11,7 +11,15 @@
  * - `storage/token-in-web-storage`: tokens written to localStorage /
  *   sessionStorage under token-ish key names.
  */
-import { decodeJwt, findSecrets, isHighEntropyToken, redact, sensitiveKeyKind, type SecretKind, type SecretMatch } from '../secrets.js';
+import {
+	decodeJwt,
+	findSecrets,
+	isHighEntropyToken,
+	redact,
+	sensitiveKeyKind,
+	type SecretKind,
+	type SecretMatch
+} from '../secrets.js';
 import {
 	functionBodyAfter,
 	lineAt,
@@ -38,8 +46,25 @@ const SERVER_SECRET_KINDS = new Set<SecretKind>([
 	'slack-webhook'
 ]);
 
-const SECRET_NAME_KINDS = new Set(['api-key', 'secret', 'private-key', 'password', 'token', 'jwt', 'authorization']);
-const STORAGE_KEY_KINDS = new Set(['token', 'jwt', 'authorization', 'session', 'api-key', 'secret', 'password', 'private-key']);
+const SECRET_NAME_KINDS = new Set([
+	'api-key',
+	'secret',
+	'private-key',
+	'password',
+	'token',
+	'jwt',
+	'authorization'
+]);
+const STORAGE_KEY_KINDS = new Set([
+	'token',
+	'jwt',
+	'authorization',
+	'session',
+	'api-key',
+	'secret',
+	'password',
+	'private-key'
+]);
 
 function isPublicJwt(m: SecretMatch): boolean {
 	if (m.kind !== 'jwt') return false;
@@ -148,7 +173,13 @@ function evalRule(code: string, sink: FindingSink): void {
 
 const ORIGIN_CHECK = /\borigin\b/;
 
-function checkMessageHandler(code: string, handlerStart: number, offset: number, sink: FindingSink, evidenceText: string): void {
+function checkMessageHandler(
+	code: string,
+	handlerStart: number,
+	offset: number,
+	sink: FindingSink,
+	evidenceText: string
+): void {
 	const rest = code.slice(handlerStart);
 	const ident = /^([A-Za-z_$][\w$]*)\s*(?:[,)]|$)/.exec(rest);
 	let body: string | null;
@@ -174,7 +205,8 @@ function checkMessageHandler(code: string, handlerStart: number, offset: number,
 }
 
 function postMessageRule(code: string, sink: FindingSink): void {
-	const listener = /(?:\b(?:window|self|globalThis)\s*\.\s*|(?<![\w$.]))addEventListener\s*\(\s*(['"`])message\1\s*,\s*/g;
+	const listener =
+		/(?:\b(?:window|self|globalThis)\s*\.\s*|(?<![\w$.]))addEventListener\s*\(\s*(['"`])message\1\s*,\s*/g;
 	for (const m of code.matchAll(listener)) {
 		const at = m.index ?? 0;
 		checkMessageHandler(code, at + m[0].length, at, sink, lineAt(code, at));
@@ -226,18 +258,21 @@ function storageRule(code: string, sink: FindingSink): void {
 			'Web Storage is readable by any script on the origin (one XSS steals it). Keep session tokens in HttpOnly, Secure, SameSite cookies set by the server.'
 		);
 	};
-	const setItemLiteral = /\b(localStorage|sessionStorage)\s*\.\s*setItem\s*\(\s*(['"`])([^'"`]+)\2/g;
+	const setItemLiteral =
+		/\b(localStorage|sessionStorage)\s*\.\s*setItem\s*\(\s*(['"`])([^'"`]+)\2/g;
 	for (const m of code.matchAll(setItemLiteral)) {
 		const kind = sensitiveKeyKind(m[3]);
 		if (kind && STORAGE_KEY_KINDS.has(kind)) report(m.index ?? 0, m[1], m[3], false);
 	}
-	const setItemIdent = /\b(localStorage|sessionStorage)\s*\.\s*setItem\s*\(\s*([A-Za-z_$][\w$.]*)\s*,/g;
+	const setItemIdent =
+		/\b(localStorage|sessionStorage)\s*\.\s*setItem\s*\(\s*([A-Za-z_$][\w$.]*)\s*,/g;
 	for (const m of code.matchAll(setItemIdent)) {
 		const name = m[2].split('.').pop() ?? m[2];
 		const kind = sensitiveKeyKind(name);
 		if (kind && STORAGE_KEY_KINDS.has(kind)) report(m.index ?? 0, m[1], m[2], true);
 	}
-	const assign = /\b(localStorage|sessionStorage)\s*(?:\.\s*([A-Za-z_$][\w$]*)|\[\s*(['"`])([^'"`]+)\3\s*\])\s*=(?!=)/g;
+	const assign =
+		/\b(localStorage|sessionStorage)\s*(?:\.\s*([A-Za-z_$][\w$]*)|\[\s*(['"`])([^'"`]+)\3\s*\])\s*=(?!=)/g;
 	for (const m of code.matchAll(assign)) {
 		const key = m[2] ?? m[4];
 		if (!key || key === 'setItem') continue;

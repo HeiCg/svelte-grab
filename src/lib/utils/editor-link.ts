@@ -141,7 +141,8 @@ export function buildEditorUrl(
 
 	let absolutePath: string;
 
-	const isAbsoluteSystemPath = file.startsWith('/') &&
+	const isAbsoluteSystemPath =
+		file.startsWith('/') &&
 		!file.startsWith('/.') &&
 		(file.startsWith('/Users/') || file.startsWith('/home/') || file.match(/^\/[a-zA-Z]\//));
 
@@ -149,14 +150,12 @@ export function buildEditorUrl(
 		absolutePath = file;
 	} else if (root) {
 		const relativePath = file.startsWith('/') ? file : `/${file}`;
-		absolutePath = root.endsWith('/')
-			? root.slice(0, -1) + relativePath
-			: root + relativePath;
+		absolutePath = root.endsWith('/') ? root.slice(0, -1) + relativePath : root + relativePath;
 	} else {
 		console.warn(
 			`[SvelteGrab] Could not auto-detect project root for relative path "${file}". ` +
-			`Set the "projectRoot" prop to your project's absolute path. ` +
-			`Example: <SvelteGrab projectRoot="/Users/you/my-project" />`
+				`Set the "projectRoot" prop to your project's absolute path. ` +
+				`Example: <SvelteGrab projectRoot="/Users/you/my-project" />`
 		);
 		absolutePath = file.startsWith('/') ? file : `/${file}`;
 	}

@@ -100,7 +100,9 @@ test.describe('SvelteDevKit — dev-mode activation', () => {
 		await page.keyboard.press('Escape');
 		await altKey(page, '?');
 		const help = page.locator('[role="dialog"][aria-label="SvelteDevKit Keyboard Shortcuts"]');
-		await expect(help.locator('tr', { hasText: 'State Inspector' })).toContainText('Alt+Meta+Click');
+		await expect(help.locator('tr', { hasText: 'State Inspector' })).toContainText(
+			'Alt+Meta+Click'
+		);
 	});
 
 	test('Alt+Ctrl+Click and Alt+Meta+Click open only their tool, not SvelteGrab', async ({

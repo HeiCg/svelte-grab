@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync, statSync } from 'fs';
+import {
+	mkdtempSync,
+	mkdirSync,
+	writeFileSync,
+	readFileSync,
+	existsSync,
+	rmSync,
+	readdirSync,
+	statSync
+} from 'fs';
 import { tmpdir } from 'os';
 import { join, relative } from 'path';
 import { init, parseInitArgs } from '../src/cli/init.js';
@@ -49,7 +58,11 @@ function tree(): Record<string, string> {
 function kitProject(deps: Record<string, string> = {}) {
 	write(
 		'package.json',
-		JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.20.0', svelte: '^5.40.0', ...deps } }, null, 2)
+		JSON.stringify(
+			{ devDependencies: { '@sveltejs/kit': '^2.20.0', svelte: '^5.40.0', ...deps } },
+			null,
+			2
+		)
 	);
 	write('vite.config.ts', KIT_VITE);
 }
@@ -134,7 +147,11 @@ describe('init: SvelteKit', () => {
 		]);
 
 		const mcp = JSON.parse(read('.mcp.json'));
-		expect(mcp.mcpServers['svelte-grab']).toEqual({ type: 'stdio', command: 'npx', args: ['svelte-grab-mcp', '--stdio'] });
+		expect(mcp.mcpServers['svelte-grab']).toEqual({
+			type: 'stdio',
+			command: 'npx',
+			args: ['svelte-grab-mcp', '--stdio']
+		});
 		expect(mcp.mcpServers.svelte.args).toEqual(['-y', '@sveltejs/mcp']);
 		expect(mcp.mcpServers.playwright).toBeUndefined();
 
@@ -161,7 +178,14 @@ describe('init: SvelteKit', () => {
 
 	it('merges into an existing .mcp.json without clobbering entries', () => {
 		kitProject();
-		write('.mcp.json', JSON.stringify({ mcpServers: { svelte: { type: 'http', url: 'https://mcp.svelte.dev/mcp' } } }, null, 2));
+		write(
+			'.mcp.json',
+			JSON.stringify(
+				{ mcpServers: { svelte: { type: 'http', url: 'https://mcp.svelte.dev/mcp' } } },
+				null,
+				2
+			)
+		);
 		const result = init(dir, { playwrightMcp: true });
 		expect(result.mcpServersAdded).toEqual(['svelte-grab', 'playwright']);
 		const mcp = JSON.parse(read('.mcp.json'));
@@ -171,7 +195,9 @@ describe('init: SvelteKit', () => {
 
 	it('keeps an existing svelte-grab server and still enables MCP in the layout', () => {
 		kitProject();
-		const custom = { mcpServers: { 'svelte-grab': { command: 'node', args: ['dist/mcp/cli.js', '--stdio'] } } };
+		const custom = {
+			mcpServers: { 'svelte-grab': { command: 'node', args: ['dist/mcp/cli.js', '--stdio'] } }
+		};
 		write('.mcp.json', JSON.stringify(custom, null, 2));
 		const result = init(dir, { svelteMcp: false });
 		expect(result.mcpServersAdded).toEqual([]);
@@ -215,27 +241,36 @@ describe('init: SvelteKit', () => {
 		const result = init(dir);
 		expect(result.vitePlugin).toBe('manual');
 		expect(read('vite.config.ts')).toBe(custom);
-		expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain("import { svelteGrab } from 'svelte-grab/vite'");
+		expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
+			"import { svelteGrab } from 'svelte-grab/vite'"
+		);
 	});
 
 	it('reports a missing vite config', () => {
-		write('package.json', JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.0.0', svelte: '^5.40.0' } }));
+		write(
+			'package.json',
+			JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.0.0', svelte: '^5.40.0' } })
+		);
 		expect(init(dir).vitePlugin).toBe('missing');
 	});
 
 	it('injects into an existing layout', () => {
 		kitProject();
-		write('src/routes/+layout.svelte', '<script lang="ts">\n\tlet { children } = $props();\n</script>\n\n{@render children()}\n');
+		write(
+			'src/routes/+layout.svelte',
+			'<script lang="ts">\n\tlet { children } = $props();\n</script>\n\n{@render children()}\n'
+		);
 		const result = init(dir);
 		expect(result.layout).toBe('modified');
 		const layout = read('src/routes/+layout.svelte');
-		expect(layout).toContain("<script lang=\"ts\">\n\timport { dev } from '$app/environment';");
+		expect(layout).toContain('<script lang="ts">\n\timport { dev } from \'$app/environment\';');
 		expect(layout.trimEnd().endsWith('{#if dev}\n\t<SvelteDevKit enableMcp />\n{/if}')).toBe(true);
 	});
 
 	it('hints at enableMcp when svelte-grab is already in the layout without it', () => {
 		kitProject();
-		const layout = "<script>\n\timport { SvelteDevKit } from 'svelte-grab';\n</script>\n\n<SvelteDevKit />\n";
+		const layout =
+			"<script>\n\timport { SvelteDevKit } from 'svelte-grab';\n</script>\n\n<SvelteDevKit />\n";
 		write('src/routes/+layout.svelte', layout);
 		const result = init(dir);
 		expect(result.layout).toBe('already-present');
@@ -290,7 +325,9 @@ describe('init: plain Vite + Svelte', () => {
 		write('vite.config.js', PLAIN_VITE);
 		const result = init(dir);
 		expect(result.layout).toBe('manual');
-		expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain('<SvelteDevKit enableMcp />');
+		expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
+			'<SvelteDevKit enableMcp />'
+		);
 	});
 });
 
@@ -313,7 +350,10 @@ describe('init: errors', () => {
 	});
 
 	it('warns but continues for Svelte 5 below 5.35.1', () => {
-		write('package.json', JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.0.0', svelte: '^5.20.0' } }));
+		write(
+			'package.json',
+			JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.0.0', svelte: '^5.20.0' } })
+		);
 		expect(init(dir).ok).toBe(true);
 		expect(vi.mocked(console.warn).mock.calls.flat().join('\n')).toContain('5.35.1');
 	});

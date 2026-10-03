@@ -41,7 +41,9 @@ describe('skill finding schema accepts svelte-grab audit findings', () => {
 
 	it('rejects a finding with an unknown severity (schema $ref is followed)', () => {
 		const bad = {
-			findings: [{ id: 'x', severity: 'critical', verdict: 'confirmed', title: 't', evidence: 'e', fix: 'f' }]
+			findings: [
+				{ id: 'x', severity: 'critical', verdict: 'confirmed', title: 't', evidence: 'e', fix: 'f' }
+			]
 		};
 		expect(validateAgainstSchema(bad, skillSchema).valid).toBe(false);
 	});

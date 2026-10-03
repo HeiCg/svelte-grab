@@ -19,7 +19,9 @@ export function lineDiff(before: string, after: string): string[] {
 	const split = (s: string) => (s === '' ? [] : s.replace(/\n$/, '').split('\n'));
 	const a = split(before);
 	const b = split(after);
-	const lcs: number[][] = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+	const lcs: number[][] = Array.from({ length: a.length + 1 }, () =>
+		new Array<number>(b.length + 1).fill(0)
+	);
 	for (let i = a.length - 1; i >= 0; i--) {
 		for (let j = b.length - 1; j >= 0; j--) {
 			lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
@@ -105,7 +107,13 @@ function detectIndent(json: string): string | number {
  */
 export function mergeMcpJson(existing: string | null, options: McpJsonOptions): McpJsonResult {
 	const source = existing ?? '';
-	const fail = (error: string): McpJsonResult => ({ content: source, changed: false, added: [], kept: [], error });
+	const fail = (error: string): McpJsonResult => ({
+		content: source,
+		changed: false,
+		added: [],
+		kept: [],
+		error
+	});
 
 	let data: Record<string, unknown> = {};
 	if (source.trim()) {
@@ -281,7 +289,10 @@ function scriptOpen(content: string | null, options: LayoutOptions): string {
  * gated by `dev` from `$app/environment` (still the dev flag in Kit 2 and 3).
  * Creates the layout when `existing` is null/empty.
  */
-export function injectKitLayout(existing: string | null, options: LayoutOptions = {}): LayoutResult {
+export function injectKitLayout(
+	existing: string | null,
+	options: LayoutOptions = {}
+): LayoutResult {
 	const tag = devKitTag(options);
 	if (!existing || !existing.trim()) {
 		const content = `${scriptOpen(null, options)}
@@ -304,7 +315,10 @@ export function injectKitLayout(existing: string | null, options: LayoutOptions 
 	let content = existing;
 	if (INSTANCE_SCRIPT.test(content)) {
 		const children = content.includes('children') ? '' : '\n\tlet { children } = $props();';
-		content = content.replace(INSTANCE_SCRIPT, `$1\n\t${DEV_IMPORT_LINE}\n\t${IMPORT_LINE}${children}`);
+		content = content.replace(
+			INSTANCE_SCRIPT,
+			`$1\n\t${DEV_IMPORT_LINE}\n\t${IMPORT_LINE}${children}`
+		);
 	} else {
 		content =
 			`${scriptOpen(content, options)}\n\t${DEV_IMPORT_LINE}\n\t${IMPORT_LINE}\n\tlet { children } = $props();\n</script>\n\n` +

@@ -12,7 +12,17 @@ export interface ConfigureOptions {
 	dryRun?: boolean;
 }
 
-const EDITORS = ['vscode', 'cursor', 'webstorm', 'zed', 'sublime', 'idea', 'phpstorm', 'pycharm', 'none'];
+const EDITORS = [
+	'vscode',
+	'cursor',
+	'webstorm',
+	'zed',
+	'sublime',
+	'idea',
+	'phpstorm',
+	'pycharm',
+	'none'
+];
 
 async function prompt(question: string, defaultValue?: string): Promise<string> {
 	const rl = createInterface({ input: process.stdin, output: process.stdout });

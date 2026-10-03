@@ -106,7 +106,9 @@ export function parseAuditArgs(args: string[]): AuditCliArgs {
 			case '--min-severity': {
 				const level = value(true)!;
 				if (!(LEVELS as readonly string[]).includes(level)) {
-					throw new UsageError(`--min-severity must be one of ${LEVELS.join(', ')} (got "${level}")`);
+					throw new UsageError(
+						`--min-severity must be one of ${LEVELS.join(', ')} (got "${level}")`
+					);
 				}
 				out.minSeverity = level as AuditCliArgs['minSeverity'];
 				break;
@@ -166,7 +168,9 @@ export function runAuditCli(args: string[], io: AuditCliIO = defaultAuditIO()): 
 
 	const validation = validateAuditReport(result);
 	if (!validation.valid) {
-		io.stderr(`[svelte-grab] internal error: report does not match its schema:\n  ${validation.errors.slice(0, 10).join('\n  ')}\n`);
+		io.stderr(
+			`[svelte-grab] internal error: report does not match its schema:\n  ${validation.errors.slice(0, 10).join('\n  ')}\n`
+		);
 		return 2;
 	}
 

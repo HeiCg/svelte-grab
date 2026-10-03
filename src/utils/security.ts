@@ -85,7 +85,10 @@ export function resolveSecurityConfig(options: SecurityOptions = {}): SecurityCo
  * is treated as allowed: browsers always send Origin, so absence implies a
  * non-browser caller, which the token (if enabled) is the real defense against.
  */
-export function isOriginAllowed(origin: string | undefined | null, config: SecurityConfig): boolean {
+export function isOriginAllowed(
+	origin: string | undefined | null,
+	config: SecurityConfig
+): boolean {
 	if (!origin) return true; // no Origin -> non-browser local caller
 
 	const normalized = origin.toLowerCase().replace(/\/$/, '');
@@ -118,7 +121,10 @@ export function isOriginAllowed(origin: string | undefined | null, config: Secur
  * Validate a presented token against the configured one.
  * If token auth is disabled (config.token === null) this always passes.
  */
-export function isTokenValid(presented: string | undefined | null, config: SecurityConfig): boolean {
+export function isTokenValid(
+	presented: string | undefined | null,
+	config: SecurityConfig
+): boolean {
 	if (config.token === null) return true; // token auth disabled
 	return typeof presented === 'string' && presented === config.token;
 }
@@ -128,13 +134,21 @@ export function isTokenValid(presented: string | undefined | null, config: Secur
  * `label` is the server name, e.g. "relay" or "mcp".
  */
 export function logSecurityBanner(label: string, config: SecurityConfig): void {
-	console.log(`[svelte-grab ${label}] Bound to loopback (${LOOPBACK_HOST}) — do NOT expose this port to a network.`);
-	console.log(`[svelte-grab ${label}] Origin check: ON (localhost origins allowed${config.allowedOrigins.length ? ` + ${config.allowedOrigins.length} configured` : ''}).`);
+	console.log(
+		`[svelte-grab ${label}] Bound to loopback (${LOOPBACK_HOST}) — do NOT expose this port to a network.`
+	);
+	console.log(
+		`[svelte-grab ${label}] Origin check: ON (localhost origins allowed${config.allowedOrigins.length ? ` + ${config.allowedOrigins.length} configured` : ''}).`
+	);
 	if (config.token) {
-		console.log(`[svelte-grab ${label}] Token auth: ON. Present it via ?token=<TOKEN> or ${TOKEN_HEADER} header.`);
+		console.log(
+			`[svelte-grab ${label}] Token auth: ON. Present it via ?token=<TOKEN> or ${TOKEN_HEADER} header.`
+		);
 		console.log(`[svelte-grab ${label}] TOKEN: ${config.token}`);
 	} else {
-		console.log(`[svelte-grab ${label}] Token auth: OFF (set ${TOKEN_ENV} to enable). Local non-browser processes are NOT blocked.`);
+		console.log(
+			`[svelte-grab ${label}] Token auth: OFF (set ${TOKEN_ENV} to enable). Local non-browser processes are NOT blocked.`
+		);
 	}
 }
 

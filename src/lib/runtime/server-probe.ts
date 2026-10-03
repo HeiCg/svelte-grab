@@ -56,14 +56,21 @@ export async function isSvelteGrabMcp(
 	}
 }
 
-async function probe(host: string, port: number, options: ResolveMcpPortOptions, doFetch: FetchFn): Promise<number | null> {
+async function probe(
+	host: string,
+	port: number,
+	options: ResolveMcpPortOptions,
+	doFetch: FetchFn
+): Promise<number | null> {
 	const timeoutMs = options.timeoutMs ?? HEALTH_CHECK_TIMEOUT_MS;
 	if (await isSvelteGrabMcp(host, port, doFetch, timeoutMs)) return port;
 
 	const candidates: number[] = [];
 	for (let p = port + 1; p < port + MCP_PORT_RANGE_SIZE && p <= 65535; p++) candidates.push(p);
 	// In parallel so a hanging port costs one timeout, not one per port.
-	const hits = await Promise.all(candidates.map((p) => isSvelteGrabMcp(host, p, doFetch, timeoutMs)));
+	const hits = await Promise.all(
+		candidates.map((p) => isSvelteGrabMcp(host, p, doFetch, timeoutMs))
+	);
 	const index = hits.indexOf(true);
 	if (index === -1) return null;
 
@@ -79,7 +86,10 @@ async function probe(host: string, port: number, options: ResolveMcpPortOptions,
  * svelte-grab port in `port + 1 .. port + MCP_PORT_RANGE_SIZE - 1`, else `port`
  * (nothing found; callers keep retrying it as before).
  */
-export async function resolveMcpPort(port: number, options: ResolveMcpPortOptions = {}): Promise<number> {
+export async function resolveMcpPort(
+	port: number,
+	options: ResolveMcpPortOptions = {}
+): Promise<number> {
 	const doFetch: FetchFn | undefined =
 		options.fetch ?? (typeof fetch === 'function' ? (i, init) => fetch(i, init) : undefined);
 	if (!doFetch) return port;

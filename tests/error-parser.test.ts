@@ -135,8 +135,8 @@ describe('parseStackTrace - general behavior', () => {
 		].join('\n');
 		const frames = parseStackTrace(stack);
 		// "Error: boom" is not a frame; only the two `at` lines parse.
-		expect(frames.map(f => f.functionName)).toEqual(['a', 'b']);
-		expect(frames.map(f => f.line)).toEqual([1, 2]);
+		expect(frames.map((f) => f.functionName)).toEqual(['a', 'b']);
+		expect(frames.map((f) => f.line)).toEqual([1, 2]);
 	});
 
 	it('returns [] for empty input', () => {

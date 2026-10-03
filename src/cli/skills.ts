@@ -13,7 +13,15 @@
  * blocked by default in modern package managers, so this runs only when asked.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmdirSync,
+	unlinkSync,
+	writeFileSync
+} from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 import { packagedSkillsDir, packageVersion, readSkillFiles } from '../utils/packaged-skills.js';
 import {
@@ -64,7 +72,11 @@ function stringFlag(args: string[], name: string): string | undefined {
 }
 
 /** Skill flags shared by `init` and `skills install`. */
-export function parseSkillsFlags(args: string[]): { skills: boolean; skillsDir: string; forceSkills: boolean } {
+export function parseSkillsFlags(args: string[]): {
+	skills: boolean;
+	skillsDir: string;
+	forceSkills: boolean;
+} {
 	return {
 		skills: !args.includes('--no-skills'),
 		skillsDir: normalizeSkillsDir(stringFlag(args, 'skills-dir')),
@@ -81,7 +93,13 @@ function projectReader(cwd: string): (rel: string) => string | null {
 }
 
 /** Plan against the project in `cwd` (shared by install and list). */
-function planForProject(cwd: string, files: readonly SkillFile[], skillsDir: string, force: boolean, version?: string): SkillsPlan {
+function planForProject(
+	cwd: string,
+	files: readonly SkillFile[],
+	skillsDir: string,
+	force: boolean,
+	version?: string
+): SkillsPlan {
 	return planSkillsInstall(files, projectReader(cwd), {
 		skillsDir,
 		force,
@@ -103,7 +121,10 @@ function removeSkillFile(cwd: string, skillsDir: string, rel: string): void {
  * Install (or update) the skills into `cwd`. Prints one line per change.
  * Returns `ok: false` only when the packaged skills cannot be found.
  */
-export function installSkills(cwd: string, options: SkillsInstallOptions = {}): SkillsInstallResult {
+export function installSkills(
+	cwd: string,
+	options: SkillsInstallOptions = {}
+): SkillsInstallResult {
 	const skillsDir = normalizeSkillsDir(options.skillsDir);
 	const result: SkillsInstallResult = {
 		ok: false,
@@ -119,7 +140,9 @@ export function installSkills(cwd: string, options: SkillsInstallOptions = {}): 
 	if (!files) {
 		const dir = packagedSkillsDir();
 		if (!dir) {
-			console.error('[svelte-grab] Packaged skills not found (expected skills/ next to dist/). Skipping skills.');
+			console.error(
+				'[svelte-grab] Packaged skills not found (expected skills/ next to dist/). Skipping skills.'
+			);
 			return result;
 		}
 		files = readSkillFiles(dir);
@@ -139,10 +162,14 @@ export function installSkills(cwd: string, options: SkillsInstallOptions = {}): 
 
 	const verb = (now: string, would: string) => (options.dryRun ? would : now);
 	for (const file of plan.files) {
-		if (file.action === 'create') console.log(`[svelte-grab] ${verb('Added', 'Would add')} ${file.path}`);
+		if (file.action === 'create')
+			console.log(`[svelte-grab] ${verb('Added', 'Would add')} ${file.path}`);
 		else if (file.action === 'updated') {
-			console.log(`[svelte-grab] ${verb('Updated', 'Would update')} ${file.path} (not edited since the last install)`);
-		} else if (file.action === 'overwrite') console.log(`[svelte-grab] ${verb('Overwrote', 'Would overwrite')} ${file.path}`);
+			console.log(
+				`[svelte-grab] ${verb('Updated', 'Would update')} ${file.path} (not edited since the last install)`
+			);
+		} else if (file.action === 'overwrite')
+			console.log(`[svelte-grab] ${verb('Overwrote', 'Would overwrite')} ${file.path}`);
 		else if (file.action === 'conflict') {
 			console.log(
 				file.writePath
@@ -151,14 +178,20 @@ export function installSkills(cwd: string, options: SkillsInstallOptions = {}): 
 					: `[svelte-grab] ${file.path} differs from the packaged version; ${file.path}.new is already up to date.`
 			);
 		} else if (file.action === 'removed') {
-			console.log(`[svelte-grab] ${verb('Removed', 'Would remove')} ${file.path} (no longer shipped, not edited)`);
+			console.log(
+				`[svelte-grab] ${verb('Removed', 'Would remove')} ${file.path} (no longer shipped, not edited)`
+			);
 		} else if (file.action === 'orphaned') {
-			console.log(`[svelte-grab] ${file.path} is no longer shipped but you edited it: left in place. Delete it when done.`);
+			console.log(
+				`[svelte-grab] ${file.path} is no longer shipped but you edited it: left in place. Delete it when done.`
+			);
 		}
 	}
 	const unchanged = plan.files.filter((f) => f.action === 'unchanged').length;
 	if (unchanged === plan.files.length) {
-		console.log(`[svelte-grab] Skills already up to date in ${skillsDir}/ (${plan.skills.join(', ')}).`);
+		console.log(
+			`[svelte-grab] Skills already up to date in ${skillsDir}/ (${plan.skills.join(', ')}).`
+		);
 	}
 	if (!options.dryRun) {
 		for (const write of plan.writes) save(write.path, write.content);
@@ -174,7 +207,9 @@ export function installSkills(cwd: string, options: SkillsInstallOptions = {}): 
 		const pointer = appendAgentsMdPointer(agents, skillsDir, plan.skills);
 		result.agentsMd = pointer.changed ? 'appended' : 'already-present';
 		if (pointer.changed) {
-			console.log(`[svelte-grab] ${verb('Added', 'Would add')} a svelte-grab skills pointer to AGENTS.md`);
+			console.log(
+				`[svelte-grab] ${verb('Added', 'Would add')} a svelte-grab skills pointer to AGENTS.md`
+			);
 			if (!options.dryRun) save('AGENTS.md', pointer.content);
 		}
 	}
@@ -202,7 +237,10 @@ export const SKILL_STATUS_LABELS: Record<SkillFileAction, string> = {
 export function listSkills(files: readonly SkillFile[], plan?: SkillsPlan): string[] {
 	const lines: string[] = [];
 	const prefix = plan ? plan.manifestPath.slice(0, plan.manifestPath.lastIndexOf('/') + 1) : '';
-	const statuses = (plan?.files ?? []).map((f) => ({ rel: f.path.slice(prefix.length), action: f.action }));
+	const statuses = (plan?.files ?? []).map((f) => ({
+		rel: f.path.slice(prefix.length),
+		action: f.action
+	}));
 	const listed = new Set<string>();
 	for (const file of files) {
 		if (file.path !== `${file.skill}/SKILL.md`) continue;
@@ -212,14 +250,17 @@ export function listSkills(files: readonly SkillFile[], plan?: SkillsPlan): stri
 		if (description) lines.push(`  ${description}`);
 		for (const status of statuses) {
 			if (!status.rel.startsWith(`${file.skill}/`)) continue;
-			lines.push(`  - ${status.rel.slice(file.skill.length + 1)}: ${SKILL_STATUS_LABELS[status.action]}`);
+			lines.push(
+				`  - ${status.rel.slice(file.skill.length + 1)}: ${SKILL_STATUS_LABELS[status.action]}`
+			);
 			listed.add(status.rel);
 		}
 	}
 	const rest = statuses.filter((s) => !listed.has(s.rel));
 	if (rest.length) {
 		lines.push('No longer shipped');
-		for (const status of rest) lines.push(`  - ${status.rel}: ${SKILL_STATUS_LABELS[status.action]}`);
+		for (const status of rest)
+			lines.push(`  - ${status.rel}: ${SKILL_STATUS_LABELS[status.action]}`);
 	}
 	return lines;
 }
@@ -247,8 +288,11 @@ export function runSkillsCommand(args: string[], cwd: string = process.cwd()): n
 		}
 		const { skillsDir } = parseSkillsFlags(args);
 		const files = readSkillFiles(dir);
-		console.log(`[svelte-grab] Packaged skills (svelte-grab ${packageVersion() ?? 'unknown'}) vs ${skillsDir}/:`);
-		for (const line of listSkills(files, planForProject(cwd, files, skillsDir, false))) console.log(line);
+		console.log(
+			`[svelte-grab] Packaged skills (svelte-grab ${packageVersion() ?? 'unknown'}) vs ${skillsDir}/:`
+		);
+		for (const line of listSkills(files, planForProject(cwd, files, skillsDir, false)))
+			console.log(line);
 		return 0;
 	}
 
@@ -261,6 +305,8 @@ export function runSkillsCommand(args: string[], cwd: string = process.cwd()): n
 		return result.ok ? 0 : 1;
 	}
 
-	console.error(`[svelte-grab] Unknown skills command "${sub}". Use: svelte-grab skills install|list|path`);
+	console.error(
+		`[svelte-grab] Unknown skills command "${sub}". Use: svelte-grab skills install|list|path`
+	);
 	return 1;
 }

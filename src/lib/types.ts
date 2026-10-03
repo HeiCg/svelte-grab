@@ -105,7 +105,16 @@ export interface SvelteGrabProps {
 	/** Include HTML preview in output. Default: true */
 	includeHtml?: boolean;
 	/** Editor to open files in. Default: 'vscode' */
-	editor?: 'vscode' | 'cursor' | 'webstorm' | 'zed' | 'sublime' | 'idea' | 'phpstorm' | 'pycharm' | 'none';
+	editor?:
+		| 'vscode'
+		| 'cursor'
+		| 'webstorm'
+		| 'zed'
+		| 'sublime'
+		| 'idea'
+		| 'phpstorm'
+		| 'pycharm'
+		| 'none';
 	/** Enable Cmd+C / Ctrl+C to copy in selection mode. Default: true */
 	copyOnKeyboard?: boolean;
 	/** Enable screenshot capture (requires html-to-image). Default: true */
@@ -580,7 +589,16 @@ export interface SvelteDevKitProps {
 	theme?: ThemeConfig;
 	lightTheme?: boolean;
 	enabledTools?: DevKitTool[];
-	editor?: 'vscode' | 'cursor' | 'webstorm' | 'zed' | 'sublime' | 'idea' | 'phpstorm' | 'pycharm' | 'none';
+	editor?:
+		| 'vscode'
+		| 'cursor'
+		| 'webstorm'
+		| 'zed'
+		| 'sublime'
+		| 'idea'
+		| 'phpstorm'
+		| 'pycharm'
+		| 'none';
 	projectRoot?: string;
 	/** Plugins to register. Default: [] */
 	plugins?: SvelteGrabPlugin[];

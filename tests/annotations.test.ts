@@ -25,7 +25,10 @@ describe('AnnotationStore', () => {
 	it('numbers annotations #1, #2 and keeps targets out of list()', () => {
 		const store = new AnnotationStore<string>();
 		const a = store.add({ comment: '  make it bold  ', refs: [ref(1)], targets: ['el1'] }, 1000);
-		const b = store.add({ comment: 'green', refs: [ref(2), ref(3)], targets: ['el2', 'el3'] }, 2000);
+		const b = store.add(
+			{ comment: 'green', refs: [ref(2), ref(3)], targets: ['el2', 'el3'] },
+			2000
+		);
 		expect(a).toEqual({ id: 1, comment: 'make it bold', refs: [ref(1)], createdAt: 1000 });
 		expect(b!.id).toBe(2);
 		expect(store.size).toBe(2);
@@ -186,7 +189,21 @@ describe('isAnnotationKey', () => {
 describe('hotkeys gating', () => {
 	it("'full' (and the default) keeps every SvelteGrab hotkey and tool trigger", () => {
 		for (const mode of ['full', undefined] as const) {
-			for (const key of ['point', 'multi', 'region', 'escape', 'annotate', 'prompt', 'open', 'screenshot', 'relayPrompt', 'help', 'arrows', 'copy', 'contextMenu'] as const) {
+			for (const key of [
+				'point',
+				'multi',
+				'region',
+				'escape',
+				'annotate',
+				'prompt',
+				'open',
+				'screenshot',
+				'relayPrompt',
+				'help',
+				'arrows',
+				'copy',
+				'contextMenu'
+			] as const) {
 				expect(isGrabHotkeyEnabled(mode, key)).toBe(true);
 			}
 			expect(toolHotkeysEnabled(mode)).toBe(true);
@@ -195,7 +212,16 @@ describe('hotkeys gating', () => {
 
 	it("'minimal' keeps only point, multi, region, escape and annotate", () => {
 		const on = ['point', 'multi', 'region', 'escape', 'annotate'] as const;
-		const off = ['prompt', 'open', 'screenshot', 'relayPrompt', 'help', 'arrows', 'copy', 'contextMenu'] as const;
+		const off = [
+			'prompt',
+			'open',
+			'screenshot',
+			'relayPrompt',
+			'help',
+			'arrows',
+			'copy',
+			'contextMenu'
+		] as const;
 		for (const key of on) expect(isGrabHotkeyEnabled('minimal', key)).toBe(true);
 		for (const key of off) expect(isGrabHotkeyEnabled('minimal', key)).toBe(false);
 		expect(toolHotkeysEnabled('minimal')).toBe(false);

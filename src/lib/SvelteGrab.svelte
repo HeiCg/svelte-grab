@@ -54,11 +54,7 @@
 	} from './runtime/connection.js';
 	import { resolveMcpPort } from './runtime/server-probe.js';
 	import { releaseEarlyNetworkCapture } from './runtime/network.js';
-	import {
-		annotationStore,
-		addAnnotation,
-		refreshAnnotationRefs
-	} from './runtime/annotations.js';
+	import { annotationStore, addAnnotation, refreshAnnotationRefs } from './runtime/annotations.js';
 	import {
 		formatAnnotationsForAgent,
 		MAX_ANNOTATIONS,
@@ -92,12 +88,7 @@
 	import DevToolButton from './ui/DevToolButton.svelte';
 	import { resolveTheme } from './utils/resolve-theme.js';
 	import { createCopyFeedback } from './utils/copy-with-feedback.js';
-	import {
-		COPY_SUCCESS_MS,
-		Z_INDEX,
-		RADIUS,
-		FONT_FAMILY_MONO
-	} from './ui/tokens.js';
+	import { COPY_SUCCESS_MS, Z_INDEX, RADIUS, FONT_FAMILY_MONO } from './ui/tokens.js';
 	import {
 		detectDevMode,
 		shortenPath as sharedShortenPath,
@@ -161,8 +152,7 @@
 	/** Whether a right-click is another tool's trigger (see `reservedContextMenuModifiers`). */
 	function isReservedContextMenu(event: MouseEvent): boolean {
 		return (
-			isReservedClick(event) ||
-			hasReservedModifier(event, reservedContextMenuModifiers, modifier)
+			isReservedClick(event) || hasReservedModifier(event, reservedContextMenuModifiers, modifier)
 		);
 	}
 
@@ -388,9 +378,10 @@
 	 * Copy history entry to clipboard
 	 */
 	function copyHistoryEntry(entry: HistoryEntry): void {
-		const formatted = entry.stack.length > 0
-			? `${entry.htmlPreview}\nDefined in: ${shortenPath(entry.stack[0].file)}:${entry.stack[0].line}`
-			: 'No component info';
+		const formatted =
+			entry.stack.length > 0
+				? `${entry.htmlPreview}\nDefined in: ${shortenPath(entry.stack[0].file)}:${entry.stack[0].line}`
+				: 'No component info';
 		copyToClipboard(formatted);
 	}
 
@@ -464,10 +455,18 @@
 	// Shared copy-feedback controller: drives `copied` / `copyFailed` and owns the
 	// auto-clear timeouts (COPY_SUCCESS_MS / COPY_FAILURE_MS) the design system uses.
 	const copyFb = createCopyFeedback({
-		get copied() { return copied; },
-		set copied(v) { copied = v; },
-		get copyFailed() { return copyFailed; },
-		set copyFailed(v) { copyFailed = v; }
+		get copied() {
+			return copied;
+		},
+		set copied(v) {
+			copied = v;
+		},
+		get copyFailed() {
+			return copyFailed;
+		},
+		set copyFailed(v) {
+			copyFailed = v;
+		}
 	});
 
 	function copyToClipboard(text: string): Promise<boolean> {
@@ -503,8 +502,8 @@
 		} catch {
 			console.error(
 				'[SvelteGrab] html-to-image not installed. Screenshots are disabled.\n' +
-				'  Install it: npm install html-to-image\n' +
-				'  Or disable screenshots: <SvelteGrab enableScreenshot={false} />'
+					'  Install it: npm install html-to-image\n' +
+					'  Or disable screenshots: <SvelteGrab enableScreenshot={false} />'
 			);
 			return null;
 		}
@@ -630,7 +629,9 @@
 			sendToMcp([formatted], promptText);
 			mcpStatus = 'sent';
 			// Reset status after 3s
-			setTimeout(() => { mcpStatus = mcpAgentListening ? 'watching' : 'idle'; }, 3000);
+			setTimeout(() => {
+				mcpStatus = mcpAgentListening ? 'watching' : 'idle';
+			}, 3000);
 		}
 
 		// Send via WebSocket relay
@@ -644,9 +645,7 @@
 
 		// Fallback: copy to clipboard if no agent transport
 		if (!enableMcp && !enableAgentRelay) {
-			const withContext = promptText
-				? `Instructions: ${promptText}\n\n${formatted}`
-				: formatted;
+			const withContext = promptText ? `Instructions: ${promptText}\n\n${formatted}` : formatted;
 			copyToClipboard(withContext);
 		}
 
@@ -719,7 +718,9 @@
 		if (enableMcp) {
 			sendToMcp([text], instruction || undefined);
 			mcpStatus = 'sent';
-			setTimeout(() => { mcpStatus = mcpAgentListening ? 'watching' : 'idle'; }, 3000);
+			setTimeout(() => {
+				mcpStatus = mcpAgentListening ? 'watching' : 'idle';
+			}, 3000);
 		}
 		annotationsSent = true;
 	}
@@ -793,12 +794,18 @@
 
 		if (!elementWithMeta) {
 			const tag = target.tagName?.toLowerCase() || 'unknown';
-			console.log(`[SvelteGrab] No Svelte component found for <${tag}>. This element may be plain HTML, rendered by a third-party library, or outside Svelte's component tree. Try clicking a parent element.`);
+			console.log(
+				`[SvelteGrab] No Svelte component found for <${tag}>. This element may be plain HTML, rendered by a third-party library, or outside Svelte's component tree. Try clicking a parent element.`
+			);
 			return;
 		}
 
 		// Plugin hook
-		pluginRegistry.executeHook('onElementGrab', elementWithMeta, getComponentStack(elementWithMeta));
+		pluginRegistry.executeHook(
+			'onElementGrab',
+			elementWithMeta,
+			getComponentStack(elementWithMeta)
+		);
 
 		// Multi-select mode: Shift + modifier + click
 		if (enableMultiSelect && event.shiftKey) {
@@ -816,7 +823,9 @@
 
 		if (stack.length === 0) {
 			const tag = elementWithMeta.tagName?.toLowerCase() || 'unknown';
-			console.log(`[SvelteGrab] No component stack found for <${tag}>. The element has Svelte metadata but no file location. Try clicking a parent element.`);
+			console.log(
+				`[SvelteGrab] No component stack found for <${tag}>. The element has Svelte metadata but no file location. Try clicking a parent element.`
+			);
 			return;
 		}
 
@@ -824,7 +833,10 @@
 		addToHistory(stack, elementWithMeta);
 
 		// Debug: log raw paths
-		console.log('[SvelteGrab] Raw paths:', stack.map(e => e.file));
+		console.log(
+			'[SvelteGrab] Raw paths:',
+			stack.map((e) => e.file)
+		);
 
 		// Auto-copy based on format preference
 		if (autoCopyFormat === 'agent') {
@@ -889,13 +901,24 @@
 		}
 
 		// Open first file in editor when "O" is pressed with popup visible
-		if ((event.key === 'o' || event.key === 'O') && visible && stack.length > 0 && hotkeyOn('open')) {
+		if (
+			(event.key === 'o' || event.key === 'O') &&
+			visible &&
+			stack.length > 0 &&
+			hotkeyOn('open')
+		) {
 			event.preventDefault();
 			openInEditor(stack[0].file, stack[0].line);
 		}
 
 		// Screenshot when "S" is pressed with popup visible
-		if ((event.key === 's' || event.key === 'S') && visible && grabbedElement && enableScreenshot && hotkeyOn('screenshot')) {
+		if (
+			(event.key === 's' || event.key === 'S') &&
+			visible &&
+			grabbedElement &&
+			enableScreenshot &&
+			hotkeyOn('screenshot')
+		) {
 			event.preventDefault();
 			captureScreenshot(grabbedElement);
 		}
@@ -907,13 +930,25 @@
 		}
 
 		// Enter to open prompt mode (when selection mode active with hovered element)
-		if (event.key === 'Enter' && selectionMode && hoveredElement && enablePromptMode && !promptMode && hotkeyOn('prompt')) {
+		if (
+			event.key === 'Enter' &&
+			selectionMode &&
+			hoveredElement &&
+			enablePromptMode &&
+			!promptMode &&
+			hotkeyOn('prompt')
+		) {
 			event.preventDefault();
 			promptMode = true;
 		}
 
 		// Alt+? to toggle help overlay
-		if ((event.key === '?' || event.key === '/') && checkModifier(event) && showPopup && hotkeyOn('help')) {
+		if (
+			(event.key === '?' || event.key === '/') &&
+			checkModifier(event) &&
+			showPopup &&
+			hotkeyOn('help')
+		) {
 			event.preventDefault();
 			showHelpOverlay = !showHelpOverlay;
 		}
@@ -949,7 +984,11 @@
 				// Show first-time hint toast
 				if (!hintShownThisSession && showActiveIndicator) {
 					hintShownThisSession = true;
-					try { sessionStorage.setItem('svelte-grab-hint-shown', '1'); } catch { /* sessionStorage unavailable (private mode / disabled) — non-fatal */ }
+					try {
+						sessionStorage.setItem('svelte-grab-hint-shown', '1');
+					} catch {
+						/* sessionStorage unavailable (private mode / disabled) — non-fatal */
+					}
 					showHintToast = true;
 					setTimeout(() => (showHintToast = false), 3000);
 				}
@@ -1013,7 +1052,14 @@
 		}
 
 		// Cmd+C / Ctrl+C to copy in selection mode
-		if (copyOnKeyboard && hotkeyOn('copy') && selectionMode && hoveredElement && (event.metaKey || event.ctrlKey) && event.key === 'c') {
+		if (
+			copyOnKeyboard &&
+			hotkeyOn('copy') &&
+			selectionMode &&
+			hoveredElement &&
+			(event.metaKey || event.ctrlKey) &&
+			event.key === 'c'
+		) {
 			event.preventDefault();
 			const hoverStack = getComponentStack(hoveredElement);
 			if (hoverStack.length > 0) {
@@ -1200,7 +1246,7 @@
 
 		// Filter visible actions
 		const allActions = [...pluginActions, ...defaultActions];
-		contextMenuActions = allActions.filter(a => !a.isVisible || a.isVisible(ctx));
+		contextMenuActions = allActions.filter((a) => !a.isVisible || a.isVisible(ctx));
 
 		contextMenuPos = { x: event.clientX, y: event.clientY };
 		contextMenuVisible = true;
@@ -1299,11 +1345,12 @@
 			return;
 		}
 
-		const content = selectedElements.length > 0
-			? [formatMultipleForAgent(selectedElements)]
-			: hoveredElement
-				? [formatForAgent(getComponentStack(hoveredElement), hoveredElement)]
-				: [];
+		const content =
+			selectedElements.length > 0
+				? [formatMultipleForAgent(selectedElements)]
+				: hoveredElement
+					? [formatForAgent(getComponentStack(hoveredElement), hoveredElement)]
+					: [];
 
 		const ctx: AgentContext = {
 			content,
@@ -1313,7 +1360,8 @@
 
 		// Plugin transform
 		const transformed = pluginRegistry.transformContent('beforeAgentSend', ctx, ctx);
-		const finalCtx = (transformed && typeof transformed === 'object') ? transformed as AgentContext : ctx;
+		const finalCtx =
+			transformed && typeof transformed === 'object' ? (transformed as AgentContext) : ctx;
 
 		agentClient.sendRequest(agentId, {
 			content: finalCtx.content,
@@ -1409,21 +1457,30 @@
 
 	onMount(() => {
 		// Check if hint was already shown this session
-		try { hintShownThisSession = sessionStorage.getItem('svelte-grab-hint-shown') === '1'; } catch { /* sessionStorage unavailable (private mode / disabled) — non-fatal */ }
+		try {
+			hintShownThisSession = sessionStorage.getItem('svelte-grab-hint-shown') === '1';
+		} catch {
+			/* sessionStorage unavailable (private mode / disabled) — non-fatal */
+		}
 
 		// Load persistent history
 		if (enableHistoryPersistence) {
 			try {
 				const persistedHistory = loadHistory();
 				for (const entry of persistedHistory) {
-					history = [...history, {
-						timestamp: entry.timestamp,
-						stack: entry.stack,
-						htmlPreview: entry.htmlPreview,
-						componentName: entry.componentName
-					}];
+					history = [
+						...history,
+						{
+							timestamp: entry.timestamp,
+							stack: entry.stack,
+							htmlPreview: entry.htmlPreview,
+							componentName: entry.componentName
+						}
+					];
 				}
-			} catch { /* persisted history unreadable/corrupt — start with empty history */ }
+			} catch {
+				/* persisted history unreadable/corrupt — start with empty history */
+			}
 		}
 
 		mountTimeoutId = setTimeout(() => {
@@ -1434,16 +1491,18 @@
 				releaseEarlyNetworkCapture();
 				console.log(
 					'[SvelteGrab] Disabled - no Svelte dev metadata found.\n' +
-					'  Possible causes:\n' +
-					'  - Production build (Svelte strips __svelte_meta in prod)\n' +
-					'  - Svelte 4 or earlier (requires Svelte 5+)\n' +
-					'  - SSR-only render (dev metadata is client-side only)\n' +
-					'  Use forceEnable={true} to override detection.'
+						'  Possible causes:\n' +
+						'  - Production build (Svelte strips __svelte_meta in prod)\n' +
+						'  - Svelte 4 or earlier (requires Svelte 5+)\n' +
+						'  - SSR-only render (dev metadata is client-side only)\n' +
+						'  Use forceEnable={true} to override detection.'
 				);
 				return;
 			}
 
-			console.log(`[SvelteGrab] Active! Use ${modifier.charAt(0).toUpperCase() + modifier.slice(1)}+Click to grab component info`);
+			console.log(
+				`[SvelteGrab] Active! Use ${modifier.charAt(0).toUpperCase() + modifier.slice(1)}+Click to grab component info`
+			);
 
 			// Register plugins
 			const { api, callbacks } = createGlobalAPI();
@@ -1727,14 +1786,17 @@
 		<div class="sg-ann-header">
 			<span class="sg-ann-title">Annotations ({annotationViews.length})</span>
 			{#if annotationsSent}
-				<span class="sg-ann-sent" aria-live="polite">{enableMcp ? 'Sent and copied' : 'Copied'}</span>
+				<span class="sg-ann-sent" aria-live="polite"
+					>{enableMcp ? 'Sent and copied' : 'Copied'}</span
+				>
 			{/if}
 			<button
 				class="sg-ann-icon-btn"
 				onclick={() => (annotationTrayCollapsed = !annotationTrayCollapsed)}
 				aria-expanded={!annotationTrayCollapsed}
 				aria-label={annotationTrayCollapsed ? 'Expand annotations' : 'Collapse annotations'}
-			>{annotationTrayCollapsed ? '▴' : '▾'}</button>
+				>{annotationTrayCollapsed ? '▴' : '▾'}</button
+			>
 		</div>
 		{#if !annotationTrayCollapsed}
 			<ol class="sg-ann-list">
@@ -1748,8 +1810,8 @@
 								class="sg-ann-icon-btn"
 								onclick={() => annotationStore.remove(id)}
 								aria-label="Delete annotation #{id}"
-								title="Delete annotation #{id}"
-							>&times;</button>
+								title="Delete annotation #{id}">&times;</button
+							>
 						</div>
 						<textarea
 							class="sg-ann-comment"
@@ -1777,9 +1839,15 @@
 		<div class="sg-ann-footer">
 			<DevToolButton
 				onclick={sendAllAnnotations}
-				title={enableMcp ? 'Copy all annotations and send them to the MCP server' : 'Copy all annotations for your agent'}
-			>Send all</DevToolButton>
-			<DevToolButton block={false} onclick={() => annotationStore.clear()} title="Delete every annotation">Clear all</DevToolButton>
+				title={enableMcp
+					? 'Copy all annotations and send them to the MCP server'
+					: 'Copy all annotations for your agent'}>Send all</DevToolButton
+			>
+			<DevToolButton
+				block={false}
+				onclick={() => annotationStore.clear()}
+				title="Delete every annotation">Clear all</DevToolButton
+			>
 		</div>
 	</div>
 {/if}
@@ -1840,7 +1908,12 @@
 
 <!-- Context menu -->
 {#if isDev && contextMenuVisible && contextMenuContext}
-	<div use:redactNode class="sg-context-overlay" onclick={() => (contextMenuVisible = false)} role="presentation">
+	<div
+		use:redactNode
+		class="sg-context-overlay"
+		onclick={() => (contextMenuVisible = false)}
+		role="presentation"
+	>
 		<div
 			class="sg-context-menu"
 			style="
@@ -1863,7 +1936,9 @@
 					<button
 						class="sg-context-item"
 						onclick={() => handleContextAction(action)}
-						disabled={action.isEnabled && contextMenuContext ? !action.isEnabled(contextMenuContext) : false}
+						disabled={action.isEnabled && contextMenuContext
+							? !action.isEnabled(contextMenuContext)
+							: false}
 						role="menuitem"
 					>
 						{#if action.icon}<span class="sg-context-icon">{action.icon}</span>{/if}
@@ -1935,10 +2010,14 @@
 		{/if}
 		{#if enableAgentRelay}
 			{#if agentHistory.length > 0}
-				<button class="sg-toolbar-btn" onclick={() => {
-					showAgentPrompt = true;
-					showAgentHistory = true;
-				}} title="Agent history ({agentHistory.length})">
+				<button
+					class="sg-toolbar-btn"
+					onclick={() => {
+						showAgentPrompt = true;
+						showAgentHistory = true;
+					}}
+					title="Agent history ({agentHistory.length})"
+				>
 					Sessions ({agentHistory.length})
 				</button>
 			{/if}
@@ -1970,12 +2049,16 @@
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="sg-prompt-container" onkeydown={(e) => e.stopPropagation()}>
 			{#if enableMcp && !annotating}
-				<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 10px;">
-					<span style="
+				<div
+					style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 10px;"
+				>
+					<span
+						style="
 						width: 6px; height: 6px; border-radius: 50%;
 						background: {mcpAgentListening ? '#22c55e' : '#ef4444'};
 						display: inline-block;
-					"></span>
+					"
+					></span>
 					<span style="color: var(--sg-text); opacity: 0.7;">
 						{#if mcpStatus === 'watching'}
 							Claude Code listening
@@ -1989,9 +2072,15 @@
 					</span>
 				</div>
 			{/if}
-			<div class="sg-prompt-header" style="color: var(--sg-text); font-size: 11px; margin-bottom: 4px; opacity: 0.7;">
+			<div
+				class="sg-prompt-header"
+				style="color: var(--sg-text); font-size: 11px; margin-bottom: 4px; opacity: 0.7;"
+			>
 				{#if annotating}
-					Annotation #{annotationNextId} ({annotationTargets.length} element{annotationTargets.length === 1 ? '' : 's'}): Enter to add, Esc to cancel
+					Annotation #{annotationNextId} ({annotationTargets.length} element{annotationTargets.length ===
+					1
+						? ''
+						: 's'}): Enter to add, Esc to cancel
 				{:else if enableMcp && mcpAgentListening}
 					Describe what to change (Cmd+Enter to send)
 				{:else}
@@ -2040,10 +2129,9 @@
 			></textarea>
 			<div style="display: flex; gap: 6px; margin-top: 6px;">
 				{#if annotating}
-					<button
-						class="sg-ann-primary-btn"
-						onclick={() => saveAnnotation(annotationTargets)}
-					>Add annotation #{annotationNextId}</button>
+					<button class="sg-ann-primary-btn" onclick={() => saveAnnotation(annotationTargets)}
+						>Add annotation #{annotationNextId}</button
+					>
 					<button class="sg-ann-secondary-btn" onclick={() => closePromptOverlay()}>Cancel</button>
 				{:else if enableMcp && mcpAgentListening}
 					<button
@@ -2057,8 +2145,8 @@
 							font-size: 11px;
 							cursor: pointer;
 							font-weight: 500;
-						"
-					>Send to Claude Code</button>
+						">Send to Claude Code</button
+					>
 				{:else if enableMcp}
 					<button
 						onclick={() => confirmPrompt()}
@@ -2073,7 +2161,8 @@
 							opacity: 0.7;
 						"
 						title="Context will be queued — start Claude Code with watch_for_grab to receive it"
-					>Send (queued)</button>
+						>Send (queued)</button
+					>
 				{:else}
 					<button
 						onclick={() => confirmPrompt()}
@@ -2085,8 +2174,8 @@
 							padding: 4px 12px;
 							font-size: 11px;
 							cursor: pointer;
-						"
-					>Copy with Context</button>
+						">Copy with Context</button
+					>
 				{/if}
 				{#if enableAgentRelay}
 					<button
@@ -2114,15 +2203,16 @@
 							padding: 4px 12px;
 							font-size: 11px;
 							cursor: pointer;
-						"
-					>Send via Relay</button>
+						">Send via Relay</button
+					>
 				{/if}
 				{#if !annotating && enableAnnotations && annotationViews.length < MAX_ANNOTATIONS}
 					<button
 						class="sg-ann-secondary-btn"
 						onclick={() => saveAnnotation(currentAnnotationTargets(true))}
 						title="Keep this as annotation #{annotationNextId} and send several together later"
-					>Add annotation</button>
+						>Add annotation</button
+					>
 				{/if}
 			</div>
 		</div>
@@ -2130,8 +2220,16 @@
 {/if}
 
 {#if isDev && showAgentPrompt}
-	<div use:redactNode class="sg-agent-overlay" onclick={() => (showAgentPrompt = false)} role="presentation">
-		<div class="sg-agent-prompt" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}
+	<div
+		use:redactNode
+		class="sg-agent-overlay"
+		onclick={() => (showAgentPrompt = false)}
+		role="presentation"
+	>
+		<div
+			class="sg-agent-prompt"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 			style="
 				--sg-bg: {colors.background};
 				--sg-border: {colors.border};
@@ -2155,13 +2253,16 @@
 				{/if}
 			</div>
 			{#if agentHistory.length > 0 && !showAgentHistory}
-				<button class="sg-agent-resume-link" onclick={() => {
-					const lastEntry = agentHistory[agentHistory.length - 1];
-					if (lastEntry) {
-						agentPromptText = '';
-						// Use resume instead of new request
-					}
-				}}>
+				<button
+					class="sg-agent-resume-link"
+					onclick={() => {
+						const lastEntry = agentHistory[agentHistory.length - 1];
+						if (lastEntry) {
+							agentPromptText = '';
+							// Use resume instead of new request
+						}
+					}}
+				>
 					Resume last session
 				</button>
 			{/if}
@@ -2170,7 +2271,9 @@
 					{#each agentHistory as entry (entry.timestamp)}
 						<div class="sg-agent-history-entry">
 							<div class="sg-agent-history-entry-header">
-								<span class="sg-agent-history-entry-time">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+								<span class="sg-agent-history-entry-time"
+									>{new Date(entry.timestamp).toLocaleTimeString()}</span
+								>
 								{#if entry.result}
 									<span class="sg-agent-history-entry-status sg-agent-history-done">done</span>
 								{:else if entry.error}
@@ -2179,19 +2282,24 @@
 							</div>
 							<div class="sg-agent-history-entry-prompt">{entry.prompt}</div>
 							{#if entry.result}
-								<div class="sg-agent-history-entry-result">{entry.result.slice(0, 200)}{entry.result.length > 200 ? '...' : ''}</div>
+								<div class="sg-agent-history-entry-result">
+									{entry.result.slice(0, 200)}{entry.result.length > 200 ? '...' : ''}
+								</div>
 							{/if}
 							{#if entry.error}
 								<div class="sg-agent-history-entry-error">{entry.error}</div>
 							{/if}
-							<button class="sg-agent-history-resume-btn" onclick={() => {
-								showAgentHistory = false;
-								agentClient?.resume(agentPromptText || 'Continue from where you left off');
-								agentStatus = 'Resuming session...';
-								agentStatusVisible = true;
-								lastAgentStatus = 'pending';
-								showAgentPrompt = false;
-							}}>Resume</button>
+							<button
+								class="sg-agent-history-resume-btn"
+								onclick={() => {
+									showAgentHistory = false;
+									agentClient?.resume(agentPromptText || 'Continue from where you left off');
+									agentStatus = 'Resuming session...';
+									agentStatusVisible = true;
+									lastAgentStatus = 'pending';
+									showAgentPrompt = false;
+								}}>Resume</button
+							>
 						</div>
 					{/each}
 				</div>
@@ -2204,19 +2312,24 @@
 				></textarea>
 			{/if}
 			<div class="sg-agent-footer">
-				<span class="sg-agent-hint">{showAgentHistory ? 'Click Resume on an entry' : 'Cmd+Enter to send'}</span>
+				<span class="sg-agent-hint"
+					>{showAgentHistory ? 'Click Resume on an entry' : 'Cmd+Enter to send'}</span
+				>
 				{#if !showAgentHistory}
 					{#if agentHistory.length > 0}
-						<button class="sg-agent-resume-btn" onclick={() => {
-							if (agentPromptText.trim()) {
-								agentClient?.resume(agentPromptText);
-								agentStatus = 'Resuming...';
-								agentStatusVisible = true;
-								lastAgentStatus = 'pending';
-								showAgentPrompt = false;
-								agentPromptText = '';
-							}
-						}}>Resume</button>
+						<button
+							class="sg-agent-resume-btn"
+							onclick={() => {
+								if (agentPromptText.trim()) {
+									agentClient?.resume(agentPromptText);
+									agentStatus = 'Resuming...';
+									agentStatusVisible = true;
+									lastAgentStatus = 'pending';
+									showAgentPrompt = false;
+									agentPromptText = '';
+								}
+							}}>Resume</button
+						>
 					{/if}
 					<button class="sg-agent-send" onclick={submitAgentRequest}>Send</button>
 				{/if}
@@ -2240,27 +2353,39 @@
 		<span class="sg-agent-status-text">{agentStatus}</span>
 		<div class="sg-agent-status-actions">
 			{#if lastAgentStatus === 'done'}
-				<button class="sg-agent-status-btn" onclick={() => {
-					agentClient?.undo();
-					agentStatus = 'Undoing...';
-					lastAgentStatus = 'pending';
-				}}>Undo</button>
-				<button class="sg-agent-status-btn" onclick={() => {
-					showAgentPrompt = true;
-					agentStatusVisible = false;
-				}}>Resume</button>
+				<button
+					class="sg-agent-status-btn"
+					onclick={() => {
+						agentClient?.undo();
+						agentStatus = 'Undoing...';
+						lastAgentStatus = 'pending';
+					}}>Undo</button
+				>
+				<button
+					class="sg-agent-status-btn"
+					onclick={() => {
+						showAgentPrompt = true;
+						agentStatusVisible = false;
+					}}>Resume</button
+				>
 			{/if}
 			{#if lastAgentStatus === 'error'}
-				<button class="sg-agent-status-btn" onclick={() => {
-					agentClient?.retry();
-					agentStatus = 'Retrying...';
-					lastAgentStatus = 'pending';
-				}}>Retry</button>
+				<button
+					class="sg-agent-status-btn"
+					onclick={() => {
+						agentClient?.retry();
+						agentStatus = 'Retrying...';
+						lastAgentStatus = 'pending';
+					}}>Retry</button
+				>
 			{/if}
-			<button class="sg-agent-status-btn sg-agent-status-btn-dim" onclick={() => {
-				agentStatusVisible = false;
-				lastAgentStatus = 'idle';
-			}}>Dismiss</button>
+			<button
+				class="sg-agent-status-btn sg-agent-status-btn-dim"
+				onclick={() => {
+					agentStatusVisible = false;
+					lastAgentStatus = 'idle';
+				}}>Dismiss</button
+			>
 		</div>
 	</div>
 {/if}
@@ -2316,13 +2441,15 @@
 						<span class="svelte-grab-history-count">{history.length}</span>
 					</button>
 				{/if}
-				<button class="svelte-grab-close" onclick={() => (visible = false)} aria-label="Close">&times;</button>
+				<button class="svelte-grab-close" onclick={() => (visible = false)} aria-label="Close"
+					>&times;</button
+				>
 			</div>
 
 			<div class="svelte-grab-content">
 				{#if stack.length > 0}
 					{@const definedIn = stack[0]}
-					{@const usedIn = stack.find(e => e.file !== definedIn.file)}
+					{@const usedIn = stack.find((e) => e.file !== definedIn.file)}
 
 					{#if usedIn}
 						<div class="svelte-grab-section-header">Used in</div>
@@ -2377,22 +2504,18 @@
 					>
 						Copy All
 					</button>
-					<button
-						class="svelte-grab-btn svelte-grab-btn-small"
-						onclick={clearSelection}
-					>
+					<button class="svelte-grab-btn svelte-grab-btn-small" onclick={clearSelection}>
 						Clear
 					</button>
 				</div>
 			{/if}
 
 			<div class="svelte-grab-footer">
-				<DevToolButton
-					onclick={() => copyToClipboard(formatForAgent(stack, grabbedElement))}
-				>Copy for Agent</DevToolButton>
-				<DevToolButton
-					onclick={() => copyToClipboard(formatPaths(stack))}
-				>Copy Paths</DevToolButton>
+				<DevToolButton onclick={() => copyToClipboard(formatForAgent(stack, grabbedElement))}
+					>Copy for Agent</DevToolButton
+				>
+				<DevToolButton onclick={() => copyToClipboard(formatPaths(stack))}>Copy Paths</DevToolButton
+				>
 				{#if enableScreenshot && grabbedElement}
 					<button
 						class="svelte-grab-btn"
@@ -2434,10 +2557,7 @@
 				<div class="svelte-grab-history-panel" role="region" aria-label="Grab history">
 					<div class="svelte-grab-history-header">
 						<span>History</span>
-						<button
-							class="svelte-grab-btn svelte-grab-btn-small"
-							onclick={clearHistory}
-						>
+						<button class="svelte-grab-btn svelte-grab-btn-small" onclick={clearHistory}>
 							Clear
 						</button>
 					</div>
@@ -2475,7 +2595,9 @@
 		role="status"
 		aria-live="polite"
 	>
-		{modifier.charAt(0).toUpperCase() + modifier.slice(1)}+Click to grab component info | {modifier.charAt(0).toUpperCase() + modifier.slice(1)}+? for help
+		{modifier.charAt(0).toUpperCase() + modifier.slice(1)}+Click to grab component info | {modifier
+			.charAt(0)
+			.toUpperCase() + modifier.slice(1)}+? for help
 	</div>
 {/if}
 
@@ -2505,24 +2627,62 @@
 		>
 			<div class="sg-help-header">
 				<span class="sg-help-title">SvelteGrab Shortcuts</span>
-				<button class="sg-help-close" onclick={() => (showHelpOverlay = false)} aria-label="Close">&times;</button>
+				<button class="sg-help-close" onclick={() => (showHelpOverlay = false)} aria-label="Close"
+					>&times;</button
+				>
 			</div>
 			<div class="sg-help-content">
 				<table class="sg-help-table">
-					<thead><tr><th class="sg-help-th">Shortcut</th><th class="sg-help-th">Action</th></tr></thead>
+					<thead
+						><tr><th class="sg-help-th">Shortcut</th><th class="sg-help-th">Action</th></tr></thead
+					>
 					<tbody>
-						<tr><td class="sg-help-keys"><kbd>{modifier.charAt(0).toUpperCase() + modifier.slice(1)}+Click</kbd></td><td class="sg-help-desc">Grab component stack</td></tr>
-						<tr><td class="sg-help-keys"><kbd>Cmd/Ctrl+C</kbd></td><td class="sg-help-desc">Copy hovered element (selection mode)</td></tr>
-						<tr><td class="sg-help-keys"><kbd>Arrow keys</kbd></td><td class="sg-help-desc">Navigate component tree (selection mode)</td></tr>
-						<tr><td class="sg-help-keys"><kbd>O</kbd></td><td class="sg-help-desc">Open in editor (popup visible)</td></tr>
-						<tr><td class="sg-help-keys"><kbd>S</kbd></td><td class="sg-help-desc">Screenshot element (popup visible)</td></tr>
-						{#if enableAgentRelay}<tr><td class="sg-help-keys"><kbd>Tab</kbd></td><td class="sg-help-desc">Open agent prompt (selection mode)</td></tr>{/if}
-						{#if enableAnnotations}<tr><td class="sg-help-keys"><kbd>{ANNOTATION_KEY_LABEL}</kbd></td><td class="sg-help-desc">Annotate hovered element or selection (selection mode)</td></tr>{/if}
-						<tr><td class="sg-help-keys"><kbd>Escape</kbd></td><td class="sg-help-desc">Close popup / exit selection mode</td></tr>
+						<tr
+							><td class="sg-help-keys"
+								><kbd>{modifier.charAt(0).toUpperCase() + modifier.slice(1)}+Click</kbd></td
+							><td class="sg-help-desc">Grab component stack</td></tr
+						>
+						<tr
+							><td class="sg-help-keys"><kbd>Cmd/Ctrl+C</kbd></td><td class="sg-help-desc"
+								>Copy hovered element (selection mode)</td
+							></tr
+						>
+						<tr
+							><td class="sg-help-keys"><kbd>Arrow keys</kbd></td><td class="sg-help-desc"
+								>Navigate component tree (selection mode)</td
+							></tr
+						>
+						<tr
+							><td class="sg-help-keys"><kbd>O</kbd></td><td class="sg-help-desc"
+								>Open in editor (popup visible)</td
+							></tr
+						>
+						<tr
+							><td class="sg-help-keys"><kbd>S</kbd></td><td class="sg-help-desc"
+								>Screenshot element (popup visible)</td
+							></tr
+						>
+						{#if enableAgentRelay}<tr
+								><td class="sg-help-keys"><kbd>Tab</kbd></td><td class="sg-help-desc"
+									>Open agent prompt (selection mode)</td
+								></tr
+							>{/if}
+						{#if enableAnnotations}<tr
+								><td class="sg-help-keys"><kbd>{ANNOTATION_KEY_LABEL}</kbd></td><td
+									class="sg-help-desc">Annotate hovered element or selection (selection mode)</td
+								></tr
+							>{/if}
+						<tr
+							><td class="sg-help-keys"><kbd>Escape</kbd></td><td class="sg-help-desc"
+								>Close popup / exit selection mode</td
+							></tr
+						>
 					</tbody>
 				</table>
 			</div>
-			<div class="sg-help-footer">Press {modifier.charAt(0).toUpperCase() + modifier.slice(1)}+? to close</div>
+			<div class="sg-help-footer">
+				Press {modifier.charAt(0).toUpperCase() + modifier.slice(1)}+? to close
+			</div>
 		</div>
 	</div>
 {/if}
@@ -2839,8 +2999,14 @@
 	}
 
 	@keyframes fade-in {
-		from { opacity: 0; transform: translateY(-4px); }
-		to { opacity: 1; transform: translateY(0); }
+		from {
+			opacity: 0;
+			transform: translateY(-4px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 
 	.svelte-grab-close {
@@ -3061,8 +3227,13 @@
 	}
 
 	@keyframes pulse {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0.5; }
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.5;
+		}
 	}
 
 	.svelte-grab-indicator-text {
@@ -3715,65 +3886,125 @@
 		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
 		font-size: 12px;
 		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-		animation: sg-toast-in 0.2s ease-out, sg-toast-out 0.3s ease-in 2.7s forwards;
+		animation:
+			sg-toast-in 0.2s ease-out,
+			sg-toast-out 0.3s ease-in 2.7s forwards;
 		pointer-events: none;
 	}
 
 	@keyframes sg-toast-in {
-		from { opacity: 0; transform: translateX(-50%) translateY(10px); }
-		to { opacity: 1; transform: translateX(-50%) translateY(0); }
+		from {
+			opacity: 0;
+			transform: translateX(-50%) translateY(10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(-50%) translateY(0);
+		}
 	}
 
 	@keyframes sg-toast-out {
-		from { opacity: 1; }
-		to { opacity: 0; }
+		from {
+			opacity: 1;
+		}
+		to {
+			opacity: 0;
+		}
 	}
 
 	/* Help overlay */
 	.sg-help-overlay {
-		position: fixed; inset: 0; z-index: var(--sg-overlay-z, 99999); background: rgba(0, 0, 0, 0.3);
+		position: fixed;
+		inset: 0;
+		z-index: var(--sg-overlay-z, 99999);
+		background: rgba(0, 0, 0, 0.3);
 	}
 
 	.sg-help-popup {
-		position: fixed; top: 50%; left: 50%;
+		position: fixed;
+		top: 50%;
+		left: 50%;
 		transform: translate(-50%, -50%);
-		background: var(--sg-bg); border: 1px solid var(--sg-border);
-		border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-		min-width: 340px; max-width: 500px;
+		background: var(--sg-bg);
+		border: 1px solid var(--sg-border);
+		border-radius: 8px;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		min-width: 340px;
+		max-width: 500px;
 		overflow: hidden;
 		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
-		font-size: 12px; color: var(--sg-text);
-		display: flex; flex-direction: column;
+		font-size: 12px;
+		color: var(--sg-text);
+		display: flex;
+		flex-direction: column;
 	}
 
 	.sg-help-header {
-		display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 14px;
 		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
 		border-bottom: 1px solid var(--sg-border);
 	}
 
-	.sg-help-title { color: var(--sg-accent); font-weight: 600; flex: 1; }
+	.sg-help-title {
+		color: var(--sg-accent);
+		font-weight: 600;
+		flex: 1;
+	}
 
 	.sg-help-close {
-		background: none; border: none; color: #888; cursor: pointer;
-		padding: 2px 6px; font-size: 14px; border-radius: 4px;
+		background: none;
+		border: none;
+		color: #888;
+		cursor: pointer;
+		padding: 2px 6px;
+		font-size: 14px;
+		border-radius: 4px;
 	}
-	.sg-help-close:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+	.sg-help-close:hover {
+		color: #fff;
+		background: rgba(255, 255, 255, 0.1);
+	}
 
-	.sg-help-content { padding: 8px 14px; }
+	.sg-help-content {
+		padding: 8px 14px;
+	}
 
-	.sg-help-table { width: 100%; border-collapse: collapse; }
-	.sg-help-th { text-align: left; padding: 4px 0; color: #888; font-size: 10px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+	.sg-help-table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+	.sg-help-th {
+		text-align: left;
+		padding: 4px 0;
+		color: #888;
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
 
 	.sg-help-keys kbd {
-		background: rgba(255, 255, 255, 0.1); padding: 2px 6px;
-		border-radius: 3px; font-size: 11px; font-family: inherit;
+		background: rgba(255, 255, 255, 0.1);
+		padding: 2px 6px;
+		border-radius: 3px;
+		font-size: 11px;
+		font-family: inherit;
 		border: 1px solid rgba(255, 255, 255, 0.15);
 	}
-	.sg-help-desc { color: #ccc; padding: 6px 0 6px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
+	.sg-help-desc {
+		color: #ccc;
+		padding: 6px 0 6px 12px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+	}
 
 	.sg-help-footer {
-		padding: 8px 14px; text-align: center; color: #888; font-size: 10px;
+		padding: 8px 14px;
+		text-align: center;
+		color: #888;
+		font-size: 10px;
 		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
 		border-top: 1px solid var(--sg-border);
 	}

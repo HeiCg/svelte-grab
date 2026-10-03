@@ -17,7 +17,7 @@ const TOOL_PRIORITY: Record<string, number> = {
 	A11yReporter: 2,
 	StyleGrab: 3,
 	PropsTracer: 4,
-	RenderProfiler: 5,
+	RenderProfiler: 5
 };
 
 /**
@@ -75,27 +75,35 @@ function generateSummary(entries: { toolName: string; output: string }[]): strin
 				const scoreMatch = output.match(/SCORE:\s*(\d+)\/100/);
 				const critMatch = output.match(/CRITICAL\s*\((\d+)\)/);
 				if (scoreMatch) {
-					summaryParts.push(`A11y: score ${scoreMatch[1]}/100${critMatch ? `, ${critMatch[1]} critical` : ''}`);
+					summaryParts.push(
+						`A11y: score ${scoreMatch[1]}/100${critMatch ? `, ${critMatch[1]} critical` : ''}`
+					);
 				}
 				break;
 			}
 			case 'StateGrab': {
 				const compMatch = output.match(/Component State:\s*(.+?)\s*===/);
 				const changesMatch = output.match(/STATE CHANGES/);
-				summaryParts.push(`State: ${compMatch ? compMatch[1] : 'captured'}${changesMatch ? ' (changes detected)' : ''}`);
+				summaryParts.push(
+					`State: ${compMatch ? compMatch[1] : 'captured'}${changesMatch ? ' (changes detected)' : ''}`
+				);
 				break;
 			}
 			case 'StyleGrab': {
 				const conflictMatch = output.match(/DETECTED CONFLICTS/);
 				const conflictCountMatch = output.match(/defined in (\d+) places/g);
-				summaryParts.push(`Styles: captured${conflictMatch ? `, ${conflictCountMatch?.length || 0} conflicts` : ''}`);
+				summaryParts.push(
+					`Styles: captured${conflictMatch ? `, ${conflictCountMatch?.length || 0} conflicts` : ''}`
+				);
 				break;
 			}
 			case 'RenderProfiler': {
 				const hotMatch = output.match(/HOT COMPONENTS/);
 				const burstMatch = output.match(/DETECTED BURSTS/);
 				if (hotMatch || burstMatch) {
-					summaryParts.push(`Profiler: ${hotMatch ? 'hot components found' : ''}${burstMatch ? ', bursts detected' : ''}`);
+					summaryParts.push(
+						`Profiler: ${hotMatch ? 'hot components found' : ''}${burstMatch ? ', bursts detected' : ''}`
+					);
 				} else {
 					summaryParts.push('Profiler: healthy');
 				}
@@ -137,7 +145,7 @@ export function formatUnifiedExport(): string {
 		const header = [
 			'='.repeat(50),
 			`[${entry.toolName}] (captured ${formatAge(entry.timestamp)})`,
-			'='.repeat(50),
+			'='.repeat(50)
 		].join('\n');
 
 		const headerLen = header.length + 2; // +2 for newlines
@@ -155,7 +163,9 @@ export function formatUnifiedExport(): string {
 		} else {
 			// Truncate, keeping the beginning which usually has the most important info
 			parts.push(entry.output.slice(0, remaining - 40));
-			parts.push(`\n... [${entry.toolName} truncated, ${entry.output.length - remaining + 40} chars omitted]`);
+			parts.push(
+				`\n... [${entry.toolName} truncated, ${entry.output.length - remaining + 40} chars omitted]`
+			);
 		}
 		parts.push('');
 

@@ -28,10 +28,10 @@ The resulting `.mcp.json`:
 
 ```json
 {
-  "mcpServers": {
-    "svelte-grab": { "type": "stdio", "command": "npx", "args": ["svelte-grab-mcp", "--stdio"] },
-    "svelte": { "type": "stdio", "command": "npx", "args": ["-y", "@sveltejs/mcp"] }
-  }
+	"mcpServers": {
+		"svelte-grab": { "type": "stdio", "command": "npx", "args": ["svelte-grab-mcp", "--stdio"] },
+		"svelte": { "type": "stdio", "command": "npx", "args": ["-y", "@sveltejs/mcp"] }
+	}
 }
 ```
 
@@ -100,27 +100,27 @@ The human can still hand work over directly: `watch_for_grab` blocks until someo
 
 All tools are served by the same local MCP server (`svelte-grab-mcp`). The `ui_*` tools query the live page and need the app open in dev with `<SvelteDevKit enableMcp />` (or `<SvelteGrab enableMcp />`) mounted.
 
-| Tool | Purpose |
-|------|---------|
-| `ui_tabs` | List the browser tabs connected to the server; `ui_*` tools target the last focused one unless given `tabId`. |
-| `ui_snapshot` | Compact tree of the live UI: one line per element with Svelte metadata or an a11y role/name (`eN <role> "<name>" <Component> <file:line>`). Start here. |
-| `ui_find` | Find elements by `text`, `role`, `name`, `component`, `file` or CSS `selector`; returns refs with component, source, box and visibility. |
-| `ui_inspect` | Full context for one ref: component, source, stack, props, `inspectable()` state, layout, matched styles, a11y and other instances. |
-| `ui_wait_for_hmr` | Call right after an edit: waits for the Vite HMR update (or full reload) of those files, re-resolves refs and reports Vite errors. |
-| `ui_verify` | PASS/WARN/FAIL checks on one element after an edit: visible, overflow, console errors, a11y, contrast. |
-| `ui_component_impact` | Before editing a shared component: its instances on the page, importers from the Vite module graph and whether to edit it or the usage site. |
-| `ui_annotations` | The comments the human left on elements with annotation mode, with refs ready for `ui_inspect`. |
-| `ui_perf_metrics` | CDP mode (`--cdp`): Chrome counters (DOM nodes, listeners, heap, layouts, style recalcs, script/task time) before and after an in-page action, as deltas. |
-| `ui_leak_check` | Repeats actions (e.g. open then close) and reports detached elements still alive after a forced GC, by component and `file:line`. Without `--cdp` the result is `INCONCLUSIVE`. |
-| `watch_for_grab` | Block until the human Alt+Clicks an element and sends a prompt from the page; returns stack, HTML preview and the instruction. |
-| `get_element_context` | Last grabbed context, non-blocking (cleared after reading). |
-| `get_a11y_report` | Last accessibility audit from SvelteA11yReporter. |
-| `get_style_context` | Last CSS analysis from SvelteStyleGrab. |
-| `get_error_context` | Console errors and warnings captured by SvelteErrorContext. |
-| `get_profiler_report` | Last render profile from SvelteRenderProfiler. |
-| `undo_last_action` | Undo instruction with the original context of the last request. |
-| `get_session_history` | Recent interactions (up to 20) with timestamps and prompts. |
-| `list_available_tools` | Which of the `get_*` tools have data and when it was captured. |
+| Tool                   | Purpose                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ui_tabs`              | List the browser tabs connected to the server; `ui_*` tools target the last focused one unless given `tabId`.                                                                   |
+| `ui_snapshot`          | Compact tree of the live UI: one line per element with Svelte metadata or an a11y role/name (`eN <role> "<name>" <Component> <file:line>`). Start here.                         |
+| `ui_find`              | Find elements by `text`, `role`, `name`, `component`, `file` or CSS `selector`; returns refs with component, source, box and visibility.                                        |
+| `ui_inspect`           | Full context for one ref: component, source, stack, props, `inspectable()` state, layout, matched styles, a11y and other instances.                                             |
+| `ui_wait_for_hmr`      | Call right after an edit: waits for the Vite HMR update (or full reload) of those files, re-resolves refs and reports Vite errors.                                              |
+| `ui_verify`            | PASS/WARN/FAIL checks on one element after an edit: visible, overflow, console errors, a11y, contrast.                                                                          |
+| `ui_component_impact`  | Before editing a shared component: its instances on the page, importers from the Vite module graph and whether to edit it or the usage site.                                    |
+| `ui_annotations`       | The comments the human left on elements with annotation mode, with refs ready for `ui_inspect`.                                                                                 |
+| `ui_perf_metrics`      | CDP mode (`--cdp`): Chrome counters (DOM nodes, listeners, heap, layouts, style recalcs, script/task time) before and after an in-page action, as deltas.                       |
+| `ui_leak_check`        | Repeats actions (e.g. open then close) and reports detached elements still alive after a forced GC, by component and `file:line`. Without `--cdp` the result is `INCONCLUSIVE`. |
+| `watch_for_grab`       | Block until the human Alt+Clicks an element and sends a prompt from the page; returns stack, HTML preview and the instruction.                                                  |
+| `get_element_context`  | Last grabbed context, non-blocking (cleared after reading).                                                                                                                     |
+| `get_a11y_report`      | Last accessibility audit from SvelteA11yReporter.                                                                                                                               |
+| `get_style_context`    | Last CSS analysis from SvelteStyleGrab.                                                                                                                                         |
+| `get_error_context`    | Console errors and warnings captured by SvelteErrorContext.                                                                                                                     |
+| `get_profiler_report`  | Last render profile from SvelteRenderProfiler.                                                                                                                                  |
+| `undo_last_action`     | Undo instruction with the original context of the last request.                                                                                                                 |
+| `get_session_history`  | Recent interactions (up to 20) with timestamps and prompts.                                                                                                                     |
+| `list_available_tools` | Which of the `get_*` tools have data and when it was captured.                                                                                                                  |
 
 Arguments, outputs and HTTP endpoints: [Reference: Claude Code Integration (MCP)](#claude-code-integration-mcp).
 
@@ -135,26 +135,26 @@ locator for Playwright / chrome-devtools ->  [data-sg-ref="e12"]
 
 ```js
 // Anywhere Playwright code runs (a test, a script, or Playwright MCP's code tool):
-await page.locator('[data-sg-ref="e12"]').click();          // real, trusted click
+await page.locator('[data-sg-ref="e12"]').click(); // real, trusted click
 await page.locator('[data-sg-ref="e12"]').screenshot({ path: 'card.png' });
 
 // chrome-devtools MCP evaluate_script / Playwright MCP browser_evaluate:
-() => document.querySelector('[data-sg-ref="e12"]').getBoundingClientRect()
+() => document.querySelector('[data-sg-ref="e12"]').getBoundingClientRect();
 ```
 
 Tools that click by their own snapshot ids (chrome-devtools MCP `click { uid }`, Playwright MCP `browser_click { ref }`) need the id from their snapshot; svelte-grab gives the role and accessible name (`article "Pro plan"`) to match it.
 
 Refs live as long as the element. After a re-render or HMR, pass the old ref to a `ui_*` tool (or call `ui_wait_for_hmr`): it is re-resolved by its stable key (`ui://<file>:<line>:<col>#<Component>...`) and the new `eN` is reported.
 
-| Need | Use |
-|------|-----|
-| Real (trusted) clicks, typing, drag, file upload | Playwright MCP / chrome-devtools MCP |
-| Screenshots, visual diffs, several viewports or devices | Playwright MCP / chrome-devtools MCP |
-| Network requests, performance traces, Lighthouse | chrome-devtools MCP |
-| Which component and file rendered this, and where it is used | svelte-grab (`ui_find`, `ui_inspect`) |
-| Props, `$state` (via `inspectable()`), matched CSS rules with their source | svelte-grab (`ui_inspect`) |
-| Did my edit land, and is the element still fine | svelte-grab (`ui_wait_for_hmr`, `ui_verify`) |
-| Is it safe to edit this shared component | svelte-grab (`ui_component_impact`) |
+| Need                                                                       | Use                                          |
+| -------------------------------------------------------------------------- | -------------------------------------------- |
+| Real (trusted) clicks, typing, drag, file upload                           | Playwright MCP / chrome-devtools MCP         |
+| Screenshots, visual diffs, several viewports or devices                    | Playwright MCP / chrome-devtools MCP         |
+| Network requests, performance traces, Lighthouse                           | chrome-devtools MCP                          |
+| Which component and file rendered this, and where it is used               | svelte-grab (`ui_find`, `ui_inspect`)        |
+| Props, `$state` (via `inspectable()`), matched CSS rules with their source | svelte-grab (`ui_inspect`)                   |
+| Did my edit land, and is the element still fine                            | svelte-grab (`ui_wait_for_hmr`, `ui_verify`) |
+| Is it safe to edit this shared component                                   | svelte-grab (`ui_component_impact`)          |
 
 `npx svelte-grab init --with-playwright-mcp` adds Playwright MCP to `.mcp.json` next to svelte-grab.
 
@@ -166,9 +166,9 @@ The [official Svelte MCP](https://svelte.dev/docs/mcp) works on code: it serves 
 
 svelte-grab ships two [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) in the npm package (`skills/`), so the agent knows the workflow without you explaining it:
 
-| Skill | Use it for |
-|-------|-----------|
-| `svelte-grab` | The core loop: `ui_snapshot -> ui_find -> ui_inspect -> ui_component_impact -> edit -> ui_wait_for_hmr -> ui_verify -> ui_profile`, refs as `[data-sg-ref]` locators for Playwright / chrome-devtools MCP, annotations, which tool when. |
+| Skill               | Use it for                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `svelte-grab`       | The core loop: `ui_snapshot -> ui_find -> ui_inspect -> ui_component_impact -> edit -> ui_wait_for_hmr -> ui_verify -> ui_profile`, refs as `[data-sg-ref]` locators for Playwright / chrome-devtools MCP, annotations, which tool when.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `svelte-grab-audit` | "Security audit", "performance audit", "what does screen X load", "is anything leaking credentials", "why is this page slow", "memory leak". A phased, per-screen workflow (recon with `npx svelte-grab audit`, then `ui_network({ reload: true })`, `ui_security_scan`, `ui_profile`, `ui_verify` and, in CDP mode, `ui_perf_metrics` / `ui_leak_check`), validation rules (`confirmed` needs reproduction evidence, `needs_validation` names the missing fact, secrets stay redacted), default budgets (50 requests, 1.5 MB, 10 third-party per screen) and three supporting files: `CHECKLIST.md` (security and performance checklists, each item mapped to the tool that checks it and its pass criteria), `REPORT-TEMPLATE.md` and `finding-schema.json`. |
 
 Ways to get them:
@@ -209,16 +209,16 @@ The browser tools behind the hotkeys. They work with or without an agent: copy c
 
 svelte-grab ships 7 specialized tools + a unified wrapper:
 
-| Tool | Trigger | What it does |
-|------|---------|--------------|
-| **SvelteGrab** | Alt+Click | Component location stack with file:line |
-| **SvelteStateGrab** | Alt+Shift+Click (Alt+Meta+Click in SvelteDevKit) | Props, attributes, bound values inspection |
-| **SvelteStyleGrab** | Alt+Ctrl+Click | CSS analysis with source attribution |
-| **SveltePropsTracer** | Alt+DoubleClick | Component hierarchy trace |
-| **SvelteA11yReporter** | Alt+RightClick (Alt+Shift+RightClick in SvelteDevKit) / Alt+A | Accessibility audit with WCAG scoring |
-| **SvelteErrorContext** | Alt+E | Console errors/warnings with stack parsing |
-| **SvelteRenderProfiler** | Alt+P | DOM mutation profiling per component |
-| **SvelteDevKit** | (wrapper) | All tools in one component |
+| Tool                     | Trigger                                                       | What it does                               |
+| ------------------------ | ------------------------------------------------------------- | ------------------------------------------ |
+| **SvelteGrab**           | Alt+Click                                                     | Component location stack with file:line    |
+| **SvelteStateGrab**      | Alt+Shift+Click (Alt+Meta+Click in SvelteDevKit)              | Props, attributes, bound values inspection |
+| **SvelteStyleGrab**      | Alt+Ctrl+Click                                                | CSS analysis with source attribution       |
+| **SveltePropsTracer**    | Alt+DoubleClick                                               | Component hierarchy trace                  |
+| **SvelteA11yReporter**   | Alt+RightClick (Alt+Shift+RightClick in SvelteDevKit) / Alt+A | Accessibility audit with WCAG scoring      |
+| **SvelteErrorContext**   | Alt+E                                                         | Console errors/warnings with stack parsing |
+| **SvelteRenderProfiler** | Alt+P                                                         | DOM mutation profiling per component       |
+| **SvelteDevKit**         | (wrapper)                                                     | All tools in one component                 |
 
 ## Installation
 
@@ -235,7 +235,7 @@ pnpm add svelte-grab
 ```svelte
 <!-- src/routes/+layout.svelte -->
 <script>
-  import { SvelteGrab } from 'svelte-grab';
+	import { SvelteGrab } from 'svelte-grab';
 </script>
 
 {@render children()}
@@ -246,7 +246,7 @@ Or use **SvelteDevKit** to enable all tools at once:
 
 ```svelte
 <script>
-  import { SvelteDevKit } from 'svelte-grab';
+	import { SvelteDevKit } from 'svelte-grab';
 </script>
 
 {@render children()}
@@ -286,42 +286,42 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 
 ### Props
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `modifier` | `'alt' \| 'ctrl' \| 'meta' \| 'shift'` | `'alt'` | Modifier key to activate |
-| `activationMode` | `'hold' \| 'toggle'` | `'hold'` | Hold modifier vs toggle on/off |
-| `autoCopyFormat` | `'agent' \| 'paths' \| 'none'` | `'agent'` | Clipboard format on grab |
-| `showPopup` | `boolean` | `true` | Show visual popup |
-| `includeHtml` | `boolean` | `true` | Include HTML preview in output |
-| `editor` | `'vscode' \| 'cursor' \| 'webstorm' \| 'zed' \| 'sublime' \| 'none'` | `'vscode'` | Editor for "Open in Editor" |
-| `enableScreenshot` | `boolean` | `true` | Enable screenshot capture |
-| `enableMultiSelect` | `boolean` | `true` | Enable multi-selection |
-| `enableDragSelect` | `boolean` | `true` | Enable drag box selection |
-| `enableArrowNav` | `boolean` | `true` | Enable arrow key navigation |
-| `showToolbar` | `boolean` | `false` | Show floating toolbar |
-| `showContextMenu` | `boolean` | `true` | Enable right-click context menu |
-| `maxHistorySize` | `number` | `20` | Max grab history entries |
-| `forceEnable` | `boolean` | `false` | Force enable if dev detection fails |
-| `theme` | `ThemeConfig` | — | Custom theme colors |
-| `lightTheme` | `boolean` | `false` | Use light theme preset |
-| `plugins` | `SvelteGrabPlugin[]` | `[]` | Registered plugins |
-| `enableAgentRelay` | `boolean` | `false` | Enable WebSocket relay |
-| `agentRelayUrl` | `string` | `'ws://localhost:4722'` | Relay server URL |
-| `agentId` | `string` | `'claude-code'` | Agent identifier |
-| `enableMcp` | `boolean` | `false` | Enable MCP bridge to Claude Code |
-| `mcpPort` | `number` | `4723` | MCP server port. If the server is not there, the page probes the next 9 ports via `/health` |
-| `mcpToken` | `string` | — | Token for an MCP server started with `SVELTE_GRAB_TOKEN` / `--token` (sent as `x-svelte-grab-token` on POSTs, `?token=` on `/events`) |
-| `enableAgentRuntime` | `boolean` | `true` | With `enableMcp`, let coding agents query the page (`ui_snapshot`, `ui_find`, `ui_inspect`, `ui_wait_for_hmr`, ...) through the MCP server |
-| `freezeAnimations` | `boolean` | `true` | Freeze CSS animations during selection |
-| `freezePseudoStates` | `boolean` | `true` | Preserve :hover/:focus states during selection |
-| `enableHistoryPersistence` | `boolean` | `true` | Persist history to sessionStorage |
-| `enablePromptMode` | `boolean` | `true` | Enable inline prompt overlay |
-| `enableAnnotations` | `boolean` | `true` | Annotation mode: `N` while selecting (or "Add annotation" in the prompt overlay) stores the hovered element or the current selection with a comment |
-| `hotkeys` | `'full' \| 'minimal'` | `'full'` | Shortcut set. `'minimal'`: only Alt+Click, Shift+Alt+Click, Alt+Drag, Escape and `N`. See [Minimal hotkeys](#minimal-hotkeys) |
-| `reservedModifiers` | `('ctrl' \| 'meta' \| 'shift')[]` | `[]` | Extra modifiers owned by other tools: an Alt+Click that also holds one is ignored (no grab, popup or multi-select). Shift keeps multi-selecting unless listed. SvelteDevKit sets it for you |
-| `copyOnKeyboard` | `boolean` | `true` | Enable Cmd+C / Ctrl+C to copy in selection mode |
-| `projectRoot` | `string` | `''` | Absolute path to project root (for "Open in Editor"). Not needed with the `svelte-grab/vite` plugin, which provides it |
-| `showActiveIndicator` | `boolean` | `true` | Show active indicator badge |
+| Prop                       | Type                                                                 | Default                 | Description                                                                                                                                                                                 |
+| -------------------------- | -------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `modifier`                 | `'alt' \| 'ctrl' \| 'meta' \| 'shift'`                               | `'alt'`                 | Modifier key to activate                                                                                                                                                                    |
+| `activationMode`           | `'hold' \| 'toggle'`                                                 | `'hold'`                | Hold modifier vs toggle on/off                                                                                                                                                              |
+| `autoCopyFormat`           | `'agent' \| 'paths' \| 'none'`                                       | `'agent'`               | Clipboard format on grab                                                                                                                                                                    |
+| `showPopup`                | `boolean`                                                            | `true`                  | Show visual popup                                                                                                                                                                           |
+| `includeHtml`              | `boolean`                                                            | `true`                  | Include HTML preview in output                                                                                                                                                              |
+| `editor`                   | `'vscode' \| 'cursor' \| 'webstorm' \| 'zed' \| 'sublime' \| 'none'` | `'vscode'`              | Editor for "Open in Editor"                                                                                                                                                                 |
+| `enableScreenshot`         | `boolean`                                                            | `true`                  | Enable screenshot capture                                                                                                                                                                   |
+| `enableMultiSelect`        | `boolean`                                                            | `true`                  | Enable multi-selection                                                                                                                                                                      |
+| `enableDragSelect`         | `boolean`                                                            | `true`                  | Enable drag box selection                                                                                                                                                                   |
+| `enableArrowNav`           | `boolean`                                                            | `true`                  | Enable arrow key navigation                                                                                                                                                                 |
+| `showToolbar`              | `boolean`                                                            | `false`                 | Show floating toolbar                                                                                                                                                                       |
+| `showContextMenu`          | `boolean`                                                            | `true`                  | Enable right-click context menu                                                                                                                                                             |
+| `maxHistorySize`           | `number`                                                             | `20`                    | Max grab history entries                                                                                                                                                                    |
+| `forceEnable`              | `boolean`                                                            | `false`                 | Force enable if dev detection fails                                                                                                                                                         |
+| `theme`                    | `ThemeConfig`                                                        | —                       | Custom theme colors                                                                                                                                                                         |
+| `lightTheme`               | `boolean`                                                            | `false`                 | Use light theme preset                                                                                                                                                                      |
+| `plugins`                  | `SvelteGrabPlugin[]`                                                 | `[]`                    | Registered plugins                                                                                                                                                                          |
+| `enableAgentRelay`         | `boolean`                                                            | `false`                 | Enable WebSocket relay                                                                                                                                                                      |
+| `agentRelayUrl`            | `string`                                                             | `'ws://localhost:4722'` | Relay server URL                                                                                                                                                                            |
+| `agentId`                  | `string`                                                             | `'claude-code'`         | Agent identifier                                                                                                                                                                            |
+| `enableMcp`                | `boolean`                                                            | `false`                 | Enable MCP bridge to Claude Code                                                                                                                                                            |
+| `mcpPort`                  | `number`                                                             | `4723`                  | MCP server port. If the server is not there, the page probes the next 9 ports via `/health`                                                                                                 |
+| `mcpToken`                 | `string`                                                             | —                       | Token for an MCP server started with `SVELTE_GRAB_TOKEN` / `--token` (sent as `x-svelte-grab-token` on POSTs, `?token=` on `/events`)                                                       |
+| `enableAgentRuntime`       | `boolean`                                                            | `true`                  | With `enableMcp`, let coding agents query the page (`ui_snapshot`, `ui_find`, `ui_inspect`, `ui_wait_for_hmr`, ...) through the MCP server                                                  |
+| `freezeAnimations`         | `boolean`                                                            | `true`                  | Freeze CSS animations during selection                                                                                                                                                      |
+| `freezePseudoStates`       | `boolean`                                                            | `true`                  | Preserve :hover/:focus states during selection                                                                                                                                              |
+| `enableHistoryPersistence` | `boolean`                                                            | `true`                  | Persist history to sessionStorage                                                                                                                                                           |
+| `enablePromptMode`         | `boolean`                                                            | `true`                  | Enable inline prompt overlay                                                                                                                                                                |
+| `enableAnnotations`        | `boolean`                                                            | `true`                  | Annotation mode: `N` while selecting (or "Add annotation" in the prompt overlay) stores the hovered element or the current selection with a comment                                         |
+| `hotkeys`                  | `'full' \| 'minimal'`                                                | `'full'`                | Shortcut set. `'minimal'`: only Alt+Click, Shift+Alt+Click, Alt+Drag, Escape and `N`. See [Minimal hotkeys](#minimal-hotkeys)                                                               |
+| `reservedModifiers`        | `('ctrl' \| 'meta' \| 'shift')[]`                                    | `[]`                    | Extra modifiers owned by other tools: an Alt+Click that also holds one is ignored (no grab, popup or multi-select). Shift keeps multi-selecting unless listed. SvelteDevKit sets it for you |
+| `copyOnKeyboard`           | `boolean`                                                            | `true`                  | Enable Cmd+C / Ctrl+C to copy in selection mode                                                                                                                                             |
+| `projectRoot`              | `string`                                                             | `''`                    | Absolute path to project root (for "Open in Editor"). Not needed with the `svelte-grab/vite` plugin, which provides it                                                                      |
+| `showActiveIndicator`      | `boolean`                                                            | `true`                  | Show active indicator badge                                                                                                                                                                 |
 
 ### Annotation mode
 
@@ -374,12 +374,12 @@ SvelteDevKit also passes these triggers to SvelteGrab as `reservedModifiers`, so
 <SvelteStateGrab />
 ```
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `modifier` | modifier key | `'alt'` | Primary modifier |
-| `secondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | `'shift'` | Secondary modifier |
-| `maxDepth` | `number` | `3` | Max object nesting depth |
-| `maxStringLength` | `number` | `200` | Truncate long strings |
+| Prop                | Type                          | Default   | Description              |
+| ------------------- | ----------------------------- | --------- | ------------------------ |
+| `modifier`          | modifier key                  | `'alt'`   | Primary modifier         |
+| `secondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | `'shift'` | Secondary modifier       |
+| `maxDepth`          | `number`                      | `3`       | Max object nesting depth |
+| `maxStringLength`   | `number`                      | `200`     | Truncate long strings    |
 
 Handles circular references, functions, DOM elements, Maps, and Sets safely.
 
@@ -393,11 +393,11 @@ Alt+Ctrl+Click to analyze computed styles with source attribution.
 <SvelteStyleGrab />
 ```
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `modifier` | modifier key | `'alt'` | Primary modifier |
-| `secondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | `'ctrl'` | Secondary modifier |
-| `showCategories` | `('box-model' \| 'visual' \| 'typography' \| 'layout' \| 'all')[]` | `['all']` | Which categories to show |
+| Prop                | Type                                                               | Default   | Description              |
+| ------------------- | ------------------------------------------------------------------ | --------- | ------------------------ |
+| `modifier`          | modifier key                                                       | `'alt'`   | Primary modifier         |
+| `secondaryModifier` | `'shift' \| 'ctrl' \| 'meta'`                                      | `'ctrl'`  | Secondary modifier       |
+| `showCategories`    | `('box-model' \| 'visual' \| 'typography' \| 'layout' \| 'all')[]` | `['all']` | Which categories to show |
 
 **Categories:** Box Model (width, height, padding, margin, border), Visual (background, color, opacity, shadow), Typography (font, line-height, text-align), Layout (display, position, flex, grid, z-index).
 
@@ -425,10 +425,10 @@ Inside SvelteDevKit the element audit is **Alt+Shift+RightClick**, because Alt+R
 <SvelteA11yReporter />
 ```
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `includeSubtree` | `boolean` | `true` | Audit child elements too |
-| `secondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | none | Extra modifier the element audit also requires (`'shift'`: Alt+Shift+RightClick). Alt+A is unaffected |
+| Prop                | Type                          | Default | Description                                                                                           |
+| ------------------- | ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
+| `includeSubtree`    | `boolean`                     | `true`  | Audit child elements too                                                                              |
+| `secondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | none    | Extra modifier the element audit also requires (`'shift'`: Alt+Shift+RightClick). Alt+A is unaffected |
 
 ## SvelteErrorContext — Error Capture
 
@@ -440,11 +440,11 @@ Intercepts `console.error`, `console.warn`, uncaught exceptions, and unhandled p
 <SvelteErrorContext />
 ```
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `maxErrors` | `number` | `50` | Max captured errors |
-| `bufferMinutes` | `number` | `5` | Error retention window |
-| `filterNodeModules` | `boolean` | `true` | Hide node_modules frames |
+| Prop                | Type      | Default | Description              |
+| ------------------- | --------- | ------- | ------------------------ |
+| `maxErrors`         | `number`  | `50`    | Max captured errors      |
+| `bufferMinutes`     | `number`  | `5`     | Error retention window   |
+| `filterNodeModules` | `boolean` | `true`  | Hide node_modules frames |
 
 ## SvelteRenderProfiler — Performance Profiler
 
@@ -456,11 +456,11 @@ Uses MutationObserver to track DOM mutations, correlates them with Svelte compon
 <SvelteRenderProfiler />
 ```
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `profileDuration` | `number` | `10` | Profiling duration in seconds |
-| `burstThreshold` | `number` | `20` | Renders to trigger burst detection |
-| `burstWindow` | `number` | `1000` | Burst detection window in ms |
+| Prop              | Type     | Default | Description                        |
+| ----------------- | -------- | ------- | ---------------------------------- |
+| `profileDuration` | `number` | `10`    | Profiling duration in seconds      |
+| `burstThreshold`  | `number` | `20`    | Renders to trigger burst detection |
+| `burstWindow`     | `number` | `1000`  | Burst detection window in ms       |
 
 ## SvelteDevKit — All-in-One
 
@@ -468,7 +468,7 @@ Single component that includes all 7 tools. Selectively enable/disable tools:
 
 ```svelte
 <script>
-  import { SvelteDevKit } from 'svelte-grab';
+	import { SvelteDevKit } from 'svelte-grab';
 </script>
 
 <!-- All tools enabled by default -->
@@ -483,12 +483,12 @@ Single component that includes all 7 tools. Selectively enable/disable tools:
 
 Accepts all SvelteGrab props plus:
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `enabledTools` | `DevKitTool[]` | all tools | Which tools to activate |
-| `hotkeys` | `'full' \| 'minimal'` | `'full'` | `'minimal'` turns off every tool trigger except Alt+Click, Shift+Alt+Click, Alt+Drag, Escape and `N`; the tools stay mounted ([Minimal hotkeys](#minimal-hotkeys)) |
-| `stateSecondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | `'meta'` with multi-select, else `'shift'` | StateGrab trigger modifier (Alt+Meta+Click by default, so it does not collide with Shift+Alt+Click multi-select) |
-| `styleSecondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | `'ctrl'` | StyleGrab trigger modifier (Alt+Ctrl+Click) |
+| Prop                     | Type                          | Default                                    | Description                                                                                                                                                        |
+| ------------------------ | ----------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabledTools`           | `DevKitTool[]`                | all tools                                  | Which tools to activate                                                                                                                                            |
+| `hotkeys`                | `'full' \| 'minimal'`         | `'full'`                                   | `'minimal'` turns off every tool trigger except Alt+Click, Shift+Alt+Click, Alt+Drag, Escape and `N`; the tools stay mounted ([Minimal hotkeys](#minimal-hotkeys)) |
+| `stateSecondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | `'meta'` with multi-select, else `'shift'` | StateGrab trigger modifier (Alt+Meta+Click by default, so it does not collide with Shift+Alt+Click multi-select)                                                   |
+| `styleSecondaryModifier` | `'shift' \| 'ctrl' \| 'meta'` | `'ctrl'`                                   | StyleGrab trigger modifier (Alt+Ctrl+Click)                                                                                                                        |
 
 Available tools: `'grab'`, `'state'`, `'style'`, `'props'`, `'a11y'`, `'errors'`, `'profiler'`
 
@@ -515,12 +515,12 @@ The recommended way to connect svelte-grab to Claude Code (and any other MCP cli
 
 ```json
 {
-  "mcpServers": {
-    "svelte-grab": {
-      "command": "npx",
-      "args": ["svelte-grab-mcp", "--stdio"]
-    }
-  }
+	"mcpServers": {
+		"svelte-grab": {
+			"command": "npx",
+			"args": ["svelte-grab-mcp", "--stdio"]
+		}
+	}
 }
 ```
 
@@ -543,30 +543,30 @@ The recommended way to connect svelte-grab to Claude Code (and any other MCP cli
 
 ### MCP Tools
 
-| Tool | Description |
-|------|-------------|
-| `watch_for_grab` | **Blocks** until the user sends context from the browser. Returns component stack, HTML preview, and the user's instruction. Call in a loop for continuous interaction. |
-| `get_element_context` | Returns the last grabbed context immediately (non-blocking). Context is cleared after reading. |
-| `get_a11y_report` | Returns the last accessibility audit from SvelteA11yReporter. |
-| `get_style_context` | Returns the last CSS analysis from SvelteStyleGrab. |
-| `get_error_context` | Returns captured console errors from SvelteErrorContext. |
-| `get_profiler_report` | Returns render profiling data from SvelteRenderProfiler. |
-| `undo_last_action` | Returns an undo instruction with the original context. |
-| `get_session_history` | Returns recent interactions (up to 20) with timestamps and prompts. |
-| `list_available_tools` | Lists which tools have data available and when it was captured. |
-| `ui_tabs` | Lists connected browser tabs (`tabId`, url, title, focused, lastSeen, active). `ui_*` tools target the active tab (last focused, else most recently seen) unless given `tabId`. |
-| `ui_snapshot` | Compact tree of the live UI: only elements with Svelte metadata or an a11y role/name, one line each (`eN <role/tag> "<name>" <Component> <file:line>`). Args: `scope`, `detail`, `maxNodes`, `tabId`. |
-| `ui_find` | Finds elements by `text`, `role`, `name`, `component`, `file` or `selector` (plus `limit`, `tabId`). Returns refs with stable key, component, source, role, name, box and visibility. |
-| `ui_inspect` | The heavy, on-demand context for one element (`ref`: `eN` or `ui://` key). Sections COMPONENT, SOURCE, STACK, PROPS/ATTRIBUTES, STATE, LAYOUT (box, overflow, visibility), STYLES (matched rules with source, Tailwind/scoped detection), A11Y (role, name, contrast, issues) and USAGE (other instances with refs). Args: `ref`, `include` (subset of `stack`, `props`, `state`, `styles`, `layout`, `a11y`, `usage`; default all), `tabId`. Text is capped at ~8000 chars. Use `ui_snapshot`/`ui_find` first. |
-| `ui_annotations` | The human's pending annotations ([Annotation mode](#annotation-mode)): `{ annotations: [{ id, comment, refs: [{ ref, stableKey, component, source }], createdAt }], instruction }` plus the same as text. Refs are re-resolved (rebound by stable key after a re-render, `stale` when gone) and work with `ui_inspect`. Args: `clear` (mark them consumed; the tray empties), `tabId`. |
-| `ui_wait_for_hmr` | Call right after editing a file. Waits for the Vite HMR update (or full reload) touching `files` (suffix match; any update when omitted), lets the DOM settle, re-resolves every ref and returns `{ status, updated, errors, rebound: [{from,to}], lost, kept, consoleErrors, source }`. Args: `files`, `timeoutMs` (default 15000, max 55000), `since` (epoch ms, also accepts an update that already happened, from the last 20), `tabId`. |
-| `ui_verify` | Call after `ui_wait_for_hmr`. PASS/WARN/FAIL checks on one element: `visible` (rendered, in viewport, not covered; names the coverer), `overflow` (clipped or spilling content, page-level horizontal overflow), `console` (errors FAIL, warnings WARN since `since`, else the last HMR update), `a11y` (element-level checks), `contrast` (below 3:1 FAIL, below WCAG AA WARN). Text starts with the verdict line; `structuredContent` is `{ verdict, checks: [{ check, status, summary, details }] }`. Args: `ref`, `checks` (default all), `since`, `tabId`. |
-| `ui_component_impact` | Call before editing a component that may be shared, with a ref to any element it renders. Returns the definition file, instances on the page grouped by usage site, variants (instances grouped by root classes), importers from the Vite module graph (needs `svelte-grab/vite`, else "unknown") and a recommendation: edit the component for a single usage, else prefer a prop/variant or a local class at the usage site. Args: `ref`, `tabId`. |
-| `ui_profile` | Records which components mutate the DOM for `durationMs` (default 3000, max 30000), optionally while performing an in-page `action` (`{ ref, type: "click"\|"input"\|"scroll", value?, repeat? }`, `isTrusted=false`). Verdict `HOT <Component> N mutations in Xs (burst xK)` or `QUIET`, then per component mutations, mutations/sec, bursts, kinds and the top mutated elements as refs, plus FPS and long frames. Scope with `component` or `ref`. See [Profiling with ui_profile](#profiling-with-ui_profile). |
-| `ui_perf_metrics` | CDP mode only (see [CDP mode](#cdp-mode-ui_perf_metrics-and-ui_leak_check)). Reads `Memory.getDOMCounters` + `Performance.getMetrics` of the tab before and after an optional in-page `action` (`{ ref, type, value? }`, or `ref` alone for a click) and a settle (2 frames + `waitMs`, default 300): Nodes, JSEventListeners, Documents, JSHeapUsedSize, LayoutCount, RecalcStyleCount, ScriptDuration, TaskDuration. First line lists the changed counters, then a before/after/delta table. Without `--cdp` it returns an error saying how to enable it. Args: `action`, `ref`, `waitMs`, `tabId`. |
-| `ui_leak_check` | Runs `actions` (or one `action`) `iterations` times (default 5, max 20), e.g. `[open, close]` on a modal toggle. The page records a WeakRef + source of every Svelte element removed meanwhile; with `--cdp` the server forces GC before and after, so whatever is still alive and detached is retained: `LEAK? <Component> <file:line> retains N detached nodes (~N/iteration)`, plus growth of Nodes, JSEventListeners and JSHeapUsedSize per iteration. Verdict `LEAK SUSPECTED`, `NO LEAK DETECTED` or `INCONCLUSIVE` (always without `--cdp`: no forced GC). Args: `actions`, `action`, `iterations`, `waitMs`, `tabId`. |
-| `ui_network` | What a screen loads: fetch, XHR, sendBeacon, WebSocket, EventSource and (from resource timing) scripts, CSS, images and fonts, each with its initiator (`file:line` and component of the app code that made it) and tags for SvelteKit `__data.json` / remote-function calls. Text: totals (count, bytes, by type, first- vs third-party), origins, duplicates, slowest 5, sequential chains, failed requests, one line per request. `reload: true` reloads the tab, waits for it to reconnect plus `waitMs` (default 2000) and reports the initial load. URLs are always redacted (`kind:abcd…(len N, sha xxxxxx)`); bodies only with `includeBodies` (same-origin JSON, redacted, 2 KB). Args: `reload`, `waitMs`, `since`, `filter` (`origin`, `type`, `status`), `includeBodies`, `tabId`. |
-| `ui_security_scan` | Runtime security checks, findings `{ id, check, severity, verdict, title, evidence, source?, fix }` grouped by severity: secrets in URLs and credential headers/bodies sent to third parties (from the `ui_network` buffer), JWTs/keys in Web Storage, JS-readable auth cookies, secrets on `window`, sensitive fields in SvelteKit serialized data, secret-shaped `VITE_`/`PUBLIC_` env values, response headers (CSP, nosniff, Referrer-Policy, frame-ancestors, HSTS; info on a localhost dev server), `{@html}`-style inline handlers, `target=_blank` without `rel=noopener`, mixed content. Evidence is always redacted. Args: `checks`, `tabId`. |
+| Tool                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `watch_for_grab`       | **Blocks** until the user sends context from the browser. Returns component stack, HTML preview, and the user's instruction. Call in a loop for continuous interaction.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `get_element_context`  | Returns the last grabbed context immediately (non-blocking). Context is cleared after reading.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `get_a11y_report`      | Returns the last accessibility audit from SvelteA11yReporter.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `get_style_context`    | Returns the last CSS analysis from SvelteStyleGrab.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `get_error_context`    | Returns captured console errors from SvelteErrorContext.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `get_profiler_report`  | Returns render profiling data from SvelteRenderProfiler.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `undo_last_action`     | Returns an undo instruction with the original context.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `get_session_history`  | Returns recent interactions (up to 20) with timestamps and prompts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `list_available_tools` | Lists which tools have data available and when it was captured.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `ui_tabs`              | Lists connected browser tabs (`tabId`, url, title, focused, lastSeen, active). `ui_*` tools target the active tab (last focused, else most recently seen) unless given `tabId`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `ui_snapshot`          | Compact tree of the live UI: only elements with Svelte metadata or an a11y role/name, one line each (`eN <role/tag> "<name>" <Component> <file:line>`). Args: `scope`, `detail`, `maxNodes`, `tabId`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `ui_find`              | Finds elements by `text`, `role`, `name`, `component`, `file` or `selector` (plus `limit`, `tabId`). Returns refs with stable key, component, source, role, name, box and visibility.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `ui_inspect`           | The heavy, on-demand context for one element (`ref`: `eN` or `ui://` key). Sections COMPONENT, SOURCE, STACK, PROPS/ATTRIBUTES, STATE, LAYOUT (box, overflow, visibility), STYLES (matched rules with source, Tailwind/scoped detection), A11Y (role, name, contrast, issues) and USAGE (other instances with refs). Args: `ref`, `include` (subset of `stack`, `props`, `state`, `styles`, `layout`, `a11y`, `usage`; default all), `tabId`. Text is capped at ~8000 chars. Use `ui_snapshot`/`ui_find` first.                                                                                                                                                                                                                                                                                |
+| `ui_annotations`       | The human's pending annotations ([Annotation mode](#annotation-mode)): `{ annotations: [{ id, comment, refs: [{ ref, stableKey, component, source }], createdAt }], instruction }` plus the same as text. Refs are re-resolved (rebound by stable key after a re-render, `stale` when gone) and work with `ui_inspect`. Args: `clear` (mark them consumed; the tray empties), `tabId`.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `ui_wait_for_hmr`      | Call right after editing a file. Waits for the Vite HMR update (or full reload) touching `files` (suffix match; any update when omitted), lets the DOM settle, re-resolves every ref and returns `{ status, updated, errors, rebound: [{from,to}], lost, kept, consoleErrors, source }`. Args: `files`, `timeoutMs` (default 15000, max 55000), `since` (epoch ms, also accepts an update that already happened, from the last 20), `tabId`.                                                                                                                                                                                                                                                                                                                                                   |
+| `ui_verify`            | Call after `ui_wait_for_hmr`. PASS/WARN/FAIL checks on one element: `visible` (rendered, in viewport, not covered; names the coverer), `overflow` (clipped or spilling content, page-level horizontal overflow), `console` (errors FAIL, warnings WARN since `since`, else the last HMR update), `a11y` (element-level checks), `contrast` (below 3:1 FAIL, below WCAG AA WARN). Text starts with the verdict line; `structuredContent` is `{ verdict, checks: [{ check, status, summary, details }] }`. Args: `ref`, `checks` (default all), `since`, `tabId`.                                                                                                                                                                                                                                |
+| `ui_component_impact`  | Call before editing a component that may be shared, with a ref to any element it renders. Returns the definition file, instances on the page grouped by usage site, variants (instances grouped by root classes), importers from the Vite module graph (needs `svelte-grab/vite`, else "unknown") and a recommendation: edit the component for a single usage, else prefer a prop/variant or a local class at the usage site. Args: `ref`, `tabId`.                                                                                                                                                                                                                                                                                                                                            |
+| `ui_profile`           | Records which components mutate the DOM for `durationMs` (default 3000, max 30000), optionally while performing an in-page `action` (`{ ref, type: "click"\|"input"\|"scroll", value?, repeat? }`, `isTrusted=false`). Verdict `HOT <Component> N mutations in Xs (burst xK)` or `QUIET`, then per component mutations, mutations/sec, bursts, kinds and the top mutated elements as refs, plus FPS and long frames. Scope with `component` or `ref`. See [Profiling with ui_profile](#profiling-with-ui_profile).                                                                                                                                                                                                                                                                             |
+| `ui_perf_metrics`      | CDP mode only (see [CDP mode](#cdp-mode-ui_perf_metrics-and-ui_leak_check)). Reads `Memory.getDOMCounters` + `Performance.getMetrics` of the tab before and after an optional in-page `action` (`{ ref, type, value? }`, or `ref` alone for a click) and a settle (2 frames + `waitMs`, default 300): Nodes, JSEventListeners, Documents, JSHeapUsedSize, LayoutCount, RecalcStyleCount, ScriptDuration, TaskDuration. First line lists the changed counters, then a before/after/delta table. Without `--cdp` it returns an error saying how to enable it. Args: `action`, `ref`, `waitMs`, `tabId`.                                                                                                                                                                                          |
+| `ui_leak_check`        | Runs `actions` (or one `action`) `iterations` times (default 5, max 20), e.g. `[open, close]` on a modal toggle. The page records a WeakRef + source of every Svelte element removed meanwhile; with `--cdp` the server forces GC before and after, so whatever is still alive and detached is retained: `LEAK? <Component> <file:line> retains N detached nodes (~N/iteration)`, plus growth of Nodes, JSEventListeners and JSHeapUsedSize per iteration. Verdict `LEAK SUSPECTED`, `NO LEAK DETECTED` or `INCONCLUSIVE` (always without `--cdp`: no forced GC). Args: `actions`, `action`, `iterations`, `waitMs`, `tabId`.                                                                                                                                                                  |
+| `ui_network`           | What a screen loads: fetch, XHR, sendBeacon, WebSocket, EventSource and (from resource timing) scripts, CSS, images and fonts, each with its initiator (`file:line` and component of the app code that made it) and tags for SvelteKit `__data.json` / remote-function calls. Text: totals (count, bytes, by type, first- vs third-party), origins, duplicates, slowest 5, sequential chains, failed requests, one line per request. `reload: true` reloads the tab, waits for it to reconnect plus `waitMs` (default 2000) and reports the initial load. URLs are always redacted (`kind:abcd…(len N, sha xxxxxx)`); bodies only with `includeBodies` (same-origin JSON, redacted, 2 KB). Args: `reload`, `waitMs`, `since`, `filter` (`origin`, `type`, `status`), `includeBodies`, `tabId`. |
+| `ui_security_scan`     | Runtime security checks, findings `{ id, check, severity, verdict, title, evidence, source?, fix }` grouped by severity: secrets in URLs and credential headers/bodies sent to third parties (from the `ui_network` buffer), JWTs/keys in Web Storage, JS-readable auth cookies, secrets on `window`, sensitive fields in SvelteKit serialized data, secret-shaped `VITE_`/`PUBLIC_` env values, response headers (CSP, nosniff, Referrer-Policy, frame-ancestors, HSTS; info on a localhost dev server), `{@html}`-style inline handlers, `target=_blank` without `rel=noopener`, mixed content. Evidence is always redacted. Args: `checks`, `tabId`.                                                                                                                                        |
 
 The `ui_*` tools query the page live: the app must be open in dev with `<SvelteGrab/>` mounted (otherwise they return "No browser tab connected"). Refs are stamped on elements as `data-sg-ref`, so `[data-sg-ref="e12"]` works as a locator in Playwright MCP or chrome-devtools MCP for real clicks and screenshots.
 
@@ -642,7 +642,7 @@ import { svelteGrab } from 'svelte-grab/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [sveltekit(), svelteGrab()]
+	plugins: [sveltekit(), svelteGrab()]
 });
 ```
 
@@ -653,7 +653,7 @@ import { svelteGrab } from 'svelte-grab/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [svelte(), svelteGrab()]
+	plugins: [svelte(), svelteGrab()]
 });
 ```
 
@@ -671,14 +671,14 @@ Options: `svelteGrab({ hmrBridge: false, importers: false })` turns each part of
 
 The MCP server also exposes HTTP endpoints (available in both stdio and HTTP modes):
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check with server identity and agent status (no Origin/token check) |
-| `GET` | `/events` | SSE stream for real-time browser status updates |
-| `POST` | `/context` | Receive context from browser |
-| `POST` | `/runtime/hello` | Browser tab registration and heartbeat for the `ui_*` tools |
-| `POST` | `/runtime/result` | Browser tab answer to a `runtime-command` SSE event |
-| `POST` | `/mcp` | MCP protocol endpoint (stateless Streamable HTTP; served in HTTP mode and by the stdio sidecar) |
+| Method | Path              | Description                                                                                     |
+| ------ | ----------------- | ----------------------------------------------------------------------------------------------- |
+| `GET`  | `/health`         | Health check with server identity and agent status (no Origin/token check)                      |
+| `GET`  | `/events`         | SSE stream for real-time browser status updates                                                 |
+| `POST` | `/context`        | Receive context from browser                                                                    |
+| `POST` | `/runtime/hello`  | Browser tab registration and heartbeat for the `ui_*` tools                                     |
+| `POST` | `/runtime/result` | Browser tab answer to a `runtime-command` SSE event                                             |
+| `POST` | `/mcp`            | MCP protocol endpoint (stateless Streamable HTTP; served in HTTP mode and by the stdio sidecar) |
 
 POST bodies are capped at 2 MB. A larger body gets a `413 {"error":"Request body too large"}` response and the connection is closed.
 
@@ -700,16 +700,16 @@ The page follows the fallback on its own. It checks `GET /health` on `mcpPort` f
 
 ```json
 {
-  "status": "ok",
-  "service": "svelte-grab-mcp",
-  "version": "1.4.2",
-  "port": 4724,
-  "preferredPort": 4723,
-  "portFallback": true,
-  "hasContext": false,
-  "agentWatching": false,
-  "watcherCount": 0,
-  "sseClients": 0
+	"status": "ok",
+	"service": "svelte-grab-mcp",
+	"version": "1.4.2",
+	"port": 4724,
+	"preferredPort": 4723,
+	"portFallback": true,
+	"hasContext": false,
+	"agentWatching": false,
+	"watcherCount": 0,
+	"sseClients": 0
 }
 ```
 
@@ -728,12 +728,12 @@ Then configure Claude Code to connect via HTTP:
 
 ```json
 {
-  "mcpServers": {
-    "svelte-grab": {
-      "type": "url",
-      "url": "http://localhost:4723/mcp"
-    }
-  }
+	"mcpServers": {
+		"svelte-grab": {
+			"type": "url",
+			"url": "http://localhost:4723/mcp"
+		}
+	}
 }
 ```
 
@@ -774,19 +774,19 @@ npx svelte-grab relay --port=4722 --provider=claude-code
 import { createRelayServer, ClaudeCodeProvider } from 'svelte-grab/relay';
 
 const server = await createRelayServer({
-  port: 4722,
-  providers: [new ClaudeCodeProvider()]
+	port: 4722,
+	providers: [new ClaudeCodeProvider()]
 });
 ```
 
 ### Supported Providers
 
-| Provider | CLI name | SDK |
-|----------|----------|-----|
+| Provider    | CLI name      | SDK                              |
+| ----------- | ------------- | -------------------------------- |
 | Claude Code | `claude-code` | `@anthropic-ai/claude-agent-sdk` |
-| Cursor | `cursor` | `cursor-agent` CLI |
-| Copilot | `copilot` | `copilot` CLI |
-| Codex | `codex` | `@openai/codex-sdk` |
+| Cursor      | `cursor`      | `cursor-agent` CLI               |
+| Copilot     | `copilot`     | `copilot` CLI                    |
+| Codex       | `codex`       | `@openai/codex-sdk`              |
 
 ### Session Management
 
@@ -824,23 +824,23 @@ npx svelte-grab audit --ci --min-severity medium --deps
 
 It walks the project (skipping `node_modules`, `dist`, `build`, `.svelte-kit`, `.git`, `coverage`, `.gitignore` matches, test files and files over 1 MB) and runs these rules:
 
-| Rule | Severity | Verdict | What it flags |
-|------|----------|---------|---------------|
-| `secrets/client-exposure` | high (provider keys), medium (other) | confirmed / needs_validation | Secret-shaped values (Stripe, AWS, GitHub, OpenAI, Anthropic, Slack, Supabase `service_role`, private keys, ...) in client-reachable code. Server-only code (any `server` path segment such as `$lib/server`, `*.server.*`, `+server.*`, `*.remote.*`) is never client exposure |
-| `secrets/hardcoded-server` | medium / low | needs_validation | The same secrets hardcoded in server-only or tooling code |
-| `env/public-secret` | high | confirmed | Secret-shaped values under `PUBLIC_` / `VITE_` keys in `.env*` files (scanned even when gitignored). Supabase `anon` keys are skipped |
-| `svelte/html-non-literal` | medium | needs_validation | `{@html expr}` where `expr` is not a string literal or an obvious sanitizer call |
-| `svelte/target-blank-noopener` | low | confirmed (static href) | `target="_blank"` to an external URL without `rel="noopener"` / `noreferrer` |
-| `svelte/inline-handler-string` | low | confirmed | `on*="..."` string handlers on DOM elements |
-| `kit/load-overexposure` | medium | needs_validation | `+page.server` / `+layout.server` `load` returning (or spreading) a DB row fetched without field selection |
-| `kit/action-no-auth` | medium | needs_validation | Form actions without an obvious auth check (`locals.user`, `getRequestEvent().locals`, `redirect(30x)`, `error(401/403)`, `requireAuth()`-style helpers) |
-| `kit/remote-no-auth` | medium | needs_validation | Remote `command(...)` / `form(...)` from `$app/server` without an obvious auth check |
-| `kit/csrf-trusted-origins-wildcard` | high | confirmed | `csrf.trustedOrigins` containing `'*'` |
-| `kit/csp-missing` | low | confirmed | No `kit.csp` in `svelte.config` and no server file sets `Content-Security-Policy` |
-| `js/eval` | medium | confirmed | `eval(` / `new Function(` |
-| `js/postmessage-no-origin` | medium | confirmed / needs_validation | `message` listeners on `window` (or `<svelte:window onmessage>`) whose handler never reads `origin` |
-| `storage/token-in-web-storage` | medium (localStorage), low (sessionStorage) | confirmed | Tokens written to Web Storage under token-ish keys |
-| `deps/advisory` | npm severity | confirmed for `svelte` / `@sveltejs/*` | Only with `--deps`: `npm audit --json` (60 s timeout); skipped with a note otherwise |
+| Rule                                | Severity                                    | Verdict                                | What it flags                                                                                                                                                                                                                                                                   |
+| ----------------------------------- | ------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `secrets/client-exposure`           | high (provider keys), medium (other)        | confirmed / needs_validation           | Secret-shaped values (Stripe, AWS, GitHub, OpenAI, Anthropic, Slack, Supabase `service_role`, private keys, ...) in client-reachable code. Server-only code (any `server` path segment such as `$lib/server`, `*.server.*`, `+server.*`, `*.remote.*`) is never client exposure |
+| `secrets/hardcoded-server`          | medium / low                                | needs_validation                       | The same secrets hardcoded in server-only or tooling code                                                                                                                                                                                                                       |
+| `env/public-secret`                 | high                                        | confirmed                              | Secret-shaped values under `PUBLIC_` / `VITE_` keys in `.env*` files (scanned even when gitignored). Supabase `anon` keys are skipped                                                                                                                                           |
+| `svelte/html-non-literal`           | medium                                      | needs_validation                       | `{@html expr}` where `expr` is not a string literal or an obvious sanitizer call                                                                                                                                                                                                |
+| `svelte/target-blank-noopener`      | low                                         | confirmed (static href)                | `target="_blank"` to an external URL without `rel="noopener"` / `noreferrer`                                                                                                                                                                                                    |
+| `svelte/inline-handler-string`      | low                                         | confirmed                              | `on*="..."` string handlers on DOM elements                                                                                                                                                                                                                                     |
+| `kit/load-overexposure`             | medium                                      | needs_validation                       | `+page.server` / `+layout.server` `load` returning (or spreading) a DB row fetched without field selection                                                                                                                                                                      |
+| `kit/action-no-auth`                | medium                                      | needs_validation                       | Form actions without an obvious auth check (`locals.user`, `getRequestEvent().locals`, `redirect(30x)`, `error(401/403)`, `requireAuth()`-style helpers)                                                                                                                        |
+| `kit/remote-no-auth`                | medium                                      | needs_validation                       | Remote `command(...)` / `form(...)` from `$app/server` without an obvious auth check                                                                                                                                                                                            |
+| `kit/csrf-trusted-origins-wildcard` | high                                        | confirmed                              | `csrf.trustedOrigins` containing `'*'`                                                                                                                                                                                                                                          |
+| `kit/csp-missing`                   | low                                         | confirmed                              | No `kit.csp` in `svelte.config` and no server file sets `Content-Security-Policy`                                                                                                                                                                                               |
+| `js/eval`                           | medium                                      | confirmed                              | `eval(` / `new Function(`                                                                                                                                                                                                                                                       |
+| `js/postmessage-no-origin`          | medium                                      | confirmed / needs_validation           | `message` listeners on `window` (or `<svelte:window onmessage>`) whose handler never reads `origin`                                                                                                                                                                             |
+| `storage/token-in-web-storage`      | medium (localStorage), low (sessionStorage) | confirmed                              | Tokens written to Web Storage under token-ish keys                                                                                                                                                                                                                              |
+| `deps/advisory`                     | npm severity                                | confirmed for `svelte` / `@sveltejs/*` | Only with `--deps`: `npm audit --json` (60 s timeout); skipped with a note otherwise                                                                                                                                                                                            |
 
 Each finding is `{ id, rule, severity, verdict, title, evidence, file, line, column, source, fix }`; `id` is stable across runs. Evidence never contains a full secret (`stripe-secret-key:sk_l…(len 32, sha 3f9a1c)`). The JSON report is validated against a JSON Schema (draft 2020-12) before it is written; print it with `npx svelte-grab audit --schema`. `needs_validation` findings are leads for an agent or a human to confirm or reject; only `confirmed` ones fail `--ci`.
 
@@ -850,42 +850,42 @@ Each finding is `{ id, rule, severity, verdict, title, evidence, file, line, col
 npx svelte-grab <command> [options]
 ```
 
-| Command | Description |
-|---------|-------------|
-| `init` | Set up the project: merge `.mcp.json`, add the Vite plugin, inject SvelteDevKit into the root layout (flags below) |
-| `add <provider>` | Add an agent provider (claude-code, cursor, copilot, codex) |
-| `remove <provider>` | Remove an agent provider |
-| `configure` | Interactive configuration (activation key, editor, ports, theme) |
-| `relay` | Start the WebSocket relay server (maintenance mode) |
-| `mcp` | Start the MCP server |
+| Command                      | Description                                                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init`                       | Set up the project: merge `.mcp.json`, add the Vite plugin, inject SvelteDevKit into the root layout (flags below)                                            |
+| `add <provider>`             | Add an agent provider (claude-code, cursor, copilot, codex)                                                                                                   |
+| `remove <provider>`          | Remove an agent provider                                                                                                                                      |
+| `configure`                  | Interactive configuration (activation key, editor, ports, theme)                                                                                              |
+| `relay`                      | Start the WebSocket relay server (maintenance mode)                                                                                                           |
+| `mcp`                        | Start the MCP server                                                                                                                                          |
 | `skills install\|list\|path` | Install or update the [agent skills](#agent-skills) in `.claude/skills/` (`--skills-dir`, `--force`, `--dry-run`), list them, or print the packaged directory |
-| `audit` | Static security scan (see [Static audit](#static-audit) and the flags below) |
-| `help` | Show help |
+| `audit`                      | Static security scan (see [Static audit](#static-audit) and the flags below)                                                                                  |
+| `help`                       | Show help                                                                                                                                                     |
 
 ### `audit`
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--path <dir>` | `.` | Project root to scan |
-| `--json [file]` | | Write the JSON report to `file`; without a file (or `-`), print JSON to stdout instead of the text report |
-| `--html <file>` | | Write a single-file HTML report (inline CSS, no external assets) |
-| `--ci` | off | No colors; exit code 1 when a `confirmed` finding is at or above `--min-severity`, else 0 |
-| `--min-severity <level>` | `high` | CI threshold: `high`, `medium` or `low` |
-| `--deps` | off | Also run `npm audit --json` for dependency advisories |
-| `--schema` | | Print the report JSON Schema and exit |
+| Flag                     | Default | Description                                                                                               |
+| ------------------------ | ------- | --------------------------------------------------------------------------------------------------------- |
+| `--path <dir>`           | `.`     | Project root to scan                                                                                      |
+| `--json [file]`          |         | Write the JSON report to `file`; without a file (or `-`), print JSON to stdout instead of the text report |
+| `--html <file>`          |         | Write a single-file HTML report (inline CSS, no external assets)                                          |
+| `--ci`                   | off     | No colors; exit code 1 when a `confirmed` finding is at or above `--min-severity`, else 0                 |
+| `--min-severity <level>` | `high`  | CI threshold: `high`, `medium` or `low`                                                                   |
+| `--deps`                 | off     | Also run `npm audit --json` for dependency advisories                                                     |
+| `--schema`               |         | Print the report JSON Schema and exit                                                                     |
 
 Without `--ci` the exit code is 0 whatever the findings; usage errors exit 2. The command wraps a library function, `audit(options)` (`src/cli/audit/index.ts`), that returns the report and never exits the process.
 
 ### `init`
 
-| Step | What it does | Opt out |
-|------|--------------|---------|
-| `.mcp.json` | Merges the `svelte-grab` server (`npx svelte-grab-mcp --stdio`) and the official Svelte MCP (`npx -y @sveltejs/mcp`) into `mcpServers`. Existing entries are never replaced; an invalid file is left alone with an error. Prints a diff. | `--no-mcp-json`, `--no-svelte-mcp` (or `--with-svelte-mcp=false`) |
-| Playwright MCP | Adds a `playwright` entry (`npx -y @playwright/mcp@latest`). | off unless `--with-playwright-mcp` |
-| `vite.config.(ts\|js)` | Adds `import { svelteGrab } from 'svelte-grab/vite'` and `svelteGrab()` right after `sveltekit(...)` / `svelte(...)` when the config has a plain `plugins: [...]` array. Any other shape is left untouched and the two lines to add are printed. | `--no-vite-plugin` |
-| Root component | SvelteKit: `src/routes/+layout.svelte` (created if missing), wrapped in `{#if dev}` from `$app/environment`. Vite + Svelte: end of `src/App.svelte`. Skipped when the file already imports `svelte-grab`. | |
-| Agent skills | Copies `skills/svelte-grab` and `skills/svelte-grab-audit` into `.claude/skills/`. Identical files are skipped; a file you edited gets the new version next to it as `<file>.new`. Appends a one-time pointer to an existing `AGENTS.md`. | `--no-skills`; `--skills-dir <dir>` to change the target; `--force-skills` to overwrite edited files |
-| `enableMcp` | Set on the injected `<SvelteDevKit />` only when `.mcp.json` declares the `svelte-grab` server after the run (added now or already there). With `--no-mcp-json` or an unreadable `.mcp.json` the page does not try to reach an MCP server. | |
+| Step                   | What it does                                                                                                                                                                                                                                     | Opt out                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `.mcp.json`            | Merges the `svelte-grab` server (`npx svelte-grab-mcp --stdio`) and the official Svelte MCP (`npx -y @sveltejs/mcp`) into `mcpServers`. Existing entries are never replaced; an invalid file is left alone with an error. Prints a diff.         | `--no-mcp-json`, `--no-svelte-mcp` (or `--with-svelte-mcp=false`)                                    |
+| Playwright MCP         | Adds a `playwright` entry (`npx -y @playwright/mcp@latest`).                                                                                                                                                                                     | off unless `--with-playwright-mcp`                                                                   |
+| `vite.config.(ts\|js)` | Adds `import { svelteGrab } from 'svelte-grab/vite'` and `svelteGrab()` right after `sveltekit(...)` / `svelte(...)` when the config has a plain `plugins: [...]` array. Any other shape is left untouched and the two lines to add are printed. | `--no-vite-plugin`                                                                                   |
+| Root component         | SvelteKit: `src/routes/+layout.svelte` (created if missing), wrapped in `{#if dev}` from `$app/environment`. Vite + Svelte: end of `src/App.svelte`. Skipped when the file already imports `svelte-grab`.                                        |                                                                                                      |
+| Agent skills           | Copies `skills/svelte-grab` and `skills/svelte-grab-audit` into `.claude/skills/`. Identical files are skipped; a file you edited gets the new version next to it as `<file>.new`. Appends a one-time pointer to an existing `AGENTS.md`.        | `--no-skills`; `--skills-dir <dir>` to change the target; `--force-skills` to overwrite edited files |
+| `enableMcp`            | Set on the injected `<SvelteDevKit />` only when `.mcp.json` declares the `svelte-grab` server after the run (added now or already there). With `--no-mcp-json` or an unreadable `.mcp.json` the page does not try to reach an MCP server.       |                                                                                                      |
 
 `init` also lists the dev dependencies still missing from `package.json` (`svelte-grab`, plus `@modelcontextprotocol/sdk` and `zod` when MCP is configured) with the install command for your package manager. `--dry-run` prints every diff and writes nothing. Running it again changes nothing.
 
@@ -910,34 +910,36 @@ Extend SvelteGrab with custom hooks, context menu actions, and content transform
 import type { SvelteGrabPlugin } from 'svelte-grab';
 
 const myPlugin: SvelteGrabPlugin = {
-  name: 'my-plugin',
-  version: '1.0.0',
+	name: 'my-plugin',
+	version: '1.0.0',
 
-  hooks: {
-    onElementGrab(element, stack) {
-      console.log('Grabbed:', element, stack);
-    },
-    beforeCopy(context) {
-      return context.content + '\n// Added by my-plugin';
-    }
-  },
+	hooks: {
+		onElementGrab(element, stack) {
+			console.log('Grabbed:', element, stack);
+		},
+		beforeCopy(context) {
+			return context.content + '\n// Added by my-plugin';
+		}
+	},
 
-  actions: [
-    {
-      id: 'my-action',
-      label: 'My Action',
-      icon: '...',
-      onAction: ({ element, stack }) => { /* ... */ }
-    }
-  ],
+	actions: [
+		{
+			id: 'my-action',
+			label: 'My Action',
+			icon: '...',
+			onAction: ({ element, stack }) => {
+				/* ... */
+			}
+		}
+	],
 
-  setup(api) {
-    // Access the SvelteGrab API
-  },
+	setup(api) {
+		// Access the SvelteGrab API
+	},
 
-  teardown() {
-    // Cleanup
-  }
+	teardown() {
+		// Cleanup
+	}
 };
 ```
 
@@ -947,58 +949,58 @@ const myPlugin: SvelteGrabPlugin = {
 
 ### Available Hooks
 
-| Hook | When it fires |
-|------|---------------|
-| `onActivate` | Selection mode activated |
-| `onDeactivate` | Selection mode deactivated |
-| `onElementHover` | Element hovered in selection mode |
-| `onElementGrab` | Element grabbed (clicked) |
-| `onSelectionChange` | Multi-selection changes |
-| `beforeCopy` | Before clipboard copy (return string to modify) |
-| `afterCopy` | After clipboard copy |
-| `beforeAgentSend` | Before sending to agent relay |
-| `afterAgentResponse` | After agent responds |
+| Hook                 | When it fires                                   |
+| -------------------- | ----------------------------------------------- |
+| `onActivate`         | Selection mode activated                        |
+| `onDeactivate`       | Selection mode deactivated                      |
+| `onElementHover`     | Element hovered in selection mode               |
+| `onElementGrab`      | Element grabbed (clicked)                       |
+| `onSelectionChange`  | Multi-selection changes                         |
+| `beforeCopy`         | Before clipboard copy (return string to modify) |
+| `afterCopy`          | After clipboard copy                            |
+| `beforeAgentSend`    | Before sending to agent relay                   |
+| `afterAgentResponse` | After agent responds                            |
 
 ## Global API
 
 SvelteGrab exposes a programmatic API on `window.__SVELTE_GRAB__`:
 
 ```typescript
-window.__SVELTE_GRAB__.activate();      // Enable selection mode
-window.__SVELTE_GRAB__.deactivate();    // Disable selection mode
-window.__SVELTE_GRAB__.toggle();        // Toggle selection mode
-window.__SVELTE_GRAB__.isActive();      // Check if active
-window.__SVELTE_GRAB__.grab(element);   // Get component stack
+window.__SVELTE_GRAB__.activate(); // Enable selection mode
+window.__SVELTE_GRAB__.deactivate(); // Disable selection mode
+window.__SVELTE_GRAB__.toggle(); // Toggle selection mode
+window.__SVELTE_GRAB__.isActive(); // Check if active
+window.__SVELTE_GRAB__.grab(element); // Get component stack
 window.__SVELTE_GRAB__.copyElement(el); // Copy element to clipboard
-window.__SVELTE_GRAB__.getHistory();    // Get grab history
+window.__SVELTE_GRAB__.getHistory(); // Get grab history
 window.__SVELTE_GRAB__.getSelectedElements(); // Get multi-selected elements
-window.__SVELTE_GRAB__.clearSelection();      // Clear multi-selection
+window.__SVELTE_GRAB__.clearSelection(); // Clear multi-selection
 window.__SVELTE_GRAB__.registerPlugin(plugin); // Register a plugin
 ```
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| **Alt+Click** | Grab component stack |
-| **Shift+Alt+Click** | Multi-select element |
-| **Alt+Meta+Click** | Inspect component state (SvelteDevKit; Meta = Cmd/Win) |
-| **Alt+Shift+Click** | Inspect component state (standalone SvelteStateGrab) |
-| **Alt+Ctrl+Click** | Analyze CSS styles |
-| **Alt+DoubleClick** | Trace component hierarchy |
-| **Alt+RightClick** | Audit accessibility (standalone SvelteA11yReporter); in SvelteDevKit, SvelteGrab's context menu (selection mode) |
-| **Alt+Shift+RightClick** | Audit accessibility (SvelteDevKit) |
-| **Alt+A** | Audit entire page accessibility |
-| **Alt+E** | View captured errors |
-| **Alt+P** | Profile renders |
-| **O** | Open in editor (when popup visible) |
-| **S** | Screenshot element (when popup visible) |
-| **Arrow keys** | Navigate component tree (selection mode) |
-| **Tab** | Open prompt overlay (selection mode) |
-| **Cmd/Ctrl+C** | Copy hovered element (selection mode) |
-| **N** | Annotate the hovered element or the selection (selection mode) |
-| **Cmd/Ctrl+Enter** | Send prompt to agent |
-| **Escape** | Close popup / exit selection mode |
+| Shortcut                 | Action                                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| **Alt+Click**            | Grab component stack                                                                                             |
+| **Shift+Alt+Click**      | Multi-select element                                                                                             |
+| **Alt+Meta+Click**       | Inspect component state (SvelteDevKit; Meta = Cmd/Win)                                                           |
+| **Alt+Shift+Click**      | Inspect component state (standalone SvelteStateGrab)                                                             |
+| **Alt+Ctrl+Click**       | Analyze CSS styles                                                                                               |
+| **Alt+DoubleClick**      | Trace component hierarchy                                                                                        |
+| **Alt+RightClick**       | Audit accessibility (standalone SvelteA11yReporter); in SvelteDevKit, SvelteGrab's context menu (selection mode) |
+| **Alt+Shift+RightClick** | Audit accessibility (SvelteDevKit)                                                                               |
+| **Alt+A**                | Audit entire page accessibility                                                                                  |
+| **Alt+E**                | View captured errors                                                                                             |
+| **Alt+P**                | Profile renders                                                                                                  |
+| **O**                    | Open in editor (when popup visible)                                                                              |
+| **S**                    | Screenshot element (when popup visible)                                                                          |
+| **Arrow keys**           | Navigate component tree (selection mode)                                                                         |
+| **Tab**                  | Open prompt overlay (selection mode)                                                                             |
+| **Cmd/Ctrl+C**           | Copy hovered element (selection mode)                                                                            |
+| **N**                    | Annotate the hovered element or the selection (selection mode)                                                   |
+| **Cmd/Ctrl+Enter**       | Send prompt to agent                                                                                             |
+| **Escape**               | Close popup / exit selection mode                                                                                |
 
 With `hotkeys="minimal"` only Alt+Click, Shift+Alt+Click, Alt+Drag, `N` and Escape remain ([Minimal hotkeys](#minimal-hotkeys)).
 
@@ -1021,12 +1023,12 @@ All tools share the same two-prop theme system:
 
 <!-- Custom colors on dark base -->
 <SvelteGrab
-  theme={{
-    background: '#0d1117',
-    border: '#30363d',
-    text: '#c9d1d9',
-    accent: '#58a6ff'
-  }}
+	theme={{
+		background: '#0d1117',
+		border: '#30363d',
+		text: '#c9d1d9',
+		accent: '#58a6ff'
+	}}
 />
 ```
 
@@ -1068,11 +1070,11 @@ In the browser, pass the MCP token to the component; it is sent on `/context`, `
 
 ### Configuration
 
-| Setting | How |
-|---------|-----|
-| Extend the Origin allowlist | `SVELTE_GRAB_ALLOWED_ORIGINS=https://a.example,https://b.example` (comma-separated), or the `allowedOrigins` option to `createRelayServer` / `startMcpServer` |
-| Enable token auth | `--token[=VALUE]` CLI flag, `SVELTE_GRAB_TOKEN` env var, or the `token` option |
-| Enable CDP mode (off by default) | `--cdp=http://127.0.0.1:9222` CLI flag, `SVELTE_GRAB_CDP` env var, or the `cdp` option to `startMcpServer` (loopback hosts only) |
+| Setting                          | How                                                                                                                                                           |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Extend the Origin allowlist      | `SVELTE_GRAB_ALLOWED_ORIGINS=https://a.example,https://b.example` (comma-separated), or the `allowedOrigins` option to `createRelayServer` / `startMcpServer` |
+| Enable token auth                | `--token[=VALUE]` CLI flag, `SVELTE_GRAB_TOKEN` env var, or the `token` option                                                                                |
+| Enable CDP mode (off by default) | `--cdp=http://127.0.0.1:9222` CLI flag, `SVELTE_GRAB_CDP` env var, or the `cdp` option to `startMcpServer` (loopback hosts only)                              |
 
 **Never expose the relay or MCP ports to a network.** If you need remote access, use an SSH tunnel to `127.0.0.1` and keep token auth on.
 
@@ -1095,15 +1097,15 @@ SvelteGrab walks up this metadata tree to build the full component hierarchy. Al
 
 ### Optional Dependencies
 
-| Package | Required for |
-|---------|-------------|
-| `html-to-image` | Screenshot capture |
-| `ws` | Agent relay server |
-| `@anthropic-ai/claude-agent-sdk` | Claude Code relay provider |
-| `@openai/codex-sdk` | Codex relay provider |
-| `@modelcontextprotocol/sdk` | MCP protocol transport (stdio/StreamableHTTP) |
-| `zod` | MCP tool schemas (install next to `@modelcontextprotocol/sdk`) |
-| `vite` | The optional `svelte-grab/vite` plugin |
+| Package                          | Required for                                                   |
+| -------------------------------- | -------------------------------------------------------------- |
+| `html-to-image`                  | Screenshot capture                                             |
+| `ws`                             | Agent relay server                                             |
+| `@anthropic-ai/claude-agent-sdk` | Claude Code relay provider                                     |
+| `@openai/codex-sdk`              | Codex relay provider                                           |
+| `@modelcontextprotocol/sdk`      | MCP protocol transport (stdio/StreamableHTTP)                  |
+| `zod`                            | MCP tool schemas (install next to `@modelcontextprotocol/sdk`) |
+| `vite`                           | The optional `svelte-grab/vite` plugin                         |
 
 ## License
 

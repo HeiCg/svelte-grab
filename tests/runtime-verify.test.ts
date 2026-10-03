@@ -22,18 +22,26 @@ function line(text: string, check: string): string {
 	return text.split('\n').find((l) => new RegExp(`^(PASS|WARN|FAIL) ${check}\\b`).test(l)) ?? '';
 }
 
-function checkData(data: Record<string, unknown> | undefined, check: string): Record<string, unknown> {
+function checkData(
+	data: Record<string, unknown> | undefined,
+	check: string
+): Record<string, unknown> {
 	return ((data?.checks ?? []) as Record<string, unknown>[]).find((c) => c.check === check)!;
 }
 
-function setSize(el: Element, sizes: Partial<Record<'scrollWidth' | 'clientWidth' | 'scrollHeight' | 'clientHeight', number>>) {
-	for (const [k, v] of Object.entries(sizes)) Object.defineProperty(el, k, { configurable: true, value: v });
+function setSize(
+	el: Element,
+	sizes: Partial<Record<'scrollWidth' | 'clientWidth' | 'scrollHeight' | 'clientHeight', number>>
+) {
+	for (const [k, v] of Object.entries(sizes))
+		Object.defineProperty(el, k, { configurable: true, value: v });
 }
 
 /** jsdom has no hit testing: install one that answers `hit` for any point. */
 function mockHit(hit: Element | null) {
-	(document as unknown as { elementsFromPoint: (x: number, y: number) => Element[] }).elementsFromPoint = () =>
-		hit ? [hit, document.body] : [];
+	(
+		document as unknown as { elementsFromPoint: (x: number, y: number) => Element[] }
+	).elementsFromPoint = () => (hit ? [hit, document.body] : []);
 }
 
 beforeEach(() => {
@@ -42,7 +50,13 @@ beforeEach(() => {
 	registry = new RefRegistry();
 	clock = 10_000;
 	capture = new ConsoleCapture({ target: null, now: () => clock });
-	tracker = new HmrTracker({ hot: null, storage: null, now: () => clock, pluginInfo: () => null, capture: null });
+	tracker = new HmrTracker({
+		hot: null,
+		storage: null,
+		now: () => clock,
+		pluginInfo: () => null,
+		capture: null
+	});
 	setSize(document.documentElement, { scrollWidth: 1024, clientWidth: 1024 });
 });
 
@@ -89,7 +103,12 @@ describe('ui_verify', () => {
 		const { buttons } = buildFixture();
 		const ref = registry.refFor(buttons[0]);
 		const { text } = verify({ ref, checks: ['contrast', 'a11y', 'contrast'] });
-		expect(text.split('\n').slice(1).map((l) => l.split(' ')[1])).toEqual(['a11y', 'contrast']);
+		expect(
+			text
+				.split('\n')
+				.slice(1)
+				.map((l) => l.split(' ')[1])
+		).toEqual(['a11y', 'contrast']);
 	});
 
 	it('resolves a rebound ref like ui_inspect and notes it', () => {
@@ -111,19 +130,27 @@ describe('ui_verify', () => {
 			cards[0].style.display = 'none';
 			const ref = registry.refFor(buttons[0]);
 			const l = line(verify({ ref, checks: ['visible'] }).text, 'visible');
-			expect(l).toMatch(/^FAIL visible hidden: display: none on ancestor e\d+ div\.card Card src\/lib\/Card\.svelte:5$/);
+			expect(l).toMatch(
+				/^FAIL visible hidden: display: none on ancestor e\d+ div\.card Card src\/lib\/Card\.svelte:5$/
+			);
 		});
 
 		it('FAILs for visibility hidden, opacity 0 and a zero-size box', () => {
 			const { buttons } = buildFixture();
 			const ref = registry.refFor(buttons[0]);
 			buttons[0].style.visibility = 'hidden';
-			expect(line(verify({ ref, checks: ['visible'] }).text, 'visible')).toBe('FAIL visible hidden: visibility: hidden');
+			expect(line(verify({ ref, checks: ['visible'] }).text, 'visible')).toBe(
+				'FAIL visible hidden: visibility: hidden'
+			);
 			buttons[0].style.visibility = '';
 			buttons[0].style.opacity = '0';
-			expect(line(verify({ ref, checks: ['visible'] }).text, 'visible')).toBe('FAIL visible invisible: opacity: 0');
+			expect(line(verify({ ref, checks: ['visible'] }).text, 'visible')).toBe(
+				'FAIL visible invisible: opacity: 0'
+			);
 			buttons[0].style.opacity = '';
-			expect(line(verify({ ref, checks: ['visible'] }).text, 'visible')).toBe('FAIL visible zero-size box (0x0)');
+			expect(line(verify({ ref, checks: ['visible'] }).text, 'visible')).toBe(
+				'FAIL visible zero-size box (0x0)'
+			);
 		});
 
 		it('WARNs when off-screen', () => {
@@ -131,21 +158,34 @@ describe('ui_verify', () => {
 			setBox(buttons[0], 10, 3000, 100, 30);
 			const ref = registry.refFor(buttons[0]);
 			const out = verify({ ref, checks: ['visible'] });
-			expect(line(out.text, 'visible')).toMatch(/^WARN visible off-screen: box 10,3000 100x30 is outside the \d+x\d+ viewport/);
-			expect(checkData(out.data, 'visible')).toMatchObject({ status: 'WARN', reason: 'off-screen' });
+			expect(line(out.text, 'visible')).toMatch(
+				/^WARN visible off-screen: box 10,3000 100x30 is outside the \d+x\d+ viewport/
+			);
+			expect(checkData(out.data, 'visible')).toMatchObject({
+				status: 'WARN',
+				reason: 'off-screen'
+			});
 		});
 
 		it('WARNs when another element covers its center, naming the coverer with component and source', () => {
 			const { main, buttons } = buildFixture();
 			setBox(buttons[0], 10, 10, 100, 30);
 			const modalInst = component('Modal', '/src/App.svelte', 9);
-			const overlay = meta(h('div', { class: 'backdrop svelte-x1y2z3' }), '/src/lib/Modal.svelte', 3, 1, modalInst);
+			const overlay = meta(
+				h('div', { class: 'backdrop svelte-x1y2z3' }),
+				'/src/lib/Modal.svelte',
+				3,
+				1,
+				modalInst
+			);
 			main.append(overlay);
 			mockHit(overlay);
 			const ref = registry.refFor(buttons[0]);
 			const out = verify({ ref, checks: ['visible'] });
 			const l = line(out.text, 'visible');
-			expect(l).toMatch(/^WARN visible covered at its center \(60,25\) by e\d+ div\.backdrop Modal src\/lib\/Modal\.svelte:3$/);
+			expect(l).toMatch(
+				/^WARN visible covered at its center \(60,25\) by e\d+ div\.backdrop Modal src\/lib\/Modal\.svelte:3$/
+			);
 			expect(checkData(out.data, 'visible')).toMatchObject({
 				covered: true,
 				coveredBy: { tag: 'div.backdrop', component: 'Modal', source: 'src/lib/Modal.svelte:3' }
@@ -160,12 +200,19 @@ describe('ui_verify', () => {
 			setBox(buttons[0], 10, 10, 100, 30);
 			const ref = registry.refFor(buttons[0]);
 			mockHit(span);
-			expect(line(verify({ ref, checks: ['visible'] }).text, 'visible')).toBe('PASS visible box 10,10 100x30, in viewport, not covered');
+			expect(line(verify({ ref, checks: ['visible'] }).text, 'visible')).toBe(
+				'PASS visible box 10,10 100x30, in viewport, not covered'
+			);
 
 			const ours = h('div', { 'data-svelte-grab-ui': '' });
 			document.body.append(ours);
-			(document as unknown as { elementsFromPoint: () => Element[] }).elementsFromPoint = () => [ours, buttons[0]];
-			expect(line(verify({ ref, checks: ['visible'] }).text, 'visible')).toBe('PASS visible box 10,10 100x30, in viewport, not covered');
+			(document as unknown as { elementsFromPoint: () => Element[] }).elementsFromPoint = () => [
+				ours,
+				buttons[0]
+			];
+			expect(line(verify({ ref, checks: ['visible'] }).text, 'visible')).toBe(
+				'PASS visible box 10,10 100x30, in viewport, not covered'
+			);
 		});
 
 		it('says so when hit testing is unavailable', () => {
@@ -193,7 +240,12 @@ describe('ui_verify', () => {
 		it('WARNs when children spill out of the box, naming them', () => {
 			const { cards } = buildFixture();
 			setBox(cards[0], 0, 0, 200, 100);
-			setSize(cards[0], { scrollWidth: 320, clientWidth: 200, scrollHeight: 100, clientHeight: 100 });
+			setSize(cards[0], {
+				scrollWidth: 320,
+				clientWidth: 200,
+				scrollHeight: 100,
+				clientHeight: 100
+			});
 			const p = cards[0].querySelector('p')!;
 			setBox(p, 0, 0, 320, 20);
 			setBox(cards[0].querySelector('button')!, 0, 30, 100, 20);
@@ -204,13 +256,20 @@ describe('ui_verify', () => {
 				"WARN overflow content spills out of the element's box: scrollWidth 320 > clientWidth 200, overflow-x: visible"
 			);
 			const i = lines.indexOf(line(text, 'overflow'));
-			expect(lines[i + 1]).toMatch(/^ {2}e\d+ p Card src\/lib\/Card\.svelte:6 sticks out by 120px$/);
+			expect(lines[i + 1]).toMatch(
+				/^ {2}e\d+ p Card src\/lib\/Card\.svelte:6 sticks out by 120px$/
+			);
 		});
 
 		it('PASSes for scrollable content', () => {
 			const { cards } = buildFixture();
 			cards[0].style.overflowY = 'auto';
-			setSize(cards[0], { scrollWidth: 200, clientWidth: 200, scrollHeight: 900, clientHeight: 100 });
+			setSize(cards[0], {
+				scrollWidth: 200,
+				clientWidth: 200,
+				scrollHeight: 900,
+				clientHeight: 100
+			});
 			const ref = registry.refFor(cards[0]);
 			expect(line(verify({ ref, checks: ['overflow'] }).text, 'overflow')).toMatch(
 				/^PASS overflow content scrolls inside the element .*; no page-level horizontal overflow$/
@@ -221,14 +280,26 @@ describe('ui_verify', () => {
 			const { main, buttons } = buildFixture();
 			setBox(buttons[0], 10, 10, 100, 30);
 			const stripInst = component('Strip', '/src/App.svelte', 12);
-			const strip = meta(h('div', { class: 'strip svelte-q1w2e3' }), '/src/lib/Strip.svelte', 4, 1, stripInst);
+			const strip = meta(
+				h('div', { class: 'strip svelte-q1w2e3' }),
+				'/src/lib/Strip.svelte',
+				4,
+				1,
+				stripInst
+			);
 			const inner = meta(h('span', {}, 'wide'), '/src/lib/Strip.svelte', 5, 3, stripInst);
 			strip.append(inner);
 			setBox(strip, 0, 200, 2400, 40);
 			setBox(inner, 0, 200, 2400, 40); // same subtree: not listed twice
 			// Wide but inside a horizontal scroller: does not widen the page.
 			const scroller = h('div', { style: 'overflow-x: auto' });
-			const table = meta(h('table'), '/src/lib/Table.svelte', 1, 1, component('Table', '/src/App.svelte', 14));
+			const table = meta(
+				h('table'),
+				'/src/lib/Table.svelte',
+				1,
+				1,
+				component('Table', '/src/App.svelte', 14)
+			);
 			scroller.append(table);
 			setBox(table, 0, 300, 5000, 40);
 			const tooWide = meta(h('p', {}, 'x'), '/src/App.svelte', 20, 3, null);
@@ -241,12 +312,16 @@ describe('ui_verify', () => {
 			const lines = out.text.split('\n');
 			expect(lines[0]).toMatch(/^FAIL /);
 			const l = line(out.text, 'overflow');
-			expect(l).toBe('FAIL overflow page scrolls horizontally: document scrollWidth 2400 > clientWidth 1024');
+			expect(l).toBe(
+				'FAIL overflow page scrolls horizontally: document scrollWidth 2400 > clientWidth 1024'
+			);
 			const i = lines.indexOf(l);
 			expect(lines[i + 1]).toMatch(
 				/^ {2}e\d+ div\.strip Strip src\/lib\/Strip\.svelte:4 extends 1376px past the page edge \(right edge at 2400px\)$/
 			);
-			expect(lines[i + 2]).toMatch(/^ {2}e\d+ p App src\/App\.svelte:20 extends 76px past the page edge/);
+			expect(lines[i + 2]).toMatch(
+				/^ {2}e\d+ p App src\/App\.svelte:20 extends 76px past the page edge/
+			);
 			expect(out.text).not.toContain('Table');
 			const page = checkData(out.data, 'overflow').page as { offenders: { ref: string }[] };
 			expect(page.offenders).toHaveLength(2);
@@ -256,7 +331,9 @@ describe('ui_verify', () => {
 			strip.remove();
 			tooWide.remove();
 			setSize(document.documentElement, { scrollWidth: 1024, clientWidth: 1024 });
-			expect(line(verify({ ref, checks: ['overflow'] }).text, 'overflow')).toMatch(/^PASS overflow .*no page-level horizontal overflow$/);
+			expect(line(verify({ ref, checks: ['overflow'] }).text, 'overflow')).toMatch(
+				/^PASS overflow .*no page-level horizontal overflow$/
+			);
 		});
 	});
 
@@ -268,10 +345,26 @@ describe('ui_verify', () => {
 			clock = 1_000;
 			capture.retain();
 			clock = 2_000;
-			capture.record({ level: 'warn', origin: 'console', message: 'deprecated prop', source: { file: 'src/lib/Card.svelte', line: 3, column: 1 } });
-			capture.record({ level: 'error', origin: 'console', message: 'TypeError: x is undefined', source: { file: 'src/lib/Button.svelte', line: 9, column: 5 } });
-			capture.record({ level: 'error', origin: 'console', message: 'TypeError: x is undefined', source: { file: 'src/lib/Button.svelte', line: 9, column: 5 } });
-			for (let i = 0; i < 5; i++) capture.record({ level: 'warn', origin: 'console', message: `w${i}`, source: null });
+			capture.record({
+				level: 'warn',
+				origin: 'console',
+				message: 'deprecated prop',
+				source: { file: 'src/lib/Card.svelte', line: 3, column: 1 }
+			});
+			capture.record({
+				level: 'error',
+				origin: 'console',
+				message: 'TypeError: x is undefined',
+				source: { file: 'src/lib/Button.svelte', line: 9, column: 5 }
+			});
+			capture.record({
+				level: 'error',
+				origin: 'console',
+				message: 'TypeError: x is undefined',
+				source: { file: 'src/lib/Button.svelte', line: 9, column: 5 }
+			});
+			for (let i = 0; i < 5; i++)
+				capture.record({ level: 'warn', origin: 'console', message: `w${i}`, source: null });
 			const { text, data } = verify({ ref: ref(), checks: ['console'] });
 			const lines = text.split('\n');
 			expect(lines[1]).toBe(
@@ -289,13 +382,23 @@ describe('ui_verify', () => {
 			clock = 2_000;
 			capture.record({ level: 'error', origin: 'console', message: 'old error', source: null });
 			clock = 3_000;
-			tracker.ingest('vite:beforeUpdate', { updates: [{ path: '/src/lib/Card.svelte' }] }, 'vite-hmr');
+			tracker.ingest(
+				'vite:beforeUpdate',
+				{ updates: [{ path: '/src/lib/Card.svelte' }] },
+				'vite-hmr'
+			);
 			clock = 3_010;
 			capture.record({ level: 'warn', origin: 'console', message: 'during update', source: null });
 			clock = 3_050;
-			tracker.ingest('vite:afterUpdate', { updates: [{ path: '/src/lib/Card.svelte' }] }, 'vite-hmr');
+			tracker.ingest(
+				'vite:afterUpdate',
+				{ updates: [{ path: '/src/lib/Card.svelte' }] },
+				'vite-hmr'
+			);
 			const l = line(verify({ ref: ref(), checks: ['console'] }).text, 'console');
-			expect(l).toBe(`WARN console 0 errors, 1 warning since the last HMR update (${new Date(3_000).toISOString()})`);
+			expect(l).toBe(
+				`WARN console 0 errors, 1 warning since the last HMR update (${new Date(3_000).toISOString()})`
+			);
 		});
 
 		it('honors an explicit since', () => {
@@ -305,12 +408,16 @@ describe('ui_verify', () => {
 			clock = 4_000;
 			const l = line(verify({ ref: ref(), checks: ['console'], since: 3_000 }).text, 'console');
 			expect(l).toBe(`PASS console no errors or warnings since ${new Date(3_000).toISOString()}`);
-			expect(line(verify({ ref: ref(), checks: ['console'], since: 1_000 }).text, 'console')).toMatch(/^FAIL console 1 error, 0 warnings since/);
+			expect(
+				line(verify({ ref: ref(), checks: ['console'], since: 1_000 }).text, 'console')
+			).toMatch(/^FAIL console 1 error, 0 warnings since/);
 		});
 
 		it('WARNs when the capture is not running', () => {
 			const l = line(verify({ ref: ref(), checks: ['console'] }).text, 'console');
-			expect(l).toBe('WARN console console capture is not running (the agent runtime is not connected), so errors are unknown');
+			expect(l).toBe(
+				'WARN console console capture is not running (the agent runtime is not connected), so errors are unknown'
+			);
 		});
 	});
 
@@ -326,19 +433,35 @@ describe('ui_verify', () => {
 		});
 
 		it('contrast: WARN below AA, FAIL below 3:1, PASS otherwise; a11y does not repeat contrast issues', () => {
-			const p = meta(h('p', { style: 'color: rgb(119, 119, 119); background-color: rgb(255, 255, 255)' }, 'Muted'), '/src/App.svelte', 2, 1, null);
+			const p = meta(
+				h(
+					'p',
+					{ style: 'color: rgb(119, 119, 119); background-color: rgb(255, 255, 255)' },
+					'Muted'
+				),
+				'/src/App.svelte',
+				2,
+				1,
+				null
+			);
 			document.body.append(p);
 			const ref = registry.refFor(p);
 			const out = verify({ ref, checks: ['a11y', 'contrast'] });
 			expect(line(out.text, 'contrast')).toBe('WARN contrast 4.48:1 (needs 4.5:1)');
 			expect(line(out.text, 'a11y')).toMatch(/^PASS a11y/);
 			// a11y alone still reports it
-			expect(line(verify({ ref, checks: ['a11y'] }).text, 'a11y')).toMatch(/^WARN a11y 1 issue: contrast$/);
+			expect(line(verify({ ref, checks: ['a11y'] }).text, 'a11y')).toMatch(
+				/^WARN a11y 1 issue: contrast$/
+			);
 
 			p.style.color = 'rgb(200, 200, 200)';
-			expect(line(verify({ ref, checks: ['contrast'] }).text, 'contrast')).toMatch(/^FAIL contrast 1\.67:1 \(needs 4\.5:1\)$/);
+			expect(line(verify({ ref, checks: ['contrast'] }).text, 'contrast')).toMatch(
+				/^FAIL contrast 1\.67:1 \(needs 4\.5:1\)$/
+			);
 			p.style.color = 'rgb(0, 0, 0)';
-			expect(line(verify({ ref, checks: ['contrast'] }).text, 'contrast')).toBe('PASS contrast 21:1 (needs 4.5:1)');
+			expect(line(verify({ ref, checks: ['contrast'] }).text, 'contrast')).toBe(
+				'PASS contrast 21:1 (needs 4.5:1)'
+			);
 		});
 
 		it('contrast checks text descendants and names the worst one', () => {
@@ -347,7 +470,9 @@ describe('ui_verify', () => {
 			p.style.color = 'rgb(220, 220, 220)';
 			const ref = registry.refFor(cards[0]);
 			const { text } = verify({ ref, checks: ['contrast'] });
-			expect(line(text, 'contrast')).toMatch(/^FAIL contrast 1\.\d+:1 \(needs 4\.5:1\) on e\d+ p Card src\/lib\/Card\.svelte:6$/);
+			expect(line(text, 'contrast')).toMatch(
+				/^FAIL contrast 1\.\d+:1 \(needs 4\.5:1\) on e\d+ p Card src\/lib\/Card\.svelte:6$/
+			);
 		});
 	});
 });

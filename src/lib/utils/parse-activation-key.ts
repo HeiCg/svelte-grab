@@ -84,18 +84,10 @@ export function parseActivationKey(
 	return (event: KeyboardEvent): boolean => {
 		// Modifier-only shortcut (e.g. "alt+shift")
 		if (targetKey === null) {
-			const metaMatches = parsed.metaKey
-				? event.metaKey || event.key === 'Meta'
-				: true;
-			const ctrlMatches = parsed.ctrlKey
-				? event.ctrlKey || event.key === 'Control'
-				: true;
-			const shiftMatches = parsed.shiftKey
-				? event.shiftKey || event.key === 'Shift'
-				: true;
-			const altMatches = parsed.altKey
-				? event.altKey || event.key === 'Alt'
-				: true;
+			const metaMatches = parsed.metaKey ? event.metaKey || event.key === 'Meta' : true;
+			const ctrlMatches = parsed.ctrlKey ? event.ctrlKey || event.key === 'Control' : true;
+			const shiftMatches = parsed.shiftKey ? event.shiftKey || event.key === 'Shift' : true;
+			const altMatches = parsed.altKey ? event.altKey || event.key === 'Alt' : true;
 
 			return metaMatches && ctrlMatches && shiftMatches && altMatches;
 		}
@@ -103,8 +95,7 @@ export function parseActivationKey(
 		// Key + optional modifiers
 		const keyMatches = event.key?.toLowerCase() === targetKey;
 
-		const hasModifier =
-			parsed.metaKey || parsed.ctrlKey || parsed.shiftKey || parsed.altKey;
+		const hasModifier = parsed.metaKey || parsed.ctrlKey || parsed.shiftKey || parsed.altKey;
 
 		const modifiersMatch = hasModifier
 			? (parsed.metaKey ? event.metaKey : true) &&
@@ -134,8 +125,7 @@ export function parseActivationKeyForMouse(
 	const parsed = parseString(activationKey);
 
 	return (event: MouseEvent): boolean => {
-		const hasAnyModifier =
-			parsed.metaKey || parsed.ctrlKey || parsed.shiftKey || parsed.altKey;
+		const hasAnyModifier = parsed.metaKey || parsed.ctrlKey || parsed.shiftKey || parsed.altKey;
 
 		if (!hasAnyModifier) {
 			// No modifiers specified — match any event

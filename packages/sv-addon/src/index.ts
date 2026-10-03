@@ -7,7 +7,13 @@
  * in `.claude/skills/`.
  */
 import { defineAddon, defineAddonOptions } from 'sv';
-import { ADDON_ID, DEFAULT_OPTIONS, nextStepsFor, runSvelteGrabAddon, type AddonReport } from './plan.js';
+import {
+	ADDON_ID,
+	DEFAULT_OPTIONS,
+	nextStepsFor,
+	runSvelteGrabAddon,
+	type AddonReport
+} from './plan.js';
 
 const options = defineAddonOptions()
 	.add('mcpJson', {
@@ -33,7 +39,8 @@ const options = defineAddonOptions()
 		default: DEFAULT_OPTIONS.vitePlugin
 	})
 	.add('skills', {
-		question: 'Install the svelte-grab agent skills into .claude/skills/ (UI loop + security/performance audit)?',
+		question:
+			'Install the svelte-grab agent skills into .claude/skills/ (UI loop + security/performance audit)?',
 		type: 'boolean',
 		default: DEFAULT_OPTIONS.skills
 	})
@@ -49,7 +56,15 @@ export default defineAddon({
 	options,
 
 	run: ({ sv, options, isKit, language, file, directory, dependencyVersion }) => {
-		lastReport = runSvelteGrabAddon({ sv, options, isKit, language, file, directory, dependencyVersion });
+		lastReport = runSvelteGrabAddon({
+			sv,
+			options,
+			isKit,
+			language,
+			file,
+			directory,
+			dependencyVersion
+		});
 	},
 
 	nextSteps: () => nextStepsFor(lastReport)

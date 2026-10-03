@@ -46,10 +46,12 @@ function fakeFps(samples: number[], frames: number): ProfileOptions['fpsMeter'] 
 	};
 }
 
-const loaf = (count: number, worstMs: number): (() => LongFrameWatch) => () => ({
-	type: 'long-animation-frame',
-	stop: () => ({ count, worstMs })
-});
+const loaf =
+	(count: number, worstMs: number): (() => LongFrameWatch) =>
+	() => ({
+		type: 'long-animation-frame',
+		stop: () => ({ count, worstMs })
+	});
 
 /** Options with a sleep that runs `during` instead of waiting. */
 function opts(during: () => Promise<void> | void, extra: ProfileOptions = {}): ProfileOptions {
@@ -77,15 +79,29 @@ describe('ui_profile: registration and args', () => {
 		const { buttons } = buildFixture();
 		const ref = registry.refFor(buttons[0]);
 		const o = opts(() => {});
-		await expect(uiProfile({ durationMs: 'x' }, o)).rejects.toThrow('"durationMs" must be a number');
+		await expect(uiProfile({ durationMs: 'x' }, o)).rejects.toThrow(
+			'"durationMs" must be a number'
+		);
 		await expect(uiProfile({ action: 'click' }, o)).rejects.toThrow('"action" must be an object');
-		await expect(uiProfile({ action: { type: 'click' } }, o)).rejects.toThrow('"action.ref" is required');
-		await expect(uiProfile({ action: { ref, type: 'hover' } }, o)).rejects.toThrow('"action.type" must be one of click, input, scroll');
-		await expect(uiProfile({ action: { ref, type: 'input' } }, o)).rejects.toThrow('"action.value" is required for an input');
-		await expect(uiProfile({ action: { ref, type: 'scroll', value: 'down' } }, o)).rejects.toThrow('"dy" or "dx,dy"');
-		await expect(uiProfile({ action: { ref: 'e404', type: 'click' } }, o)).rejects.toThrow('Unknown action ref "e404"');
+		await expect(uiProfile({ action: { type: 'click' } }, o)).rejects.toThrow(
+			'"action.ref" is required'
+		);
+		await expect(uiProfile({ action: { ref, type: 'hover' } }, o)).rejects.toThrow(
+			'"action.type" must be one of click, input, scroll'
+		);
+		await expect(uiProfile({ action: { ref, type: 'input' } }, o)).rejects.toThrow(
+			'"action.value" is required for an input'
+		);
+		await expect(uiProfile({ action: { ref, type: 'scroll', value: 'down' } }, o)).rejects.toThrow(
+			'"dy" or "dx,dy"'
+		);
+		await expect(uiProfile({ action: { ref: 'e404', type: 'click' } }, o)).rejects.toThrow(
+			'Unknown action ref "e404"'
+		);
 		await expect(uiProfile({ ref: 'e404' }, o)).rejects.toThrow('Unknown ref "e404"');
-		await expect(uiProfile({ ref, component: 'Card' }, o)).rejects.toThrow('either "component" or "ref"');
+		await expect(uiProfile({ ref, component: 'Card' }, o)).rejects.toThrow(
+			'either "component" or "ref"'
+		);
 	});
 });
 
@@ -112,7 +128,9 @@ describe('ui_profile: aggregation and verdict', () => {
 			'  Button 25 mutations, 8.3/s, 1 burst, 25 batches [characterData 25] src/lib/Button.svelte'
 		);
 		expect(lines[4]).toMatch(/^ {4}top: e\d+ button src\/lib\/Button\.svelte:2 x25$/);
-		expect(lines[5]).toBe('  Card 1 mutation, 0.3/s, 0 bursts, 1 batch [attributes 1] src/lib/Card.svelte');
+		expect(lines[5]).toBe(
+			'  Card 1 mutation, 0.3/s, 0 bursts, 1 batch [attributes 1] src/lib/Card.svelte'
+		);
 		expect(out.text).toContain('\nFPS avg 60, min 58 (2 whole-second samples)\n');
 		expect(out.text).toContain('\nLONG FRAMES 2, worst 120ms (long-animation-frame, > 50ms)\n');
 		expect(out.text).toContain('Svelte 5 has no component re-renders');
@@ -159,7 +177,10 @@ describe('ui_profile: aggregation and verdict', () => {
 
 		const none = await uiProfile(
 			{ durationMs: 1000 },
-			opts(() => {}, { longFrames: () => ({ type: null, stop: () => ({ count: 0, worstMs: 0 }) }), fpsMeter: fakeFps([], 0) })
+			opts(() => {}, {
+				longFrames: () => ({ type: null, stop: () => ({ count: 0, worstMs: 0 }) }),
+				fpsMeter: fakeFps([], 0)
+			})
 		);
 		const text = none.text;
 		expect(text.split('\n')[0]).toMatch(/; no DOM mutations$/);
@@ -248,7 +269,11 @@ describe('ui_profile: actions', () => {
 		}
 		performAction(btn, { type: 'click' });
 		const order = seen.map((s) => s.split(':')[0]);
-		expect(order.filter((t) => t.startsWith('mouse') || t === 'click')).toEqual(['mousedown', 'mouseup', 'click']);
+		expect(order.filter((t) => t.startsWith('mouse') || t === 'click')).toEqual([
+			'mousedown',
+			'mouseup',
+			'click'
+		]);
 		if (typeof window.PointerEvent === 'function') {
 			expect(order).toEqual(['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']);
 		}
@@ -360,8 +385,16 @@ describe('ProfilerTracker options', () => {
 			{ element: buttons[0], count: 3 },
 			{ element: buttons[1], count: 1 }
 		]);
-		expect(tracker.getMutationKinds('/src/lib/Button.svelte')).toEqual({ childList: 0, attributes: 0, characterData: 4 });
-		expect(tracker.getMutationKinds('/src/lib/Card.svelte')).toEqual({ childList: 0, attributes: 0, characterData: 0 });
+		expect(tracker.getMutationKinds('/src/lib/Button.svelte')).toEqual({
+			childList: 0,
+			attributes: 0,
+			characterData: 4
+		});
+		expect(tracker.getMutationKinds('/src/lib/Card.svelte')).toEqual({
+			childList: 0,
+			attributes: 0,
+			characterData: 0
+		});
 		expect(tracker.getTopElements('/src/lib/Card.svelte')).toEqual([]);
 	});
 });

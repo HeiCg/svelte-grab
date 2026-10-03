@@ -16,7 +16,10 @@ const plugin: VitePluginInfo = {
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
-	return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+	return new Response(JSON.stringify(body), {
+		status,
+		headers: { 'Content-Type': 'application/json' }
+	});
 }
 
 beforeEach(() => {
@@ -28,7 +31,13 @@ beforeEach(() => {
 function fixtureWithThirdButton() {
 	const f = buildFixture();
 	const inst = component('Button', '/src/App.svelte', 9);
-	const primary = meta(h('button', { class: 'btn primary svelte-zz9' }, 'Go'), '/src/lib/Button.svelte', 2, 1, inst);
+	const primary = meta(
+		h('button', { class: 'btn primary svelte-zz9' }, 'Go'),
+		'/src/lib/Button.svelte',
+		2,
+		1,
+		inst
+	);
 	f.main.append(primary);
 	for (const b of f.buttons) b.className = 'btn svelte-zz9';
 	return { ...f, primary };
@@ -37,13 +46,17 @@ function fixtureWithThirdButton() {
 describe('ui_component_impact', () => {
 	it('is registered as a page tool and validates args', async () => {
 		expect(Object.keys(runtimeTools)).toContain('ui_component_impact');
-		await expect(uiComponentImpact({}, { registry })).rejects.toThrow('ui_component_impact needs "ref"');
-		await expect(uiComponentImpact({ ref: 'e404' }, { registry })).rejects.toThrow('Unknown ref "e404"');
+		await expect(uiComponentImpact({}, { registry })).rejects.toThrow(
+			'ui_component_impact needs "ref"'
+		);
+		await expect(uiComponentImpact({ ref: 'e404' }, { registry })).rejects.toThrow(
+			'Unknown ref "e404"'
+		);
 		const plain = h('div');
 		document.body.append(plain);
-		await expect(uiComponentImpact({ ref: registry.refFor(plain) }, { registry, pluginInfo: () => null })).rejects.toThrow(
-			'no Svelte component metadata'
-		);
+		await expect(
+			uiComponentImpact({ ref: registry.refFor(plain) }, { registry, pluginInfo: () => null })
+		).rejects.toThrow('no Svelte component metadata');
 	});
 
 	it('lists instances grouped by usage file, variants by root classes, and importers from the plugin', async () => {
@@ -60,7 +73,10 @@ describe('ui_component_impact', () => {
 			})
 		);
 		const ref = registry.refFor(buttons[1]);
-		const { text, data } = await uiComponentImpact({ ref }, { registry, pluginInfo: () => plugin, fetch: fetchMock });
+		const { text, data } = await uiComponentImpact(
+			{ ref },
+			{ registry, pluginInfo: () => plugin, fetch: fetchMock }
+		);
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			'/__svelte-grab/importers?file=%2Fsrc%2Flib%2FButton.svelte',
@@ -75,7 +91,9 @@ describe('ui_component_impact', () => {
 		expect(text).toContain('VARIANTS (root element classes, svelte-* hashes ignored): 2');
 		expect(text).toMatch(/\n {2}btn x2 -> /);
 		expect(text).toMatch(/\n {2}btn primary x1 -> /);
-		expect(text).toContain('IMPORTERS (Vite module graph): 2\n  src/App.svelte\n  src/lib/Card.svelte');
+		expect(text).toContain(
+			'IMPORTERS (Vite module graph): 2\n  src/App.svelte\n  src/lib/Card.svelte'
+		);
 		expect(lines[lines.length - 1]).toBe(
 			'Recommendation: Changing src/lib/Button.svelte affects 3 instances on this page and 2 importing files; ' +
 				'prefer a prop/variant or a local class at the usage site src/lib/Card.svelte:7 for a one-off change.'
@@ -91,7 +109,11 @@ describe('ui_component_impact', () => {
 				{ classes: 'btn primary', count: 1 }
 			],
 			variantCount: 2,
-			importers: { status: 'ok', files: ['src/App.svelte', 'src/lib/Card.svelte'], truncated: false }
+			importers: {
+				status: 'ok',
+				files: ['src/App.svelte', 'src/lib/Card.svelte'],
+				truncated: false
+			}
 		});
 		const byFile = (data!.instances as { byFile: { file: string; count: number }[] }).byFile;
 		expect(byFile.map((f) => [f.file, f.count])).toEqual([
@@ -103,7 +125,10 @@ describe('ui_component_impact', () => {
 	it('works from any element the component renders (child element -> owning component)', async () => {
 		const { cards } = buildFixture();
 		const p = cards[0].querySelector('p')!;
-		const { text, data } = await uiComponentImpact({ ref: registry.refFor(p) }, { registry, pluginInfo: () => null });
+		const { text, data } = await uiComponentImpact(
+			{ ref: registry.refFor(p) },
+			{ registry, pluginInfo: () => null }
+		);
 		expect(text.split('\n')[0]).toBe('<Card> defined in src/lib/Card.svelte');
 		expect(data).toMatchObject({ component: 'Card', instances: { count: 2 } });
 		expect(text).toContain('src/App.svelte (2): line 3 -> e');
@@ -135,14 +160,22 @@ describe('ui_component_impact', () => {
 			{
 				registry,
 				pluginInfo: () => plugin,
-				fetch: async () => jsonResponse({ found: true, importers: [{ file: 'src/App.svelte', url: '/src/App.svelte' }] })
+				fetch: async () =>
+					jsonResponse({
+						found: true,
+						importers: [{ file: 'src/App.svelte', url: '/src/App.svelte' }]
+					})
 			}
 		);
 		expect(ok.text).toContain('INSTANCES on this page: 1');
-		expect(ok.text.split('\n').pop()).toBe('Recommendation: Single usage; editing the component is safe.');
+		expect(ok.text.split('\n').pop()).toBe(
+			'Recommendation: Single usage; editing the component is safe.'
+		);
 
 		const unknown = await uiComponentImpact({ ref }, { registry, pluginInfo: () => null });
-		expect(unknown.text.split('\n').pop()).toMatch(/^Recommendation: Single usage; editing the component is safe \(importers unknown/);
+		expect(unknown.text.split('\n').pop()).toMatch(
+			/^Recommendation: Single usage; editing the component is safe \(importers unknown/
+		);
 	});
 
 	it('one instance on this page but several importers -> shared', async () => {
@@ -177,9 +210,15 @@ describe('ui_component_impact', () => {
 		const ref = registry.refFor(buttons[0]);
 		const notFound = await uiComponentImpact(
 			{ ref },
-			{ registry, pluginInfo: () => plugin, fetch: async () => jsonResponse({ found: false, importers: [] }) }
+			{
+				registry,
+				pluginInfo: () => plugin,
+				fetch: async () => jsonResponse({ found: false, importers: [] })
+			}
 		);
-		expect(notFound.text).toContain('importers: src/lib/Button.svelte is not in the Vite module graph');
+		expect(notFound.text).toContain(
+			'importers: src/lib/Button.svelte is not in the Vite module graph'
+		);
 
 		const http = await uiComponentImpact(
 			{ ref },
@@ -203,7 +242,9 @@ describe('ui_component_impact', () => {
 
 	it('recommend() phrasing', () => {
 		const ok = (files: string[]): ImportersInfo => ({ status: 'ok', files, truncated: false });
-		expect(recommend('a.svelte', 1, ok(['x']), 'x:1')).toBe('Single usage; editing the component is safe.');
+		expect(recommend('a.svelte', 1, ok(['x']), 'x:1')).toBe(
+			'Single usage; editing the component is safe.'
+		);
 		expect(recommend('a.svelte', 2, ok(['x']), null)).toBe(
 			'Changing a.svelte affects 2 instances on this page and 1 importing file; prefer a prop/variant or a local class for a one-off change.'
 		);

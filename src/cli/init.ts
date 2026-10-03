@@ -79,7 +79,8 @@ export interface InitResult {
 function boolFlag(args: string[], name: string, fallback: boolean): boolean {
 	for (const arg of args) {
 		if (arg === `--${name}`) return true;
-		if (arg.startsWith(`--${name}=`)) return !/^(false|no|0|off)$/i.test(arg.slice(name.length + 3));
+		if (arg.startsWith(`--${name}=`))
+			return !/^(false|no|0|off)$/i.test(arg.slice(name.length + 3));
 	}
 	return fallback;
 }
@@ -102,7 +103,8 @@ function installCommand(cwd: string, packages: string[]): string {
 	const list = packages.join(' ');
 	if (existsSync(join(cwd, 'pnpm-lock.yaml'))) return `pnpm add -D ${list}`;
 	if (existsSync(join(cwd, 'yarn.lock'))) return `yarn add -D ${list}`;
-	if (existsSync(join(cwd, 'bun.lock')) || existsSync(join(cwd, 'bun.lockb'))) return `bun add -d ${list}`;
+	if (existsSync(join(cwd, 'bun.lock')) || existsSync(join(cwd, 'bun.lockb')))
+		return `bun add -d ${list}`;
 	return `npm install -D ${list}`;
 }
 
@@ -160,26 +162,36 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 		return result;
 	}
 
-	let packageJson: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+	let packageJson: {
+		dependencies?: Record<string, string>;
+		devDependencies?: Record<string, string>;
+	};
 	try {
 		packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 	} catch {
 		console.error('[svelte-grab] package.json is not valid JSON.');
 		return result;
 	}
-	const deps: Record<string, string> = { ...packageJson.devDependencies, ...packageJson.dependencies };
+	const deps: Record<string, string> = {
+		...packageJson.devDependencies,
+		...packageJson.dependencies
+	};
 
 	const isSvelteKit = !!deps['@sveltejs/kit'];
 	const svelteVersion = deps['svelte'];
 	if (!svelteVersion) {
-		console.error('[svelte-grab] This does not appear to be a Svelte project (no svelte dependency found).');
+		console.error(
+			'[svelte-grab] This does not appear to be a Svelte project (no svelte dependency found).'
+		);
 		return result;
 	}
 
 	// Requires 5.35.1+ for the __svelte_meta.parent chain
 	const status = checkSvelteVersion(svelteVersion);
 	if (status === 'error') {
-		console.error(`[svelte-grab] svelte-grab requires Svelte ${MIN_SVELTE_VERSION}+. Found: ${svelteVersion}`);
+		console.error(
+			`[svelte-grab] svelte-grab requires Svelte ${MIN_SVELTE_VERSION}+. Found: ${svelteVersion}`
+		);
 		return result;
 	}
 	if (status === 'warn') {
@@ -205,12 +217,17 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 			console.error(`[svelte-grab] ${merged.error}. Skipping .mcp.json.`);
 		} else {
 			result.mcpServersAdded = merged.added;
-			result.enableMcp = merged.added.includes('svelte-grab') || merged.kept.includes('svelte-grab');
+			result.enableMcp =
+				merged.added.includes('svelte-grab') || merged.kept.includes('svelte-grab');
 			if (merged.kept.length) {
-				console.log(`[svelte-grab] .mcp.json already declares: ${merged.kept.join(', ')} (left unchanged)`);
+				console.log(
+					`[svelte-grab] .mcp.json already declares: ${merged.kept.join(', ')} (left unchanged)`
+				);
 			}
 			if (merged.changed) {
-				console.log(`[svelte-grab] ${dryRun ? 'Would write' : 'Writing'} .mcp.json (adds ${merged.added.join(', ')}):`);
+				console.log(
+					`[svelte-grab] ${dryRun ? 'Would write' : 'Writing'} .mcp.json (adds ${merged.added.join(', ')}):`
+				);
 				printDiff(before ?? '', merged.content);
 				if (!dryRun) save('.mcp.json', merged.content);
 			}
@@ -235,7 +252,9 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 			} else if (injected.status === 'already-present') {
 				console.log(`[svelte-grab] ${viteRel} already uses svelte-grab/vite.`);
 			} else {
-				console.log(`[svelte-grab] Could not edit ${viteRel} safely. Add the Vite plugin yourself:`);
+				console.log(
+					`[svelte-grab] Could not edit ${viteRel} safely. Add the Vite plugin yourself:`
+				);
 				printVitePluginHowTo(isSvelteKit);
 			}
 		}
@@ -250,7 +269,8 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 		const injected = injectKitLayout(before, layoutOptions);
 		applyLayout(rel, before, injected.content, injected.changed);
 	} else {
-		const hasViteConfig = existsSync(join(cwd, 'vite.config.ts')) || existsSync(join(cwd, 'vite.config.js'));
+		const hasViteConfig =
+			existsSync(join(cwd, 'vite.config.ts')) || existsSync(join(cwd, 'vite.config.js'));
 		const rel = 'src/App.svelte';
 		const path = join(cwd, rel);
 		if (hasViteConfig && existsSync(path)) {
@@ -264,7 +284,9 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 			console.log('');
 			console.log("  import { SvelteDevKit } from 'svelte-grab';");
 			console.log('');
-			console.log(`Then add ${result.enableMcp ? '<SvelteDevKit enableMcp />' : '<SvelteDevKit />'} at the end of your root component template.`);
+			console.log(
+				`Then add ${result.enableMcp ? '<SvelteDevKit enableMcp />' : '<SvelteDevKit />'} at the end of your root component template.`
+			);
 		}
 	}
 
@@ -273,7 +295,9 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 			result.layout = 'already-present';
 			console.log(`[svelte-grab] svelte-grab is already in ${rel}. Nothing to do there.`);
 			if (result.enableMcp && before && devKitMissingEnableMcp(before)) {
-				console.log(`[svelte-grab] Tip: add enableMcp to <SvelteDevKit /> in ${rel} so the page connects to the MCP server.`);
+				console.log(
+					`[svelte-grab] Tip: add enableMcp to <SvelteDevKit /> in ${rel} so the page connects to the MCP server.`
+				);
 			}
 			return;
 		}
@@ -303,8 +327,12 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 		console.log(`  ${installCommand(cwd, missing)}`);
 	}
 	if (result.enableMcp) {
-		console.log('[svelte-grab] Next: start your dev server, open the app, and let your agent call ui_snapshot.');
-		console.log('  Claude Code picks up .mcp.json on start (approve the project servers when asked).');
+		console.log(
+			'[svelte-grab] Next: start your dev server, open the app, and let your agent call ui_snapshot.'
+		);
+		console.log(
+			'  Claude Code picks up .mcp.json on start (approve the project servers when asked).'
+		);
 	}
 
 	result.ok = true;

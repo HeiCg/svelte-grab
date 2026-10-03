@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { CommandChannel, MAX_COMMAND_TIMEOUT_MS, type RuntimeCommandMessage } from '../src/mcp/runtime/command-channel.js';
+import {
+	CommandChannel,
+	MAX_COMMAND_TIMEOUT_MS,
+	type RuntimeCommandMessage
+} from '../src/mcp/runtime/command-channel.js';
 import { TabRegistry } from '../src/mcp/runtime/tab-registry.js';
 import {
 	forwardWaitForHmr,
@@ -9,7 +13,11 @@ import {
 	DEFAULT_HMR_WAIT_MS,
 	MAX_HMR_WAIT_MS
 } from '../src/mcp/runtime/hmr-tool.js';
-import { registerRuntimeTools, type McpToolConfig, type McpToolHandler } from '../src/mcp/runtime/tools.js';
+import {
+	registerRuntimeTools,
+	type McpToolConfig,
+	type McpToolHandler
+} from '../src/mcp/runtime/tools.js';
 import { DEFAULT_HMR_TIMEOUT_MS, MAX_HMR_TIMEOUT_MS } from '../src/lib/runtime/hmr.js';
 
 function hello(tabId: string) {
@@ -47,13 +55,21 @@ describe('ui_wait_for_hmr (server)', () => {
 						id: msg.id,
 						tabId: msg.targetTabId,
 						ok: true,
-						result: { text: 'HMR update applied', data: { status: 'updated', updated: ['/src/Card.svelte'] } }
+						result: {
+							text: 'HMR update applied',
+							data: { status: 'updated', updated: ['/src/Card.svelte'] }
+						}
 					})
 				);
 				return 1;
 			}
 		});
-		const out = await forwardWaitForHmr(channel, { files: ['Card.svelte'], timeoutMs: 2_000, since: 5, tabId: 'a' });
+		const out = await forwardWaitForHmr(channel, {
+			files: ['Card.svelte'],
+			timeoutMs: 2_000,
+			since: 5,
+			tabId: 'a'
+		});
 		expect(sent[0]).toMatchObject({
 			targetTabId: 'a',
 			tool: 'ui_wait_for_hmr',
@@ -75,7 +91,12 @@ describe('ui_wait_for_hmr (server)', () => {
 			registry,
 			broadcast: (msg) => {
 				queueMicrotask(() =>
-					channel.settle({ id: msg.id, tabId: msg.targetTabId, ok: false, error: 'No HMR update at all within 1s' })
+					channel.settle({
+						id: msg.id,
+						tabId: msg.targetTabId,
+						ok: false,
+						error: 'No HMR update at all within 1s'
+					})
 				);
 				return 1;
 			}
@@ -89,10 +110,14 @@ describe('ui_wait_for_hmr (server)', () => {
 	it('registers with a description telling agents to call it right after an edit', () => {
 		const tools = new Map<string, { config: McpToolConfig; handler: McpToolHandler }>();
 		const channel = new CommandChannel({ registry: new TabRegistry(), broadcast: () => 1 });
-		registerWaitForHmrTool({ registerTool: (name, config, handler) => tools.set(name, { config, handler }) }, fakeZ, {
-			channel,
-			tabIdHint: 'hint'
-		});
+		registerWaitForHmrTool(
+			{ registerTool: (name, config, handler) => tools.set(name, { config, handler }) },
+			fakeZ,
+			{
+				channel,
+				tabIdHint: 'hint'
+			}
+		);
 		const { config } = tools.get('ui_wait_for_hmr')!;
 		expect(config.title).toBeTruthy();
 		expect(config.description).toMatch(/^Call right after editing a source file/);
