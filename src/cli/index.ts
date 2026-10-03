@@ -107,6 +107,12 @@ async function main() {
 			break;
 		}
 
+		case 'audit': {
+			const { runAuditCli } = await import('./audit/cli.js');
+			process.exitCode = runAuditCli(args.slice(1));
+			break;
+		}
+
 		case 'help':
 		case '--help':
 		case '-h':
@@ -170,6 +176,9 @@ Commands:
                             e.g. --cdp=http://127.0.0.1:9222 (Chrome started with
                             --remote-debugging-port). Loopback only. Also via
                             SVELTE_GRAB_CDP env var.
+
+  audit     Static security scan of a Svelte/SvelteKit project (zero config).
+            Run "svelte-grab audit --help" for options (--json, --html, --ci).
 
   help      Show this help message
 

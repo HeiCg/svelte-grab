@@ -1,0 +1,219 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/HeiCg/svelte-grab/schemas/audit-report.json",
+	"title": "svelte-grab audit report",
+	"type": "object",
+	"required": [
+		"schemaVersion",
+		"tool",
+		"root",
+		"generatedAt",
+		"durationMs",
+		"filesScanned",
+		"filesSkipped",
+		"minSeverity",
+		"failed",
+		"summary",
+		"findings",
+		"notes"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"schemaVersion": {
+			"const": 1
+		},
+		"tool": {
+			"const": "svelte-grab audit"
+		},
+		"root": {
+			"type": "string",
+			"minLength": 1
+		},
+		"generatedAt": {
+			"type": "string",
+			"format": "date-time",
+			"pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+		},
+		"durationMs": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"filesScanned": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"filesSkipped": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"minSeverity": {
+			"enum": [
+				"high",
+				"medium",
+				"low"
+			]
+		},
+		"failed": {
+			"type": "boolean"
+		},
+		"summary": {
+			"type": "object",
+			"required": [
+				"total",
+				"bySeverity",
+				"byVerdict"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"total": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"bySeverity": {
+					"type": "object",
+					"required": [
+						"high",
+						"medium",
+						"low",
+						"info"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"high": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"medium": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"low": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"info": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				},
+				"byVerdict": {
+					"type": "object",
+					"required": [
+						"confirmed",
+						"needs_validation"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"confirmed": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"needs_validation": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				}
+			}
+		},
+		"findings": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/finding"
+			}
+		},
+		"notes": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		}
+	},
+	"$defs": {
+		"finding": {
+			"type": "object",
+			"required": [
+				"id",
+				"rule",
+				"severity",
+				"verdict",
+				"title",
+				"evidence",
+				"file",
+				"line",
+				"column",
+				"source",
+				"fix"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[a-z0-9-]+/[a-z0-9-]+:[0-9a-f]{6}$"
+				},
+				"rule": {
+					"enum": [
+						"svelte/html-non-literal",
+						"svelte/target-blank-noopener",
+						"svelte/inline-handler-string",
+						"secrets/client-exposure",
+						"secrets/hardcoded-server",
+						"env/public-secret",
+						"kit/load-overexposure",
+						"kit/action-no-auth",
+						"kit/remote-no-auth",
+						"kit/csrf-trusted-origins-wildcard",
+						"kit/csp-missing",
+						"js/eval",
+						"js/postmessage-no-origin",
+						"storage/token-in-web-storage",
+						"deps/advisory"
+					]
+				},
+				"severity": {
+					"enum": [
+						"high",
+						"medium",
+						"low",
+						"info"
+					]
+				},
+				"verdict": {
+					"enum": [
+						"confirmed",
+						"needs_validation"
+					]
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1
+				},
+				"evidence": {
+					"type": "string",
+					"description": "Redacted: never a full secret."
+				},
+				"file": {
+					"type": "string",
+					"minLength": 1
+				},
+				"line": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"column": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"source": {
+					"type": "string",
+					"pattern": "^.+:\\d+:\\d+$"
+				},
+				"fix": {
+					"type": "string",
+					"minLength": 1
+				}
+			}
+		}
+	}
+}

@@ -778,6 +778,40 @@ client.retry();
 client.getHistory();
 ```
 
+## Static audit
+
+`npx svelte-grab audit` is a zero-config static security scanner for Svelte and SvelteKit projects. It is the static half of the `ui_security_scan` runtime checks: same finding shape, same mandatory redaction, no extra dependencies (regex plus the Svelte compiler's `parse`, already a peer).
+
+```bash
+npx svelte-grab audit                          # text report grouped by severity
+npx svelte-grab audit --json                   # JSON report on stdout (for agents)
+npx svelte-grab audit --json audit.json --html audit.html
+npx svelte-grab audit --ci                     # exit 1 on a confirmed high finding
+npx svelte-grab audit --ci --min-severity medium --deps
+```
+
+It walks the project (skipping `node_modules`, `dist`, `build`, `.svelte-kit`, `.git`, `coverage`, `.gitignore` matches, test files and files over 1 MB) and runs these rules:
+
+| Rule | Severity | Verdict | What it flags |
+|------|----------|---------|---------------|
+| `secrets/client-exposure` | high (provider keys), medium (other) | confirmed / needs_validation | Secret-shaped values (Stripe, AWS, GitHub, OpenAI, Anthropic, Slack, Supabase `service_role`, private keys, ...) in client-reachable code. Server-only code (any `server` path segment such as `$lib/server`, `*.server.*`, `+server.*`, `*.remote.*`) is never client exposure |
+| `secrets/hardcoded-server` | medium / low | needs_validation | The same secrets hardcoded in server-only or tooling code |
+| `env/public-secret` | high | confirmed | Secret-shaped values under `PUBLIC_` / `VITE_` keys in `.env*` files (scanned even when gitignored). Supabase `anon` keys are skipped |
+| `svelte/html-non-literal` | medium | needs_validation | `{@html expr}` where `expr` is not a string literal or an obvious sanitizer call |
+| `svelte/target-blank-noopener` | low | confirmed (static href) | `target="_blank"` to an external URL without `rel="noopener"` / `noreferrer` |
+| `svelte/inline-handler-string` | low | confirmed | `on*="..."` string handlers on DOM elements |
+| `kit/load-overexposure` | medium | needs_validation | `+page.server` / `+layout.server` `load` returning (or spreading) a DB row fetched without field selection |
+| `kit/action-no-auth` | medium | needs_validation | Form actions without an obvious auth check (`locals.user`, `getRequestEvent().locals`, `redirect(30x)`, `error(401/403)`, `requireAuth()`-style helpers) |
+| `kit/remote-no-auth` | medium | needs_validation | Remote `command(...)` / `form(...)` from `$app/server` without an obvious auth check |
+| `kit/csrf-trusted-origins-wildcard` | high | confirmed | `csrf.trustedOrigins` containing `'*'` |
+| `kit/csp-missing` | low | confirmed | No `kit.csp` in `svelte.config` and no server file sets `Content-Security-Policy` |
+| `js/eval` | medium | confirmed | `eval(` / `new Function(` |
+| `js/postmessage-no-origin` | medium | confirmed / needs_validation | `message` listeners on `window` (or `<svelte:window onmessage>`) whose handler never reads `origin` |
+| `storage/token-in-web-storage` | medium (localStorage), low (sessionStorage) | confirmed | Tokens written to Web Storage under token-ish keys |
+| `deps/advisory` | npm severity | confirmed for `svelte` / `@sveltejs/*` | Only with `--deps`: `npm audit --json` (60 s timeout); skipped with a note otherwise |
+
+Each finding is `{ id, rule, severity, verdict, title, evidence, file, line, column, source, fix }`; `id` is stable across runs. Evidence never contains a full secret (`stripe-secret-key:sk_l…(len 32, sha 3f9a1c)`). The JSON report is validated against a JSON Schema (draft 2020-12) before it is written; print it with `npx svelte-grab audit --schema`. `needs_validation` findings are leads for an agent or a human to confirm or reject; only `confirmed` ones fail `--ci`.
+
 ## CLI
 
 ```bash
@@ -792,7 +826,22 @@ npx svelte-grab <command> [options]
 | `configure` | Interactive configuration (activation key, editor, ports, theme) |
 | `relay` | Start the WebSocket relay server (maintenance mode) |
 | `mcp` | Start the MCP server |
+| `audit` | Static security scan (see [Static audit](#static-audit) and the flags below) |
 | `help` | Show help |
+
+### `audit`
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--path <dir>` | `.` | Project root to scan |
+| `--json [file]` | | Write the JSON report to `file`; without a file (or `-`), print JSON to stdout instead of the text report |
+| `--html <file>` | | Write a single-file HTML report (inline CSS, no external assets) |
+| `--ci` | off | No colors; exit code 1 when a `confirmed` finding is at or above `--min-severity`, else 0 |
+| `--min-severity <level>` | `high` | CI threshold: `high`, `medium` or `low` |
+| `--deps` | off | Also run `npm audit --json` for dependency advisories |
+| `--schema` | | Print the report JSON Schema and exit |
+
+Without `--ci` the exit code is 0 whatever the findings; usage errors exit 2. The command wraps a library function, `audit(options)` (`src/cli/audit/index.ts`), that returns the report and never exits the process.
 
 ### `init`
 
@@ -815,6 +864,7 @@ npx svelte-grab remove copilot           # Remove Copilot provider
 npx svelte-grab configure                # Interactive configuration
 npx svelte-grab relay --provider=cursor  # Start relay with Cursor provider
 npx svelte-grab mcp --stdio              # Start MCP server for Claude Code
+npx svelte-grab audit --ci --html audit.html  # Static security scan for CI
 ```
 
 ## Plugin System
