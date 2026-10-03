@@ -2,8 +2,8 @@
  * Browser side of the optional `svelte-grab/vite` plugin.
  *
  * In dev the plugin injects a tiny client module that sets
- * `window.__SVELTE_GRAB_VITE__ = { version, root, hmrBridge, importersEndpoint }`
- * and forwards Vite HMR events as `svelte-grab:hmr` CustomEvents on `window`.
+ * `window.__SVELTE_GRAB_VITE__ = { version, root, hmrBridge, importersEndpoint, env }`
+ * (`env`: Vite's client env, VITE_* values) and forwards Vite HMR events as `svelte-grab:hmr` CustomEvents on `window`.
  *
  * Source of truth for the names: `src/vite/index.ts` (Node build). src/lib
  * cannot import from there, so the values are duplicated;

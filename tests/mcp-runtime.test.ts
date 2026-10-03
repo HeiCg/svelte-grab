@@ -427,7 +427,9 @@ describe('runtime MCP tools', () => {
 			'ui_component_impact',
 			'ui_profile',
 			'ui_perf_metrics',
-			'ui_leak_check'
+			'ui_leak_check',
+			'ui_network',
+			'ui_security_scan'
 		]);
 		for (const name of ['ui_snapshot', 'ui_find', 'ui_inspect']) {
 			const { config } = tools.get(name)!;
