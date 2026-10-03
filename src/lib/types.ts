@@ -87,6 +87,9 @@ export interface ThemeConfig {
 	accent?: string;
 }
 
+/** Shortcut set of SvelteGrab / SvelteDevKit (see `hotkeys`). */
+export type HotkeysMode = 'full' | 'minimal';
+
 /**
  * Props for the SvelteGrab component
  */
@@ -170,6 +173,22 @@ export interface SvelteGrabProps {
 	enableHistoryPersistence?: boolean;
 	/** Enable prompt/input mode (Enter key opens textarea for context). Default: true */
 	enablePromptMode?: boolean;
+	/**
+	 * Annotation mode: while selecting, press N (or "Add annotation" in the
+	 * prompt overlay) to store the hovered element, or the current multi /
+	 * region selection, with a comment as annotation #N. A tray lists them
+	 * (edit, delete, clear all, global instruction) and "Send all" copies one
+	 * agent text and, with `enableMcp`, posts it to the MCP server. Agents read
+	 * them with the `ui_annotations` tool. Default: true
+	 */
+	enableAnnotations?: boolean;
+	/**
+	 * Shortcut set. `'full'`: every shortcut (current behavior). `'minimal'`:
+	 * only Alt+Click (point), Shift+Alt+Click (multi), Alt+Drag (region),
+	 * Escape and N (annotate); Enter (prompt), O, S, Tab, arrows, Cmd/Ctrl+C,
+	 * Alt+? and the right-click menu are off. Default: 'full'
+	 */
+	hotkeys?: HotkeysMode;
 }
 
 // ============================================================
@@ -240,6 +259,12 @@ export interface SvelteStateGrabProps {
 	maxStringLength?: number;
 	/** Maximum number of state snapshots to keep. Default: 5 */
 	maxSnapshots?: number;
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -296,6 +321,12 @@ export interface SvelteStyleGrabProps {
 	lightTheme?: boolean;
 	/** Which CSS categories to display. Default: ['all'] */
 	showCategories?: ('box-model' | 'visual' | 'typography' | 'layout' | 'all')[];
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -335,6 +366,12 @@ export interface SveltePropsTracerProps {
 	theme?: ThemeConfig;
 	/** Use the light theme preset instead of dark. Default: false */
 	lightTheme?: boolean;
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -379,6 +416,12 @@ export interface SvelteA11yReporterProps {
 	lightTheme?: boolean;
 	/** Also audit child elements within the selected element. Default: true */
 	includeSubtree?: boolean;
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -424,6 +467,12 @@ export interface SvelteErrorContextProps {
 	bufferMinutes?: number;
 	/** Hide stack frames from node_modules for cleaner traces. Default: true */
 	filterNodeModules?: boolean;
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -476,6 +525,12 @@ export interface SvelteRenderProfilerProps {
 	burstThreshold?: number;
 	/** Time window in milliseconds for burst detection. Default: 1000 */
 	burstWindow?: number;
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -585,6 +640,18 @@ export interface SvelteDevKitProps {
 	enableHistoryPersistence?: boolean;
 	/** Enable prompt/input mode. Default: true */
 	enablePromptMode?: boolean;
+	/** Annotation mode in SvelteGrab (N while selecting; see SvelteGrabProps). Default: true */
+	enableAnnotations?: boolean;
+	/**
+	 * Shortcut set. `'full'`: every tool's shortcuts (current behavior).
+	 * `'minimal'`: only Alt+Click (point), Shift+Alt+Click (multi), Alt+Drag
+	 * (region), Escape and N (annotate). The other tools' triggers (Alt+Shift+
+	 * Click state, Alt+Ctrl+Click style, Alt+DoubleClick tracer, Alt+RightClick /
+	 * Alt+A a11y, Alt+E errors, Alt+P profiler) and DevKit's Alt+Shift+C / Alt+?
+	 * are off; those tools stay mounted so the MCP runtime can still use them.
+	 * Default: 'full'
+	 */
+	hotkeys?: HotkeysMode;
 }
 
 // ============================================================

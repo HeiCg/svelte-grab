@@ -233,4 +233,26 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 		},
 		async (args) => forwardToPage(deps.channel, 'ui_inspect', args)
 	);
+
+	server.registerTool(
+		'ui_annotations',
+		{
+			title: "Read the human's pending UI annotations",
+			description:
+				'Returns the annotations the human collected in the page with SvelteGrab annotation mode (hold the ' +
+				'modifier, select one element or several, press N, type a comment): { annotations: [{ id, comment, ' +
+				'refs: [{ ref, stableKey, component, source }], createdAt }], instruction }. Each annotation is one ' +
+				'requested change; instruction applies to all of them. Pass the refs to ui_inspect for full context. ' +
+				'clear: true marks them consumed (the page tray empties); without it they stay pending. ' +
+				REF_RECIPE,
+			inputSchema: {
+				clear: z
+					.boolean()
+					.optional()
+					.describe('Mark the returned annotations as consumed (default false: they stay pending).'),
+				tabId: z.string().optional().describe(TAB_ID_HINT)
+			}
+		},
+		async (args) => forwardToPage(deps.channel, 'ui_annotations', args)
+	);
 }

@@ -24,6 +24,7 @@ export type {
 	DevStackEntry,
 	DevStackEntryType,
 	SvelteSourceLocation,
+	HotkeysMode,
 
 	// Plugin system types
 	SvelteGrabPlugin,
