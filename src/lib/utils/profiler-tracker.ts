@@ -2,6 +2,37 @@ import type { RenderEvent, ComponentProfile, RenderBurst } from '../types.js';
 import { type SvelteElement, shortenPath, extractComponentName } from './shared.js';
 
 /**
+ * Live mutation attribution emitted to {@link ProfilerTracker.onMutation} each
+ * time a MutationObserver batch is attributed to a Svelte component. Drives the
+ * live visual overlay (outline-painter). These are DOM updates, not React-style
+ * renders — name UI accordingly.
+ */
+export interface MutationInfo {
+	/** The nearest element carrying `__svelte_meta`. */
+	element: HTMLElement;
+	/** Source file of that component (from `__svelte_meta.loc.file`). */
+	file: string;
+	/** Derived component name (file basename). */
+	componentName: string;
+	/** Number of mutations attributed to this component in this batch. */
+	mutationCount: number;
+	/** Viewport-space rect of `element` at attribution time. */
+	rect: DOMRect;
+}
+
+/** Callback fired per attributed component per mutation batch. */
+export type OnMutationCallback = (info: MutationInfo) => void;
+
+/**
+ * Soft cap for the raw `events` / `userEvents` history. An earlier review
+ * flagged these as unbounded during long live sessions. When the cap is
+ * exceeded we drop the oldest half so amortized cost stays O(1) and the
+ * derived indexes (`_eventsByFile`) are rebuilt from the trimmed window.
+ */
+const MAX_EVENTS = 5000;
+const MAX_USER_EVENTS = 2000;
+
+/**
  * Render profiler that tracks DOM mutations and correlates with Svelte components
  */
 export class ProfilerTracker {
@@ -15,6 +46,9 @@ export class ProfilerTracker {
 	private userEvents: { type: string; timestamp: number }[] = [];
 	private userEventCleanup: (() => void) | null = null;
 
+	/** Optional live-overlay sink. Set via {@link setOnMutation}. */
+	private _onMutation: OnMutationCallback | null = null;
+
 	// Burst detection cache
 	private _burstsCache: Map<string, RenderBurst[]> = new Map();
 	private _burstsCacheDirty = true;
@@ -23,9 +57,18 @@ export class ProfilerTracker {
 	// Pre-grouped events by component file for O(1) lookup
 	private _eventsByFile: Map<string, RenderEvent[]> = new Map();
 
-	constructor(burstThreshold = 20, burstWindow = 1000) {
+	constructor(burstThreshold = 20, burstWindow = 1000, onMutation: OnMutationCallback | null = null) {
 		this.burstThreshold = burstThreshold;
 		this.burstWindow = burstWindow;
+		this._onMutation = onMutation;
+	}
+
+	/**
+	 * Register (or clear) the live-overlay callback. Cheap to call; runs inside
+	 * the MutationObserver callback, so the handler must stay light.
+	 */
+	setOnMutation(cb: OnMutationCallback | null): void {
+		this._onMutation = cb;
 	}
 
 	private addEvent(event: RenderEvent): void {
@@ -40,6 +83,19 @@ export class ProfilerTracker {
 		// Invalidate burst cache
 		this._burstsCacheDirty = true;
 		this._allBurstsCache = null;
+
+		// Ring-buffer cap: drop the oldest half and rebuild the per-file index
+		// from the surviving window. Conservative so getProfiles still works on
+		// the retained events (long live sessions only).
+		if (this.events.length > MAX_EVENTS) {
+			this.events = this.events.slice(this.events.length >> 1);
+			this._eventsByFile.clear();
+			for (const e of this.events) {
+				const arr = this._eventsByFile.get(e.componentFile);
+				if (arr) arr.push(e);
+				else this._eventsByFile.set(e.componentFile, [e]);
+			}
+		}
 	}
 
 	/**
@@ -66,6 +122,8 @@ export class ProfilerTracker {
 				childList: number;
 				attributes: number;
 				characterData: number;
+				/** A representative mutated element, for the live overlay rect. */
+				element: HTMLElement;
 			}>();
 
 			for (const mutation of mutations) {
@@ -78,8 +136,12 @@ export class ProfilerTracker {
 				}
 				if (!target || !(target instanceof HTMLElement)) continue;
 
-				// Skip our own UI elements
-				if (target.closest('[class*="svelte-grab-"]') || target.closest('[class*="svelte-devkit-"]')) continue;
+				// Skip our own UI elements (incl. the live outline overlay)
+				if (
+					target.closest('[class*="svelte-grab-"]') ||
+					target.closest('[class*="svelte-devkit-"]') ||
+					target.closest('[data-svelte-grab-outline]')
+				) continue;
 
 				const svelteEl = this.findClosestSvelteElement(target);
 				if (!svelteEl) continue;
@@ -102,7 +164,8 @@ export class ProfilerTracker {
 						type: mutType,
 						childList: mutType === 'childList' ? 1 : 0,
 						attributes: mutType === 'attributes' ? 1 : 0,
-						characterData: mutType === 'characterData' ? 1 : 0
+						characterData: mutType === 'characterData' ? 1 : 0,
+						element: svelteEl
 					});
 				}
 			}
@@ -128,6 +191,19 @@ export class ProfilerTracker {
 				existing.attributes += comp.attributes;
 				existing.characterData += comp.characterData;
 				this.mutationTypeCounts.set(comp.file, existing);
+
+				// Live overlay sink. Compute the rect lazily only when wired, since
+				// getBoundingClientRect forces layout — skip it entirely otherwise.
+				if (this._onMutation && comp.element.isConnected) {
+					const rect = comp.element.getBoundingClientRect();
+					this._onMutation({
+						element: comp.element,
+						file: comp.file,
+						componentName: comp.name,
+						mutationCount: comp.count,
+						rect
+					});
+				}
 			}
 		});
 
@@ -144,6 +220,10 @@ export class ProfilerTracker {
 			const target = e.target as HTMLElement;
 			if (target?.closest?.('[class*="svelte-grab-"]') || target?.closest?.('[class*="svelte-devkit-"]')) return;
 			this.userEvents.push({ type, timestamp: performance.now() });
+			// Ring-buffer cap for long live sessions.
+			if (this.userEvents.length > MAX_USER_EVENTS) {
+				this.userEvents = this.userEvents.slice(this.userEvents.length >> 1);
+			}
 		};
 		const onClick = trackEvent('click');
 		const onInput = trackEvent('input');

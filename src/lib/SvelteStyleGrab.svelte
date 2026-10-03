@@ -5,6 +5,7 @@
 		detectDevMode,
 		findSvelteElement,
 		shortenPath,
+		extractComponentName,
 		copyToClipboard,
 		checkModifier,
 		DARK_THEME,
@@ -13,6 +14,19 @@
 	import type { SvelteElement } from './utils/shared.js';
 	import { analyzeStyles, formatStylesForAgent } from './utils/css-analyzer.js';
 	import { registerToolOutput } from './utils/unified-export.js';
+	import { createCopyFeedback } from './utils/copy-with-feedback.js';
+	import { hideFromThirdParties } from './utils/hide-from-third-parties.js';
+	import {
+		EDITABLE_PROPERTIES,
+		groupedEditableProperties,
+		resolveTailwindClass,
+		applyPreview,
+		restoreAll,
+		formatEditPrompt,
+		type EditablePropertyDef,
+		type EditChange,
+		type EditTarget
+	} from './utils/css-edit/index.js';
 
 	let {
 		modifier = 'alt',
@@ -40,6 +54,210 @@
 	let showConflicts = $state(false);
 	let capturedElement = $state<HTMLElement | null>(null);
 
+	const copyFb = createCopyFeedback({
+		get copied() { return copied; }, set copied(v) { copied = v; },
+		get copyFailed() { return copyFailed; }, set copyFailed(v) { copyFailed = v; }
+	});
+
+	// --- Live edit mode (opt-in, default OFF) ---
+	interface EditRow {
+		def: EditablePropertyDef;
+		/** Current displayed value (numeric value, hex, or enum value). */
+		current: string;
+		/** Original computed value captured on open, for the diff + prompt. */
+		original: string;
+	}
+
+	let editMode = $state(false);
+	let editRows = $state<EditRow[]>([]);
+	let tailwindInput = $state('');
+	let tailwindError = $state<string | null>(null);
+	let overlayEl = $state<HTMLDivElement | undefined>();
+	const editGroups = groupedEditableProperties();
+
+	// Opt the whole popup subtree out of third-party session-replay / analytics
+	// whenever it (re)mounts, so source paths and styles never leak.
+	$effect(() => {
+		if (overlayEl) hideFromThirdParties(overlayEl);
+	});
+
+	/** Pending changes (current !== original), in table order. */
+	let pendingChanges = $derived(editRows.filter((r) => r.current !== r.original));
+
+	function rgbToHex(value: string): string {
+		const m = value.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i);
+		if (!m) return value.startsWith('#') ? value : '#000000';
+		const hex = (n: string) =>
+			Math.max(0, Math.min(255, Math.round(Number(n)))).toString(16).padStart(2, '0');
+		return `#${hex(m[1])}${hex(m[2])}${hex(m[3])}`;
+	}
+
+	/** Read the editable rows for an element from its computed style. */
+	function buildEditRows(el: HTMLElement): EditRow[] {
+		const computed = getComputedStyle(el);
+		return EDITABLE_PROPERTIES.map((def): EditRow => {
+			// Read from the first concrete longhand (aggregates share a value).
+			const raw = computed.getPropertyValue(def.cssProperties[0]).trim();
+			let current = raw;
+			if (def.kind === 'color') {
+				current = rgbToHex(raw);
+			} else if (def.kind === 'numeric-stepper') {
+				if (def.key === 'opacity') {
+					current = String(Math.round((Number(raw) || 1) * 100));
+				} else {
+					const n = Number.parseFloat(raw);
+					current = Number.isFinite(n) ? String(Math.round(n)) : '0';
+				}
+			}
+			return { def, current, original: current };
+		});
+	}
+
+	/** Format a row's `current` into the concrete CSS value written to the DOM. */
+	function cssValueFor(def: EditablePropertyDef, current: string): string {
+		if (def.kind === 'color' || def.kind === 'enum-cycle') return current;
+		if (def.key === 'opacity') return String((Number(current) || 0) / 100);
+		const n = Number(current);
+		return `${Number.isFinite(n) ? n : 0}${def.unit === '%' ? '' : def.unit}`;
+	}
+
+	/** Display value used in the diff / prompt (e.g. "16px", "60%"). */
+	function displayValueFor(def: EditablePropertyDef, value: string): string {
+		if (def.kind === 'color' || def.kind === 'enum-cycle') return value;
+		if (def.key === 'opacity') return `${value}%`;
+		return `${value}${def.unit === '%' ? '%' : def.unit}`;
+	}
+
+	function applyRow(row: EditRow): void {
+		if (!capturedElement) return;
+		applyPreview(capturedElement, row.def.cssProperties, cssValueFor(row.def, row.current));
+	}
+
+	function setRowValue(key: string, value: string): void {
+		const row = editRows.find((r) => r.def.key === key);
+		if (!row) return;
+		row.current = value;
+		editRows = [...editRows];
+		applyRow(row);
+	}
+
+	function stepNumeric(key: string, delta: number): void {
+		const row = editRows.find((r) => r.def.key === key);
+		if (!row || row.def.kind !== 'numeric-stepper') return;
+		const next = Math.max(row.def.min, Math.min(row.def.max, (Number(row.current) || 0) + delta));
+		setRowValue(key, String(next));
+	}
+
+	function cycleEnum(key: string, dir: 1 | -1): void {
+		const row = editRows.find((r) => r.def.key === key);
+		if (!row || row.def.kind !== 'enum-cycle') return;
+		const options = row.def.options;
+		const idx = options.findIndex((o) => o.value === row.current);
+		const nextIdx = (((idx < 0 ? 0 : idx) + dir) % options.length + options.length) % options.length;
+		setRowValue(key, options[nextIdx].value);
+	}
+
+	/** Apply a raw `prop: value` or a Tailwind class typed into the text input. */
+	function applyTailwindOrRaw(): void {
+		tailwindError = null;
+		const input = tailwindInput.trim();
+		if (!input || !capturedElement) return;
+
+		// Raw `prop: value` form.
+		const colon = input.indexOf(':');
+		if (colon > 0 && !input.includes('[')) {
+			const property = input.slice(0, colon).trim();
+			const value = input.slice(colon + 1).trim().replace(/;$/, '');
+			if (property && value) {
+				applyPreview(capturedElement, [property], value);
+				syncRowFromRaw(property, value);
+				tailwindInput = '';
+				return;
+			}
+		}
+
+		// Tailwind class form.
+		const resolved = resolveTailwindClass(input);
+		if (!resolved) {
+			tailwindError = `Unrecognized: ${input}`;
+			return;
+		}
+		const properties = resolved.property.split(',');
+		applyPreview(capturedElement, properties, resolved.value);
+		for (const property of properties) syncRowFromRaw(property, resolved.value);
+		tailwindInput = '';
+	}
+
+	/** Reflect a raw/tailwind write back into the matching edit row (if any). */
+	function syncRowFromRaw(cssProperty: string, cssValue: string): void {
+		const row = editRows.find((r) => r.def.cssProperties.includes(cssProperty));
+		if (!row) return;
+		if (row.def.kind === 'color') row.current = rgbToHex(cssValue);
+		else if (row.def.kind === 'enum-cycle') row.current = cssValue;
+		else if (row.def.key === 'opacity') {
+			const n = Number.parseFloat(cssValue);
+			row.current = String(Math.round((Number.isFinite(n) ? n : 1) * 100));
+		} else {
+			const n = Number.parseFloat(cssValue);
+			row.current = Number.isFinite(n) ? String(Math.round(n)) : row.current;
+		}
+		editRows = [...editRows];
+	}
+
+	function buildEditChanges(): EditChange[] {
+		return pendingChanges.map((row): EditChange => {
+			const from = displayValueFor(row.def, row.original);
+			const to = displayValueFor(row.def, row.current);
+			const value = cssValueFor(row.def, row.current);
+			const declarations = row.def.cssProperties.map((p) => `${p}: ${value};`);
+			return { key: row.def.key, label: row.def.label, from, to, declarations };
+		});
+	}
+
+	function editTarget(): EditTarget {
+		return {
+			filePath: elementFile,
+			lineNumber: elementLine,
+			componentName: elementFile ? (extractComponentName(elementFile) ?? undefined) : undefined
+		};
+	}
+
+	function buildEditPrompt(): string {
+		return formatEditPrompt(editTarget(), buildEditChanges());
+	}
+
+	/** Register the current edit prompt into the unified export path. */
+	function registerEditOutput(): void {
+		const changes = buildEditChanges();
+		if (changes.length === 0) return;
+		registerToolOutput('StyleEdit', buildEditPrompt());
+	}
+
+	function copyEditPrompt(): void {
+		const changes = buildEditChanges();
+		if (changes.length === 0) return;
+		const prompt = buildEditPrompt();
+		registerToolOutput('StyleEdit', prompt);
+		copyFb.copy(prompt);
+	}
+
+	function resetEdits(): void {
+		restoreAll();
+		editRows = editRows.map((r) => ({ ...r, current: r.original }));
+		tailwindInput = '';
+		tailwindError = null;
+	}
+
+	function toggleEditMode(): void {
+		editMode = !editMode;
+		if (editMode) {
+			if (capturedElement) editRows = buildEditRows(capturedElement);
+		} else {
+			// Leaving edit mode restores the live DOM to its original styles.
+			resetEdits();
+		}
+	}
+
 	function handleClick(event: MouseEvent) {
 		if (!checkModifier(event, modifier)) return;
 		// Require Ctrl as secondary (not Shift which is StateGrab)
@@ -52,6 +270,12 @@
 
 		const target = event.target as HTMLElement;
 		const svelteEl = findSvelteElement(target) || target;
+
+		// Switching elements drops any active preview on the previous element so
+		// the page never keeps stray inline styles.
+		if (editMode && capturedElement && capturedElement !== svelteEl) {
+			restoreAll();
+		}
 
 		const tag = svelteEl.tagName.toLowerCase();
 		const cls = svelteEl.className ? ` class="${String(svelteEl.className).slice(0, 40)}"` : '';
@@ -85,11 +309,29 @@
 
 		console.log('[SvelteStyleGrab] Styles captured:\n' + formatted);
 
+		// Rebuild edit rows for the newly captured element if edit mode is on.
+		if (editMode) editRows = buildEditRows(svelteEl);
+
 		if (showPopup) visible = true;
 	}
 
+	/**
+	 * Close the popup. Registers the current edit prompt into the unified-export
+	 * path (so DevKit's Copy-All still includes the pending edits) and then
+	 * restores the live DOM so no inline preview styles are left on the page.
+	 */
+	function closePopup(): void {
+		registerEditOutput();
+		restoreAll();
+		// Reset rows back to original so a re-open starts clean (no stale diff).
+		if (editRows.length > 0) editRows = editRows.map((r) => ({ ...r, current: r.original }));
+		tailwindInput = '';
+		tailwindError = null;
+		visible = false;
+	}
+
 	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && visible) visible = false;
+		if (event.key === 'Escape' && visible) closePopup();
 	}
 
 	let cleanup: (() => void) | null = null;
@@ -110,14 +352,20 @@
 		}, 100);
 	});
 
-	onDestroy(() => cleanup?.());
+	onDestroy(() => {
+		cleanup?.();
+		copyFb.reset();
+		// Never leave preview inline styles on the page after teardown.
+		restoreAll();
+	});
 </script>
 
 {#if isDev && showPopup && visible}
 	<div
+		bind:this={overlayEl}
 		class="sg-style-overlay"
-		onclick={() => (visible = false)}
-		onkeydown={(e) => e.key === 'Escape' && (visible = false)}
+		onclick={closePopup}
+		onkeydown={(e) => e.key === 'Escape' && closePopup()}
 		role="presentation"
 	>
 		<div
@@ -143,16 +391,24 @@
 				{#if copyFailed}
 					<span class="sg-style-copied-failed" style="color: #ef4444; font-size: 11px;">Copy failed</span>
 				{/if}
-				<button class="sg-style-close" onclick={() => (visible = false)} aria-label="Close">&times;</button>
+				<button
+					class="sg-style-edit-toggle"
+					class:sg-style-edit-toggle-on={editMode}
+					onclick={toggleEditMode}
+					aria-pressed={editMode}
+					title="Toggle live edit mode"
+				>✎ Edit</button>
+				<button class="sg-style-close" onclick={closePopup} aria-label="Close">&times;</button>
 			</div>
 
 			{#if elementFile}
 				<div class="sg-style-location">{elementFile}{elementLine ? ':' + elementLine : ''}</div>
 			{/if}
 
+			{#if !editMode}
 			<!-- Category tabs -->
 			<div class="sg-style-tabs">
-				{#each categories as cat}
+				{#each categories as cat (cat.name)}
 					<button
 						class="sg-style-tab"
 						class:sg-style-tab-active={activeCategory === cat.name}
@@ -174,10 +430,10 @@
 
 			<div class="sg-style-content">
 				{#if showConflicts}
-					{#each conflicts as conflict}
+					{#each conflicts as conflict (conflict.property)}
 						<div class="sg-style-conflict">
 							<div class="sg-style-conflict-prop">{conflict.property}</div>
-							{#each conflict.rules as rule}
+							{#each conflict.rules as rule (rule.selector)}
 								<div class="sg-style-conflict-rule" class:sg-style-conflict-won={rule.won}>
 									<span class="sg-style-conflict-status">{rule.won ? '✅' : '❌'}</span>
 									<span class="sg-style-conflict-selector">{rule.selector}</span>
@@ -191,8 +447,8 @@
 						</div>
 					{/each}
 				{:else}
-					{#each categories.filter(c => c.name === activeCategory) as cat}
-						{#each cat.properties as prop}
+					{#each categories.filter(c => c.name === activeCategory) as cat (cat.name)}
+						{#each cat.properties as prop (prop.name)}
 							<div class="sg-style-prop" class:sg-style-prop-overridden={prop.isOverridden}>
 								<span class="sg-style-prop-name">{prop.name}</span>
 								<span class="sg-style-prop-value">{prop.value}</span>
@@ -229,6 +485,99 @@
 					}}
 				>Copy for Agent</button>
 			</div>
+			{:else}
+			<!-- ===== Live edit mode ===== -->
+			<div class="sg-style-content sg-style-edit-content">
+				{#each editGroups as section (section.group)}
+					<div class="sg-style-edit-group">{section.label}</div>
+					{#each section.properties as def (def.key)}
+						{@const row = editRows.find((r) => r.def.key === def.key)}
+						{#if row}
+							<div class="sg-style-edit-row" class:sg-style-edit-row-changed={row.current !== row.original}>
+								<span class="sg-style-edit-label">{def.label}</span>
+								{#if def.kind === 'numeric-stepper'}
+									<div class="sg-style-edit-stepper">
+										<button class="sg-style-step-btn" onclick={() => stepNumeric(def.key, -def.step)} aria-label="decrease {def.label}">−</button>
+										<input
+											class="sg-style-edit-num"
+											type="number"
+											min={def.min}
+											max={def.max}
+											step={def.step}
+											value={row.current}
+											oninput={(e) => setRowValue(def.key, (e.currentTarget as HTMLInputElement).value)}
+										/>
+										<span class="sg-style-edit-unit">{def.unit || ''}</span>
+										<button class="sg-style-step-btn" onclick={() => stepNumeric(def.key, def.step)} aria-label="increase {def.label}">+</button>
+									</div>
+								{:else if def.kind === 'color'}
+									<div class="sg-style-edit-color">
+										<input
+											class="sg-style-edit-swatch"
+											type="color"
+											value={row.current}
+											oninput={(e) => setRowValue(def.key, (e.currentTarget as HTMLInputElement).value)}
+											aria-label={def.label}
+										/>
+										<span class="sg-style-edit-hex">{row.current}</span>
+									</div>
+								{:else}
+									<div class="sg-style-edit-cycle">
+										<button class="sg-style-step-btn" onclick={() => cycleEnum(def.key, -1)} aria-label="previous {def.label}">‹</button>
+										<span class="sg-style-edit-enum">{(def.options.find((o) => o.value === row.current)?.label) ?? row.current}</span>
+										<button class="sg-style-step-btn" onclick={() => cycleEnum(def.key, 1)} aria-label="next {def.label}">›</button>
+									</div>
+								{/if}
+							</div>
+						{/if}
+					{/each}
+				{/each}
+
+				<!-- Tailwind / raw declaration input -->
+				<div class="sg-style-edit-group">Tailwind class or prop: value</div>
+				<div class="sg-style-edit-tw">
+					<input
+						class="sg-style-edit-tw-input"
+						type="text"
+						placeholder="e.g. p-4, bg-blue-500, text-[13px], color: #fff"
+						bind:value={tailwindInput}
+						onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyTailwindOrRaw(); } }}
+					/>
+					<button class="sg-style-step-btn sg-style-tw-apply" onclick={applyTailwindOrRaw}>Apply</button>
+				</div>
+				{#if tailwindError}
+					<div class="sg-style-edit-tw-error">{tailwindError}</div>
+				{/if}
+
+				<!-- Pending changes diff -->
+				{#if pendingChanges.length > 0}
+					<div class="sg-style-edit-group">Pending changes ({pendingChanges.length})</div>
+					{#each pendingChanges as row (row.def.key)}
+						<div class="sg-style-edit-diff">
+							<span class="sg-style-edit-diff-name">{row.def.label}</span>
+							<span class="sg-style-edit-diff-from">{displayValueFor(row.def, row.original)}</span>
+							<span class="sg-style-edit-diff-arrow">→</span>
+							<span class="sg-style-edit-diff-to">{displayValueFor(row.def, row.current)}</span>
+						</div>
+					{/each}
+				{:else}
+					<div class="sg-style-edit-empty">No pending changes. Tweak a value to preview it live.</div>
+				{/if}
+			</div>
+
+			<div class="sg-style-footer">
+				<button
+					class="sg-style-btn"
+					disabled={pendingChanges.length === 0}
+					onclick={copyEditPrompt}
+				>Copy edit prompt</button>
+				<button
+					class="sg-style-btn"
+					disabled={pendingChanges.length === 0}
+					onclick={resetEdits}
+				>Reset</button>
+			</div>
+			{/if}
 		</div>
 	</div>
 {/if}
@@ -404,5 +753,145 @@
 		font-size: 11px;
 		font-family: inherit;
 	}
-	.sg-style-btn:hover { background: rgba(255, 255, 255, 0.15); }
+	.sg-style-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.15); }
+	.sg-style-btn:disabled { opacity: 0.45; cursor: default; }
+
+	/* ===== Live edit mode ===== */
+	.sg-style-edit-toggle {
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid var(--sg-border);
+		color: #888;
+		cursor: pointer;
+		padding: 2px 8px;
+		font-size: 10px;
+		font-family: inherit;
+		border-radius: 4px;
+		margin-left: auto;
+	}
+	.sg-style-edit-toggle:hover { color: var(--sg-text); background: rgba(255, 255, 255, 0.14); }
+	.sg-style-edit-toggle-on {
+		color: var(--sg-bg);
+		background: var(--sg-accent);
+		border-color: var(--sg-accent);
+	}
+
+	.sg-style-edit-content { padding: 4px 0 8px; }
+
+	.sg-style-edit-group {
+		padding: 6px 12px 2px;
+		font-size: 9px;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: #888;
+	}
+
+	.sg-style-edit-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 3px 12px;
+		font-size: 11px;
+	}
+	.sg-style-edit-row:hover { background: rgba(255, 255, 255, 0.03); }
+	.sg-style-edit-row-changed .sg-style-edit-label { color: #4ade80; }
+
+	.sg-style-edit-label { color: #60a5fa; min-width: 110px; flex-shrink: 0; }
+
+	.sg-style-edit-stepper,
+	.sg-style-edit-color,
+	.sg-style-edit-cycle {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		margin-left: auto;
+	}
+
+	.sg-style-step-btn {
+		width: 20px;
+		height: 20px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid var(--sg-border);
+		border-radius: 4px;
+		color: var(--sg-text);
+		cursor: pointer;
+		font-size: 12px;
+		line-height: 1;
+		font-family: inherit;
+	}
+	.sg-style-step-btn:hover { background: rgba(255, 255, 255, 0.16); }
+
+	.sg-style-edit-num {
+		width: 52px;
+		background: rgba(0, 0, 0, 0.25);
+		border: 1px solid var(--sg-border);
+		border-radius: 4px;
+		color: #fbbf24;
+		font-size: 11px;
+		font-family: inherit;
+		padding: 2px 4px;
+		text-align: right;
+	}
+	.sg-style-edit-unit { color: #888; font-size: 10px; width: 18px; }
+
+	.sg-style-edit-swatch {
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		border: 1px solid var(--sg-border);
+		border-radius: 4px;
+		background: none;
+		cursor: pointer;
+	}
+	.sg-style-edit-hex { color: #fbbf24; font-size: 11px; min-width: 64px; }
+
+	.sg-style-edit-enum {
+		color: #fbbf24;
+		font-size: 11px;
+		min-width: 80px;
+		text-align: center;
+	}
+
+	.sg-style-edit-tw {
+		display: flex;
+		gap: 6px;
+		padding: 4px 12px;
+	}
+	.sg-style-edit-tw-input {
+		flex: 1;
+		background: rgba(0, 0, 0, 0.25);
+		border: 1px solid var(--sg-border);
+		border-radius: 4px;
+		color: var(--sg-text);
+		font-size: 11px;
+		font-family: inherit;
+		padding: 4px 6px;
+	}
+	.sg-style-tw-apply { width: auto; padding: 0 10px; }
+	.sg-style-edit-tw-error {
+		padding: 2px 12px;
+		font-size: 10px;
+		color: #ef4444;
+	}
+
+	.sg-style-edit-diff {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 2px 12px;
+		font-size: 11px;
+	}
+	.sg-style-edit-diff-name { color: #60a5fa; min-width: 110px; flex-shrink: 0; }
+	.sg-style-edit-diff-from { color: #888; text-decoration: line-through; }
+	.sg-style-edit-diff-arrow { color: #888; }
+	.sg-style-edit-diff-to { color: #4ade80; }
+
+	.sg-style-edit-empty {
+		padding: 8px 12px;
+		font-size: 10px;
+		color: #888;
+		font-style: italic;
+	}
 </style>

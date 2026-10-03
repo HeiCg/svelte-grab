@@ -12,10 +12,8 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import type {
 		SvelteMeta,
-		DevStackEntry,
 		StackEntry,
 		HistoryEntry,
-		ThemeConfig,
 		SvelteGrabProps,
 		SvelteGrabPlugin,
 		ContextMenuAction,
@@ -31,18 +29,37 @@
 	import { AgentClient } from './core/agent-client.js';
 	import { freezeGlobalAnimations } from './utils/freeze-animations.js';
 	import { freezePseudoStates as freezePseudoStatesFn } from './utils/freeze-pseudo-states.js';
-	import { loadHistory, saveHistory, addHistoryEntry, clearAllHistory, type PersistentHistoryEntry } from './utils/history-storage.js';
-	import { createElementSelector, reacquireElement } from './utils/element-selector.js';
+	import { loadHistory, addHistoryEntry } from './utils/history-storage.js';
+	import { createElementSelector } from './utils/element-selector.js';
 	import { getElementsInDragRect } from './utils/drag-selection.js';
+	import { hideFromThirdParties } from './utils/hide-from-third-parties.js';
+	import { getComponentStack as getComponentStackPure } from './utils/component-stack.js';
+	import {
+		buildEditorUrl as buildEditorUrlPure,
+		detectProjectRoot as detectProjectRootPure
+	} from './utils/editor-link.js';
+	import { getHTMLPreview as getHTMLPreviewPure } from './utils/html-preview.js';
+	import {
+		formatForAgent as formatForAgentPure,
+		formatPaths as formatPathsPure,
+		formatMultipleForAgent as formatMultipleForAgentPure,
+		type AgentFormatDeps
+	} from './utils/agent-format.js';
+	import DevToolButton from './ui/DevToolButton.svelte';
+	import { resolveTheme } from './utils/resolve-theme.js';
+	import { createCopyFeedback } from './utils/copy-with-feedback.js';
+	import {
+		COPY_SUCCESS_MS,
+		Z_INDEX,
+		RADIUS,
+		FONT_FAMILY_MONO
+	} from './ui/tokens.js';
 	import {
 		detectDevMode,
 		shortenPath as sharedShortenPath,
 		isExcludedPath as sharedIsExcludedPath,
 		extractComponentName as sharedExtractComponentName,
-		checkModifier as sharedCheckModifier,
-		copyToClipboard as sharedCopyToClipboard,
-		DARK_THEME,
-		LIGHT_THEME
+		checkModifier as sharedCheckModifier
 	} from './utils/shared.js';
 
 	let {
@@ -78,11 +95,11 @@
 		enablePromptMode = true
 	}: SvelteGrabProps = $props();
 
-	// Use $derived for reactive theme selection based on lightTheme prop
-	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
-
-	// Use $derived for reactive theme merging
-	let colors = $derived({ ...baseTheme, ...theme });
+	// Resolve theme via the shared design-system helper so SvelteGrab's colors
+	// come from the same resolved theme (--sg-bg / --sg-border / --sg-text /
+	// --sg-accent) as every other tool. Wrapped in $derived so theme/lightTheme
+	// changes flow through reactively.
+	let colors = $derived(resolveTheme(theme, lightTheme));
 
 	// Auto-detected project root from file paths
 	let detectedProjectRoot = $state<string | null>(null);
@@ -93,7 +110,6 @@
 
 	let visible = $state(false);
 	let stack = $state<StackEntry[]>([]);
-	let position = $state({ x: 0, y: 0 });
 	let copied = $state(false);
 	let isDev = $state(false);
 
@@ -107,8 +123,8 @@
 	// Grabbed element for HTML preview
 	let grabbedElement = $state<HTMLElement | null>(null);
 
-	// Multi-selection state (using SvelteSet for O(1) lookups with reactivity)
-	let selectedElementsSet = $state(new SvelteSet<HTMLElement>());
+	// Multi-selection state (SvelteSet is already deeply reactive — no $state wrapper needed)
+	let selectedElementsSet = new SvelteSet<HTMLElement>();
 	// Derived array for iteration in templates
 	let selectedElements = $derived<HTMLElement[]>([...selectedElementsSet]);
 
@@ -191,186 +207,26 @@
 	let mcpEventSource: EventSource | null = null;
 
 	// ============================================================
-	// Arrow navigation state
-	// ============================================================
-	let navElement = $state<HTMLElement | null>(null);
-
-	// ============================================================
 	// Toolbar state
 	// ============================================================
 	let toolbarPos = $state({ x: 20, y: 20 });
 	let toolbarDragging = $state(false);
 	let toolbarDragOffset = $state({ x: 0, y: 0 });
 
-	// Priority attributes for HTML preview (in order of importance)
-	const PRIORITY_ATTRS = [
-		'class', 'id', 'type', 'href', 'src', 'name', 'placeholder',
-		'aria-label', 'role', 'data-testid', 'data-cy', 'data-test'
-	];
-
 	/**
-	 * Generate an HTML preview of the element for the agent output
+	 * Generate an HTML preview of the element for the agent output.
+	 * (Pure logic lives in ./utils/html-preview.ts)
 	 */
 	function getHTMLPreview(element: HTMLElement): string {
-		const tagName = element.tagName.toLowerCase();
-
-		// Collect relevant attributes
-		const attrs: string[] = [];
-		for (const attrName of PRIORITY_ATTRS) {
-			const value = element.getAttribute(attrName);
-			if (value) {
-				// Truncate long values
-				const truncated = value.length > 50 ? value.slice(0, 47) + '...' : value;
-				attrs.push(`${attrName}="${truncated}"`);
-			}
-		}
-
-		// Build opening tag
-		const attrString = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
-
-		// Get inner content
-		const innerContent = getInnerPreview(element);
-
-		// Self-closing tags
-		const selfClosing = ['img', 'input', 'br', 'hr', 'meta', 'link'];
-		if (selfClosing.includes(tagName)) {
-			return `<${tagName}${attrString} />`;
-		}
-
-		// If no inner content, use self-closing style for brevity
-		if (!innerContent) {
-			return `<${tagName}${attrString}></${tagName}>`;
-		}
-
-		return `<${tagName}${attrString}>\n  ${innerContent}\n</${tagName}>`;
+		return getHTMLPreviewPure(element);
 	}
 
 	/**
-	 * Cached Vite project root (undefined = not yet attempted, null = detection failed)
-	 */
-	let viteProjectRootCache: string | null | undefined = undefined;
-
-	/**
-	 * Detect project root from Vite dev server's /@fs/ script URLs.
-	 * Vite serves files from node_modules via /@fs/<absolute-path>/node_modules/...
-	 * which reveals the project's absolute filesystem path.
-	 */
-	function detectViteProjectRoot(): string | null {
-		if (viteProjectRootCache !== undefined) return viteProjectRootCache;
-
-		try {
-			const scripts = document.querySelectorAll('script[src]');
-			for (const script of scripts) {
-				const src = script.getAttribute('src') || '';
-				// Match /@fs/<absolute-path>/node_modules/ (most reliable)
-				const fsNodeModules = src.match(/\/@fs\/(.*?)\/node_modules\//);
-				if (fsNodeModules) {
-					viteProjectRootCache = '/' + fsNodeModules[1];
-					return viteProjectRootCache;
-				}
-				// Match /@fs/<absolute-path>/src/ as fallback
-				const fsSrc = src.match(/\/@fs\/(.*?)\/src\//);
-				if (fsSrc) {
-					viteProjectRootCache = '/' + fsSrc[1];
-					return viteProjectRootCache;
-				}
-			}
-		} catch {
-			// DOM access may fail in unusual environments
-		}
-
-		viteProjectRootCache = null;
-		return null;
-	}
-
-	/**
-	 * Try to detect project root from a file path.
-	 * Handles both absolute paths and relative paths from Vite/SvelteKit.
-	 */
-	function detectProjectRoot(filePath: string): string | null {
-		// Relative paths (e.g., "src/lib/components/Foo.svelte") — common in Vite dev
-		if (!filePath.startsWith('/')) {
-			return detectViteProjectRoot();
-		}
-
-		if (filePath.startsWith('/.')) {
-			return null;
-		}
-
-		// Paths like "/src/routes/..." are Vite dev-relative
-		if (filePath.startsWith('/src/') || filePath.startsWith('/lib/')) {
-			return detectViteProjectRoot();
-		}
-
-		// SvelteKit convention: /src/routes/ pattern
-		const routesIndex = filePath.indexOf('/src/routes/');
-		if (routesIndex > 0) {
-			return filePath.slice(0, routesIndex);
-		}
-
-		const srcIndex = filePath.indexOf('/src/');
-		if (srcIndex > 0) {
-			return filePath.slice(0, srcIndex);
-		}
-
-		const libIndex = filePath.indexOf('/lib/');
-		if (libIndex > 0) {
-			return filePath.slice(0, libIndex);
-		}
-
-		return null;
-	}
-
-	/**
-	 * Build editor URL based on configured editor
+	 * Build editor URL based on configured editor.
+	 * (Pure logic lives in ./utils/editor-link.ts)
 	 */
 	function buildEditorUrl(file: string, line: number): string | null {
-		if (editor === 'none') return null;
-
-		const root = projectRoot || detectedProjectRoot;
-
-		let absolutePath: string;
-
-		const isAbsoluteSystemPath = file.startsWith('/') &&
-			!file.startsWith('/.') &&
-			(file.startsWith('/Users/') || file.startsWith('/home/') || file.match(/^\/[a-zA-Z]\//));
-
-		if (isAbsoluteSystemPath) {
-			absolutePath = file;
-		} else if (root) {
-			const relativePath = file.startsWith('/') ? file : `/${file}`;
-			absolutePath = root.endsWith('/')
-				? root.slice(0, -1) + relativePath
-				: root + relativePath;
-		} else {
-			console.warn(
-				`[SvelteGrab] Could not auto-detect project root for relative path "${file}". ` +
-				`Set the "projectRoot" prop to your project's absolute path. ` +
-				`Example: <SvelteGrab projectRoot="/Users/you/my-project" />`
-			);
-			absolutePath = file.startsWith('/') ? file : `/${file}`;
-		}
-
-		switch (editor) {
-			case 'vscode':
-				return `vscode://file${absolutePath}:${line}`;
-			case 'cursor':
-				return `cursor://file${absolutePath}:${line}`;
-			case 'webstorm':
-				return `webstorm://open?file=${absolutePath}&line=${line}`;
-			case 'zed':
-				return `zed://file${absolutePath}:${line}`;
-			case 'sublime':
-				return `subl://open?url=file://${absolutePath}&line=${line}`;
-			case 'idea':
-				return `idea://open?file=${absolutePath}&line=${line}`;
-			case 'phpstorm':
-				return `phpstorm://open?file=${absolutePath}&line=${line}`;
-			case 'pycharm':
-				return `pycharm://open?file=${absolutePath}&line=${line}`;
-			default:
-				return null;
-		}
+		return buildEditorUrlPure(file, line, editor, projectRoot || detectedProjectRoot);
 	}
 
 	/**
@@ -383,35 +239,6 @@
 			a.href = url;
 			a.click();
 		}
-	}
-
-	/**
-	 * Get a preview of the element's inner content
-	 */
-	function getInnerPreview(element: HTMLElement): string {
-		const children = element.children;
-
-		if (children.length === 0) {
-			const text = element.textContent?.trim() || '';
-			if (!text) return '';
-			return text.length > 100 ? text.slice(0, 97) + '...' : text;
-		}
-
-		if (children.length > 2) {
-			const firstTag = children[0].tagName.toLowerCase();
-			return `<${firstTag}>...</${firstTag}> (${children.length} children)`;
-		}
-
-		const childPreviews: string[] = [];
-		for (let i = 0; i < Math.min(children.length, 2); i++) {
-			const child = children[i] as HTMLElement;
-			const childTag = child.tagName.toLowerCase();
-			const childText = child.textContent?.trim() || '';
-			const truncatedText = childText.length > 30 ? childText.slice(0, 27) + '...' : childText;
-			childPreviews.push(`<${childTag}>${truncatedText}</${childTag}>`);
-		}
-
-		return childPreviews.join('\n  ');
 	}
 
 	// Use shared utilities (imported above)
@@ -431,6 +258,24 @@
 		};
 
 		history = [entry, ...history].slice(0, maxHistorySize);
+
+		// Persist to localStorage when enabled so the grab survives reloads
+		// (the load side runs on mount via loadHistory()).
+		if (enableHistoryPersistence) {
+			try {
+				const selector = createElementSelector(element);
+				addHistoryEntry({
+					timestamp: entry.timestamp,
+					componentName: entry.componentName,
+					tagName: element.tagName.toLowerCase(),
+					htmlPreview: entry.htmlPreview,
+					elementSelector: selector,
+					stack: entry.stack
+				});
+			} catch {
+				// Graceful degradation if selector generation fails
+			}
+		}
 	}
 
 	/**
@@ -451,135 +296,41 @@
 	}
 
 	function getComponentStack(element: HTMLElement): StackEntry[] {
-		const entries: StackEntry[] = [];
-		const seen = new Set<string>();
-		let current: HTMLElement | null = element;
-
-		while (current) {
-			const meta = (current as HTMLElement & { __svelte_meta?: SvelteMeta }).__svelte_meta;
-
-			if (meta) {
-				if (meta.loc && !isExcludedPath(meta.loc.file)) {
-					const key = `${meta.loc.file}:${meta.loc.line}`;
-					if (!seen.has(key)) {
-						seen.add(key);
-						entries.push({
-							type: 'element',
-							file: meta.loc.file,
-							line: meta.loc.line,
-							column: meta.loc.column
-						});
-
-						if (!detectedProjectRoot && !projectRoot) {
-							detectedProjectRoot = detectProjectRoot(meta.loc.file);
-						}
-					}
-				}
-
-				let parentEntry = meta.parent;
-				while (parentEntry) {
-					if (parentEntry.file && parentEntry.line && !isExcludedPath(parentEntry.file)) {
-						const key = `${parentEntry.file}:${parentEntry.line}`;
-						if (!seen.has(key)) {
-							seen.add(key);
-							entries.push({
-								type: parentEntry.type || 'component',
-								file: parentEntry.file,
-								line: parentEntry.line,
-								column: parentEntry.column || 0
-							});
-
-							if (!detectedProjectRoot && !projectRoot) {
-								detectedProjectRoot = detectProjectRoot(parentEntry.file);
-							}
-						}
-					}
-					parentEntry = parentEntry.parent;
-				}
-				break;
+		// Pure stack-walking lives in ./utils/component-stack.ts; the callback
+		// preserves the lazy project-root detection from each accepted entry.
+		return getComponentStackPure(element, isExcludedPath, (file) => {
+			if (!detectedProjectRoot && !projectRoot) {
+				detectedProjectRoot = detectProjectRootPure(file);
 			}
-
-			current = current.parentElement;
-		}
-
-		return entries;
+		});
 	}
 
 	const shortenPath = sharedShortenPath;
 
+	/**
+	 * Formatting helpers passed to the pure agent-format module.
+	 * (Pure logic lives in ./utils/agent-format.ts)
+	 */
+	let agentFormatDeps = $derived<AgentFormatDeps>({
+		includeHtml,
+		getHTMLPreview,
+		extractComponentName,
+		shortenPath
+	});
+
 	function formatForAgent(entries: StackEntry[], element?: HTMLElement | null): string {
-		if (entries.length === 0) return '';
-
-		const parts: string[] = [];
-
-		// Element info with tag and text
-		if (element) {
-			const tagName = element.tagName.toLowerCase();
-			const role = element.getAttribute('role');
-			const elementText = element.textContent?.trim();
-			const truncatedText = elementText && elementText.length > 60
-				? elementText.slice(0, 57) + '...'
-				: elementText;
-
-			if (includeHtml) {
-				parts.push(getHTMLPreview(element));
-			} else {
-				const roleStr = role ? ` role="${role}"` : '';
-				const textStr = truncatedText ? ` "${truncatedText}"` : '';
-				parts.push(`Element: <${tagName}${roleStr}>${textStr}`);
-			}
-		}
-
-		// Component name from first entry
-		const componentName = extractComponentName(entries[0].file);
-		if (componentName) {
-			parts.push(`Component: <${componentName}>`);
-		}
-
-		// Full component stack
-		if (entries.length > 1) {
-			parts.push('Component Stack:');
-			for (let i = 0; i < entries.length; i++) {
-				const entry = entries[i];
-				const name = extractComponentName(entry.file) || entry.file.split('/').pop() || 'unknown';
-				parts.push(`  ${i + 1}. ${name} (${shortenPath(entry.file)}:${entry.line})`);
-			}
-		} else {
-			parts.push(`Defined in: ${shortenPath(entries[0].file)}:${entries[0].line}`);
-		}
-
-		return parts.join('\n');
+		return formatForAgentPure(entries, element, agentFormatDeps);
 	}
 
 	function formatPaths(entries: StackEntry[]): string {
-		if (entries.length === 0) return 'No Svelte component found';
-
-		const definedIn = entries[0];
-		const usedIn = entries.find(e => e.file !== definedIn.file);
-
-		const lines: string[] = [];
-		if (usedIn) {
-			lines.push(`Used in: ${shortenPath(usedIn.file)}:${usedIn.line}:${usedIn.column}`);
-		}
-		lines.push(`Defined in: ${shortenPath(definedIn.file)}:${definedIn.line}:${definedIn.column}`);
-
-		return lines.join('\n');
+		return formatPathsPure(entries, shortenPath);
 	}
 
 	/**
 	 * Format multiple selected elements for agent output
 	 */
 	function formatMultipleForAgent(elements: HTMLElement[]): string {
-		if (elements.length === 0) return '';
-		if (elements.length === 1) {
-			const elementStack = getComponentStack(elements[0]);
-			return formatForAgent(elementStack, elements[0]);
-		}
-
-		return elements.map((element, index) => {
-			const elementStack = getComponentStack(element);
-			return `--- Element ${index + 1} ---\n${formatForAgent(elementStack, element)}`;
-		}).join('\n\n');
+		return formatMultipleForAgentPure(elements, getComponentStack, agentFormatDeps);
 	}
 
 	/**
@@ -611,17 +362,17 @@
 
 	let copyFailed = $state(false);
 
-	async function copyToClipboard(text: string): Promise<boolean> {
-		const success = await sharedCopyToClipboard(text);
-		if (success) {
-			copied = true;
-			copyFailed = false;
-			setTimeout(() => (copied = false), 1500);
-		} else {
-			copyFailed = true;
-			setTimeout(() => (copyFailed = false), 3000);
-		}
-		return success;
+	// Shared copy-feedback controller: drives `copied` / `copyFailed` and owns the
+	// auto-clear timeouts (COPY_SUCCESS_MS / COPY_FAILURE_MS) the design system uses.
+	const copyFb = createCopyFeedback({
+		get copied() { return copied; },
+		set copied(v) { copied = v; },
+		get copyFailed() { return copyFailed; },
+		set copyFailed(v) { copyFailed = v; }
+	});
+
+	function copyToClipboard(text: string): Promise<boolean> {
+		return copyFb.copy(text);
 	}
 
 	/**
@@ -693,7 +444,7 @@
 			]);
 
 			screenshotCopied = true;
-			setTimeout(() => (screenshotCopied = false), 1500);
+			setTimeout(() => (screenshotCopied = false), COPY_SUCCESS_MS);
 			isCapturingScreenshot = false;
 			return true;
 		} catch (err) {
@@ -742,26 +493,6 @@
 		promptMode = false;
 		promptText = '';
 		deactivateFreezes();
-	}
-
-	/** Add entry to history with persistence support */
-	function addToHistoryWithPersistence(entry: HistoryEntry, element?: HTMLElement): void {
-		history = [entry, ...history].slice(0, maxHistorySize);
-		if (enableHistoryPersistence && element) {
-			try {
-				const selector = createElementSelector(element);
-				addHistoryEntry({
-					timestamp: entry.timestamp,
-					componentName: entry.componentName,
-					tagName: element.tagName.toLowerCase(),
-					htmlPreview: entry.htmlPreview,
-					elementSelector: selector,
-					stack: entry.stack
-				});
-			} catch {
-				// Graceful degradation if selector generation fails
-			}
-		}
 	}
 
 	/** Handle prompt mode confirmation */
@@ -884,7 +615,6 @@
 		hoveredInfo = null;
 
 		if (showPopup) {
-			position = getConstrainedPosition(event.clientX, event.clientY);
 			visible = true;
 		} else {
 			console.log('[SvelteGrab] Component stack copied:\n' + formatForAgent(stack, grabbedElement));
@@ -983,7 +713,7 @@
 				// Show first-time hint toast
 				if (!hintShownThisSession && showActiveIndicator) {
 					hintShownThisSession = true;
-					try { sessionStorage.setItem('svelte-grab-hint-shown', '1'); } catch {}
+					try { sessionStorage.setItem('svelte-grab-hint-shown', '1'); } catch { /* sessionStorage unavailable (private mode / disabled) — non-fatal */ }
 					showHintToast = true;
 					setTimeout(() => (showHintToast = false), 3000);
 				}
@@ -1015,7 +745,6 @@
 
 			if (nextEl) {
 				hoveredElement = nextEl;
-				navElement = nextEl;
 				const meta = (nextEl as HTMLElement & { __svelte_meta?: SvelteMeta }).__svelte_meta;
 				if (meta?.loc) {
 					hoveredInfo = {
@@ -1067,7 +796,31 @@
 		return key === keyMap[modifier];
 	}
 
+	// ============================================================
+	// Mousemove throttling (perf): coalesce to one update per frame
+	// ============================================================
+	let pendingMouseEvent: MouseEvent | null = null;
+	let mouseMoveRafId: number | null = null;
+
+	/**
+	 * Throttled mousemove entry point. Stores the latest event and schedules a
+	 * single rAF so the (potentially heavy) DOM walk / elementsFromPoint hover
+	 * logic in processMouseMove runs at most once per animation frame regardless
+	 * of how many native mousemove events fire. Behavior is visually identical;
+	 * only the update cadence is coalesced.
+	 */
 	function handleMouseMove(event: MouseEvent) {
+		pendingMouseEvent = event;
+		if (mouseMoveRafId !== null) return;
+		mouseMoveRafId = requestAnimationFrame(() => {
+			mouseMoveRafId = null;
+			const ev = pendingMouseEvent;
+			pendingMouseEvent = null;
+			if (ev) processMouseMove(ev);
+		});
+	}
+
+	function processMouseMove(event: MouseEvent) {
 		// Toolbar dragging
 		if (toolbarDragging) {
 			toolbarPos = {
@@ -1236,7 +989,7 @@
 	/**
 	 * Handle mouse up for drag selection
 	 */
-	function handleMouseUp(event: MouseEvent) {
+	function handleMouseUp() {
 		if (toolbarDragging) {
 			toolbarDragging = false;
 			return;
@@ -1245,14 +998,6 @@
 		if (!isDragging) return;
 
 		isDragging = false;
-
-		// Calculate final selection box
-		const box = {
-			left: selectionBox.left,
-			top: selectionBox.top,
-			right: selectionBox.left + selectionBox.width,
-			bottom: selectionBox.top + selectionBox.height
-		};
 
 		// Only select if drag was significant (not just a click)
 		if (selectionBox.width < 5 && selectionBox.height < 5) return;
@@ -1282,22 +1027,6 @@
 
 	function handleClickOutside() {
 		visible = false;
-	}
-
-	function getConstrainedPosition(x: number, y: number): { x: number; y: number } {
-		const popupWidth = 320;
-		const popupHeight = 300;
-		const padding = 10;
-
-		const maxX = window.innerWidth - popupWidth / 2 - padding;
-		const minX = popupWidth / 2 + padding;
-		const maxY = window.innerHeight - popupHeight - padding;
-		const minY = padding;
-
-		return {
-			x: Math.max(minX, Math.min(maxX, x)),
-			y: Math.max(minY, Math.min(maxY, y))
-		};
 	}
 
 	/**
@@ -1355,9 +1084,23 @@
 	let destroyed = false;
 	let mountTimeoutId: ReturnType<typeof setTimeout>;
 
+	/**
+	 * Svelte action: stamp third-party session-replay redaction markers onto a
+	 * dev-UI root element when it mounts, so the dev overlay (which can show file
+	 * paths, HTML and prop values) never leaks into tools like PostHog/rrweb,
+	 * Sentry, FullStory, Datadog, LogRocket, Hotjar, Clarity, Heap or Smartlook.
+	 *
+	 * Applied via `use:redactNode` to each top-level overlay/popup/toolbar root.
+	 * Idempotent and purely additive — it adds attributes/classes and changes no
+	 * existing behavior.
+	 */
+	function redactNode(node: HTMLElement) {
+		hideFromThirdParties(node);
+	}
+
 	onMount(() => {
 		// Check if hint was already shown this session
-		try { hintShownThisSession = sessionStorage.getItem('svelte-grab-hint-shown') === '1'; } catch {}
+		try { hintShownThisSession = sessionStorage.getItem('svelte-grab-hint-shown') === '1'; } catch { /* sessionStorage unavailable (private mode / disabled) — non-fatal */ }
 
 		// Load persistent history
 		if (enableHistoryPersistence) {
@@ -1371,7 +1114,7 @@
 						componentName: entry.componentName
 					}];
 				}
-			} catch {}
+			} catch { /* persisted history unreadable/corrupt — start with empty history */ }
 		}
 
 		mountTimeoutId = setTimeout(() => {
@@ -1518,6 +1261,12 @@
 				document.removeEventListener('contextmenu', handleContextMenu, true);
 				document.removeEventListener('mousedown', handleMouseDown, true);
 				document.removeEventListener('mouseup', handleMouseUp, true);
+				// Cancel any pending throttled mousemove frame
+				if (mouseMoveRafId !== null) {
+					cancelAnimationFrame(mouseMoveRafId);
+					mouseMoveRafId = null;
+				}
+				pendingMouseEvent = null;
 			};
 		}, 100);
 	});
@@ -1526,6 +1275,14 @@
 		destroyed = true;
 		clearTimeout(mountTimeoutId);
 		cleanup?.();
+		// Belt-and-suspenders: ensure no throttled mousemove frame outlives us
+		if (mouseMoveRafId !== null) {
+			cancelAnimationFrame(mouseMoveRafId);
+			mouseMoveRafId = null;
+		}
+		pendingMouseEvent = null;
+		// Clear any pending copy-feedback badge timeout so it can't outlive us.
+		copyFb.reset();
 		agentClient?.disconnect();
 		mcpEventSource?.close();
 		pluginRegistry.clear();
@@ -1536,6 +1293,7 @@
 <!-- Active indicator badge -->
 {#if isDev && showActiveIndicator && !visible && !selectionMode}
 	<div
+		use:redactNode
 		class="svelte-grab-active-indicator"
 		class:svelte-grab-indicator-light={lightTheme}
 		style="--sg-accent: {colors.accent};"
@@ -1571,6 +1329,7 @@
 	<!-- Floating action bar for multi-selection -->
 	{#if !visible}
 		<div
+			use:redactNode
 			class="svelte-grab-floating-bar"
 			style="
 				--sg-bg: {colors.background};
@@ -1625,6 +1384,7 @@
 	></div>
 	{#if hoveredInfo}
 		<div
+			use:redactNode
 			class="svelte-grab-tooltip"
 			class:svelte-grab-tooltip-copied={hoverCopied}
 			style="
@@ -1664,7 +1424,7 @@
 
 <!-- Context menu -->
 {#if isDev && contextMenuVisible && contextMenuContext}
-	<div class="sg-context-overlay" onclick={() => (contextMenuVisible = false)} role="presentation">
+	<div use:redactNode class="sg-context-overlay" onclick={() => (contextMenuVisible = false)} role="presentation">
 		<div
 			class="sg-context-menu"
 			style="
@@ -1703,6 +1463,7 @@
 <!-- Toolbar -->
 {#if isDev && showToolbar}
 	<div
+		use:redactNode
 		class="sg-toolbar"
 		style="
 			left: {toolbarPos.x}px;
@@ -1775,6 +1536,7 @@
 <!-- Agent prompt -->
 {#if isDev && promptMode && hoveredElement}
 	<div
+		use:redactNode
 		class="sg-prompt-overlay"
 		style="
 			--sg-bg: {colors.background};
@@ -1928,7 +1690,7 @@
 {/if}
 
 {#if isDev && showAgentPrompt}
-	<div class="sg-agent-overlay" onclick={() => (showAgentPrompt = false)} role="presentation">
+	<div use:redactNode class="sg-agent-overlay" onclick={() => (showAgentPrompt = false)} role="presentation">
 		<div class="sg-agent-prompt" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}
 			style="
 				--sg-bg: {colors.background};
@@ -2026,6 +1788,7 @@
 <!-- Agent status toast -->
 {#if isDev && agentStatusVisible}
 	<div
+		use:redactNode
 		class="sg-agent-status"
 		style="
 			--sg-bg: {colors.background};
@@ -2064,7 +1827,9 @@
 
 {#if isDev && showPopup && visible}
 	<div
+		use:redactNode
 		class="svelte-grab-overlay"
+		style="--sg-overlay-z: {Z_INDEX.overlay};"
 		onclick={handleClickOutside}
 		onkeydown={(e) => e.key === 'Escape' && handleClickOutside()}
 		role="presentation"
@@ -2076,6 +1841,8 @@
 				--sg-border: {colors.border};
 				--sg-text: {colors.text};
 				--sg-accent: {colors.accent};
+				--sg-popup-radius: {RADIUS.md}px;
+				--sg-popup-font-family: {FONT_FAMILY_MONO};
 			"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
@@ -2180,18 +1947,12 @@
 			{/if}
 
 			<div class="svelte-grab-footer">
-				<button
-					class="svelte-grab-btn"
+				<DevToolButton
 					onclick={() => copyToClipboard(formatForAgent(stack, grabbedElement))}
-				>
-					Copy for Agent
-				</button>
-				<button
-					class="svelte-grab-btn"
+				>Copy for Agent</DevToolButton>
+				<DevToolButton
 					onclick={() => copyToClipboard(formatPaths(stack))}
-				>
-					Copy Paths
-				</button>
+				>Copy Paths</DevToolButton>
 				{#if enableScreenshot && grabbedElement}
 					<button
 						class="svelte-grab-btn"
@@ -2241,7 +2002,7 @@
 						</button>
 					</div>
 					<div class="svelte-grab-history-list">
-						{#each history as entry, idx (entry.timestamp)}
+						{#each history as entry (entry.timestamp)}
 							<button
 								class="svelte-grab-history-item"
 								onclick={() => copyHistoryEntry(entry)}
@@ -2268,6 +2029,7 @@
 <!-- First-time hint toast -->
 {#if isDev && showHintToast}
 	<div
+		use:redactNode
 		class="sg-hint-toast"
 		style="--sg-bg: {colors.background}; --sg-text: {colors.text}; --sg-accent: {colors.accent};"
 		role="status"
@@ -2280,7 +2042,9 @@
 <!-- Help overlay for standalone SvelteGrab -->
 {#if isDev && showHelpOverlay}
 	<div
+		use:redactNode
 		class="sg-help-overlay"
+		style="--sg-overlay-z: {Z_INDEX.overlay};"
 		onclick={() => (showHelpOverlay = false)}
 		onkeydown={(e) => e.key === 'Escape' && (showHelpOverlay = false)}
 		role="presentation"
@@ -2377,7 +2141,8 @@
 		border: 1px solid var(--sg-border);
 		border-radius: 6px;
 		padding: 6px 10px;
-		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+		/* Matches the shared FONT_FAMILY_MONO token */
+		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
 		font-size: 11px;
 		color: var(--sg-text);
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -2410,7 +2175,7 @@
 	.svelte-grab-overlay {
 		position: fixed;
 		inset: 0;
-		z-index: 99999;
+		z-index: var(--sg-overlay-z, 99999);
 		background: rgba(0, 0, 0, 0.3);
 	}
 
@@ -2421,13 +2186,14 @@
 		transform: translate(-50%, -50%);
 		background: var(--sg-bg);
 		border: 1px solid var(--sg-border);
-		border-radius: 8px;
+		/* Radius + mono font sourced from the shared RADIUS.md / FONT_FAMILY_MONO tokens */
+		border-radius: var(--sg-popup-radius, 8px);
 		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 		min-width: 320px;
 		max-width: 600px;
 		max-height: 400px;
 		overflow: hidden;
-		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+		font-family: var(--sg-popup-font-family, ui-monospace, 'SF Mono', Menlo, Monaco, monospace);
 		font-size: 12px;
 		color: var(--sg-text);
 	}
@@ -3352,7 +3118,7 @@
 
 	/* Help overlay */
 	.sg-help-overlay {
-		position: fixed; inset: 0; z-index: 99999; background: rgba(0, 0, 0, 0.3);
+		position: fixed; inset: 0; z-index: var(--sg-overlay-z, 99999); background: rgba(0, 0, 0, 0.3);
 	}
 
 	.sg-help-popup {

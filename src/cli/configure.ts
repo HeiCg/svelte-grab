@@ -6,6 +6,7 @@
 
 import { createInterface } from 'readline';
 import { loadConfig, saveConfig, showDiff, type SvelteGrabConfig } from './config.js';
+import { validatePort } from '../utils/port.js';
 
 export interface ConfigureOptions {
 	dryRun?: boolean;
@@ -40,13 +41,13 @@ export async function configure(options: ConfigureOptions = {}): Promise<void> {
 		config.editor = editorChoice;
 	}
 
-	// Relay port
+	// Relay port (validated: integer 1..65535, else keeps current/default)
 	const relayPort = await prompt('Relay port', String(config.relayPort || 4722));
-	if (relayPort) config.relayPort = parseInt(relayPort, 10);
+	if (relayPort) config.relayPort = validatePort(relayPort, config.relayPort || 4722, 'relay port');
 
-	// MCP port
+	// MCP port (validated: integer 1..65535, else keeps current/default)
 	const mcpPort = await prompt('MCP port', String(config.mcpPort || 4723));
-	if (mcpPort) config.mcpPort = parseInt(mcpPort, 10);
+	if (mcpPort) config.mcpPort = validatePort(mcpPort, config.mcpPort || 4723, 'MCP port');
 
 	// Theme
 	const themeChoice = await prompt('Theme [dark/light]', config.theme || 'dark');

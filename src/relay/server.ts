@@ -7,9 +7,24 @@ import type {
 	HandlersMessage,
 	HealthResponseMessage
 } from './protocol.js';
+import { validateClientMessage } from './protocol.js';
 import { findAvailablePort } from '../utils/port.js';
+import {
+	LOOPBACK_HOST,
+	resolveSecurityConfig,
+	isOriginAllowed,
+	isTokenValid,
+	extractToken,
+	logSecurityBanner,
+	type SecurityOptions
+} from '../utils/security.js';
 
-export interface RelayServerOptions {
+/** Max WebSocket message size (2 MB) — bounds untrusted browser input. */
+const MAX_PAYLOAD = 2 * 1024 * 1024;
+/** Max retained sessions in the retry store (oldest evicted past this). */
+const MAX_SESSIONS = 200;
+
+export interface RelayServerOptions extends SecurityOptions {
 	port?: number;
 	providers?: AgentProvider[];
 }
@@ -35,13 +50,26 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 		throw new Error('ws package not installed. Run: npm install ws');
 	}
 
+	// Resolve security config (origin allowlist + optional token).
+	const security = resolveSecurityConfig(options);
+
 	const providerMap = new Map<string, AgentProvider>();
 	for (const p of providers) {
 		providerMap.set(p.name, p);
 	}
 
-	// Session store for retry support
+	// Session store for retry support (bounded — see addSession below).
 	const sessionStore = new Map<string, SessionEntry>();
+
+	/** Insert/update a session, evicting the oldest entry if over the cap. */
+	function addSession(sessionId: string, entry: SessionEntry): void {
+		sessionStore.delete(sessionId); // re-insert to keep recency order
+		sessionStore.set(sessionId, entry);
+		if (sessionStore.size > MAX_SESSIONS) {
+			const oldest = sessionStore.keys().next().value;
+			if (oldest !== undefined) sessionStore.delete(oldest);
+		}
+	}
 
 	// Find available port (auto-increment if preferred port is in use)
 	let port: number;
@@ -51,13 +79,32 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 		throw new Error(`Could not find available port starting from ${preferredPort}`);
 	}
 
-	const wss = new WebSocketServer({ port });
+	// Bind to loopback only, cap payload size, and reject browser connections
+	// from disallowed Origins (and bad tokens, when token auth is enabled).
+	const wss = new WebSocketServer({
+		host: LOOPBACK_HOST,
+		port,
+		maxPayload: MAX_PAYLOAD,
+		verifyClient: (info: { origin?: string; req: any }, cb: (ok: boolean, code?: number, msg?: string) => void) => {
+			if (!isOriginAllowed(info.origin, security)) {
+				cb(false, 403, 'Origin not allowed');
+				return;
+			}
+			const token = extractToken(info.req?.url, info.req?.headers || {});
+			if (!isTokenValid(token, security)) {
+				cb(false, 401, 'Invalid or missing token');
+				return;
+			}
+			cb(true);
+		}
+	});
 
 	if (port !== preferredPort) {
 		console.log(`[svelte-grab relay] Port ${preferredPort} was in use, using ${port} instead`);
 	}
 	console.log(`[svelte-grab relay] Listening on ws://localhost:${port}`);
 	console.log(`[svelte-grab relay] Registered agents: ${providers.map(p => p.name).join(', ') || 'none'}`);
+	logSecurityBanner('relay', security);
 
 	wss.on('connection', (ws: any) => {
 		console.log('[svelte-grab relay] Client connected');
@@ -70,12 +117,27 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 		ws.send(JSON.stringify(handlersMsg));
 
 		ws.on('message', async (data: any) => {
-			let msg: ClientMessage;
+			let parsed: unknown;
 			try {
-				msg = JSON.parse(data.toString());
+				parsed = JSON.parse(data.toString());
 			} catch {
 				return;
 			}
+
+			// Validate message shape before acting (drives a local agent).
+			const validation = validateClientMessage(parsed, new Set(providerMap.keys()));
+			if (!validation.ok) {
+				if (validation.sessionId) {
+					const errMsg: AgentErrorMessage = {
+						type: 'agent-error',
+						sessionId: validation.sessionId,
+						error: `Rejected: ${validation.error}`
+					};
+					if (ws.readyState === 1) ws.send(JSON.stringify(errMsg));
+				}
+				return;
+			}
+			const msg: ClientMessage = validation.message;
 
 			// Helper to create callbacks for a session
 			function createCallbacks(sessionId: string) {
@@ -130,8 +192,8 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 						return;
 					}
 
-					// Save session for retry
-					sessionStore.set(msg.sessionId, {
+					// Save session for retry (bounded store)
+					addSession(msg.sessionId, {
 						agentId: msg.agentId,
 						lastContext: msg.context
 					});

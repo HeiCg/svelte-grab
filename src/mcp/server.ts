@@ -1,11 +1,31 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { DEFAULT_MCP_PORT } from './constants.js';
 import { findAvailablePort } from '../utils/port.js';
+import {
+	LOOPBACK_HOST,
+	resolveSecurityConfig,
+	isOriginAllowed,
+	isTokenValid,
+	extractToken,
+	logSecurityBanner,
+	type SecurityConfig,
+	type SecurityOptions
+} from '../utils/security.js';
 
-export interface McpServerOptions {
+/** Max request body size (2 MB) for POST endpoints. */
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
+/** Cap on retained SSE clients and pending watchers (bounds memory). */
+const MAX_SSE_CLIENTS = 100;
+const MAX_WATCHERS = 100;
+
+export interface McpServerOptions extends SecurityOptions {
 	port?: number;
 	stdio?: boolean;
 }
+
+// Module-level security config — resolved when the server starts.
+// Defaults to "origin check on, token off" until startMcpServer overrides it.
+let security: SecurityConfig = resolveSecurityConfig();
 
 interface ContextPayload {
 	content: string[];
@@ -84,20 +104,55 @@ function isValidContextPayload(data: unknown): data is ContextPayload {
 
 /**
  * Set CORS headers for browser requests.
+ *
+ * SECURITY: never use a wildcard ACAO. Reflect the request Origin ONLY when it
+ * passes the allowlist; otherwise omit ACAO entirely so disallowed pages cannot
+ * read responses. `Vary: Origin` keeps caches correct.
  */
-function setCorsHeaders(res: ServerResponse): void {
-	res.setHeader('Access-Control-Allow-Origin', '*');
+function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
+	const origin = req.headers.origin;
+	res.setHeader('Vary', 'Origin');
+	if (origin && isOriginAllowed(origin, security)) {
+		res.setHeader('Access-Control-Allow-Origin', origin);
+	}
 	res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-	res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+	res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-svelte-grab-token');
 }
 
 /**
- * Read request body as string.
+ * Enforce Origin allowlist + optional token on a request.
+ * Returns true if the request is allowed; otherwise writes a 403/401 and
+ * returns false (the caller should stop processing).
+ */
+function checkAccess(req: IncomingMessage, res: ServerResponse): boolean {
+	if (!isOriginAllowed(req.headers.origin, security)) {
+		sendJson(res, 403, { error: 'Origin not allowed' });
+		return false;
+	}
+	const token = extractToken(req.url, req.headers as Record<string, string | string[] | undefined>);
+	if (!isTokenValid(token, security)) {
+		sendJson(res, 401, { error: 'Invalid or missing token' });
+		return false;
+	}
+	return true;
+}
+
+/**
+ * Read request body as string, rejecting bodies that exceed MAX_BODY_BYTES.
  */
 function readBody(req: IncomingMessage): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const chunks: Buffer[] = [];
-		req.on('data', (chunk: Buffer) => chunks.push(chunk));
+		let size = 0;
+		req.on('data', (chunk: Buffer) => {
+			size += chunk.length;
+			if (size > MAX_BODY_BYTES) {
+				reject(new Error('Request body too large'));
+				req.destroy();
+				return;
+			}
+			chunks.push(chunk);
+		});
 		req.on('end', () => resolve(Buffer.concat(chunks).toString()));
 		req.on('error', reject);
 	});
@@ -227,8 +282,9 @@ function registerMcpTools(server: any): void {
 				};
 			}
 
-			// Wait for the next context from the browser
+			// Wait for the next context from the browser (cap pending watchers)
 			const ctx = await new Promise<ContextPayload>((resolve) => {
+				if (watchQueue.length >= MAX_WATCHERS) watchQueue.shift();
 				watchQueue.push(resolve);
 			});
 
@@ -425,19 +481,26 @@ function registerMcpTools(server: any): void {
  */
 function createHttpHandler() {
 	return async (req: IncomingMessage, res: ServerResponse) => {
-		setCorsHeaders(res);
+		setCorsHeaders(req, res);
 
-		// Handle preflight
+		// Handle preflight. CORS headers (incl. allowlisted ACAO) already set.
 		if (req.method === 'OPTIONS') {
 			res.writeHead(204);
 			res.end();
 			return;
 		}
 
-		const url = req.url || '/';
+		// Reject browser requests from disallowed Origins (and bad tokens).
+		// /health is intentionally open (no sensitive data, used for probing).
+		const rawUrl = req.url || '/';
+		const path = rawUrl.split('?')[0];
+		if (path !== '/health' && !checkAccess(req, res)) {
+			return;
+		}
 
+		// Route on the path (query string may carry ?token=).
 		// GET /health
-		if (req.method === 'GET' && url === '/health') {
+		if (req.method === 'GET' && path === '/health') {
 			sendJson(res, 200, {
 				status: 'ok',
 				hasContext: storedContext !== null,
@@ -449,12 +512,12 @@ function createHttpHandler() {
 		}
 
 		// GET /events — SSE endpoint for browser real-time updates
-		if (req.method === 'GET' && url === '/events') {
+		if (req.method === 'GET' && path === '/events') {
+			// ACAO already set by setCorsHeaders (allowlisted reflection, not *).
 			res.writeHead(200, {
 				'Content-Type': 'text/event-stream',
 				'Cache-Control': 'no-cache',
-				'Connection': 'keep-alive',
-				'Access-Control-Allow-Origin': '*'
+				'Connection': 'keep-alive'
 			});
 
 			// Send current status immediately
@@ -464,6 +527,14 @@ function createHttpHandler() {
 			});
 			res.write(`event: agent-status\ndata: ${statusPayload}\n\n`);
 
+			// Cap retained SSE clients to bound memory.
+			if (sseClients.size >= MAX_SSE_CLIENTS) {
+				const oldest = sseClients.values().next().value;
+				if (oldest) {
+					sseClients.delete(oldest);
+					try { oldest.end(); } catch { /* ignore */ }
+				}
+			}
 			sseClients.add(res);
 
 			req.on('close', () => {
@@ -473,7 +544,7 @@ function createHttpHandler() {
 		}
 
 		// POST /context — browser sends grabbed context here
-		if (req.method === 'POST' && url === '/context') {
+		if (req.method === 'POST' && path === '/context') {
 			try {
 				const body = await readBody(req);
 				const data = JSON.parse(body);
@@ -486,14 +557,15 @@ function createHttpHandler() {
 				processIncomingContext(data);
 
 				sendJson(res, 200, { ok: true, agentWatching });
-			} catch {
-				sendJson(res, 400, { error: 'Invalid JSON' });
+			} catch (err) {
+				const tooLarge = err instanceof Error && err.message === 'Request body too large';
+				sendJson(res, tooLarge ? 413 : 400, { error: tooLarge ? 'Request body too large' : 'Invalid JSON' });
 			}
 			return;
 		}
 
 		// POST /mcp — MCP protocol endpoint (only in HTTP mode)
-		if (req.method === 'POST' && url === '/mcp') {
+		if (req.method === 'POST' && path === '/mcp') {
 			await handleMcpProtocol(req, res);
 			return;
 		}
@@ -525,7 +597,8 @@ async function startHttpListener(preferredPort: number): Promise<{ close: () => 
 			reject(err);
 		});
 
-		server.listen(port, () => {
+		// Bind to loopback only — never expose this port to a network.
+		server.listen(port, LOOPBACK_HOST, () => {
 			resolve({ close: () => server.close(), port });
 		});
 	});
@@ -541,6 +614,7 @@ async function startHttpServer(preferredPort: number): Promise<{ close: () => vo
 	console.log(`[svelte-grab mcp] Health check: http://localhost:${port}/health`);
 	console.log(`[svelte-grab mcp] Context endpoint: POST http://localhost:${port}/context`);
 	console.log(`[svelte-grab mcp] SSE events: http://localhost:${port}/events`);
+	logSecurityBanner('mcp', security);
 
 	return { close };
 }
@@ -563,8 +637,11 @@ async function startStdioServer(httpPort: number): Promise<void> {
 	// Start sidecar HTTP server for browser context bridge
 	try {
 		const { port } = await startHttpListener(httpPort);
-		// Log to stderr since stdout is used by stdio transport
-		console.error(`[svelte-grab mcp] Sidecar HTTP on http://localhost:${port} (for browser context)`);
+		// Log to stderr since stdout is used by stdio transport.
+		console.error(`[svelte-grab mcp] Sidecar HTTP on http://localhost:${port} (loopback only, Origin-checked).`);
+		if (security.token) {
+			console.error(`[svelte-grab mcp] Sidecar token: ${security.token} (present via ?token= or x-svelte-grab-token).`);
+		}
 	} catch {
 		console.error(`[svelte-grab mcp] Warning: Could not start sidecar HTTP server on port ${httpPort}`);
 	}
@@ -581,6 +658,10 @@ async function startStdioServer(httpPort: number): Promise<void> {
  */
 export async function startMcpServer(options: McpServerOptions = {}): Promise<{ close: () => void } | void> {
 	const { port = DEFAULT_MCP_PORT, stdio = false } = options;
+
+	// Resolve security config (Origin allowlist + optional token) from
+	// options/env before any request can be served.
+	security = resolveSecurityConfig(options);
 
 	if (stdio) {
 		await startStdioServer(port);

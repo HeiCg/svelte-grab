@@ -62,8 +62,8 @@ const CATEGORY_MAP: Record<string, { name: string; icon: string; properties: str
 const TAILWIND_PATTERNS: RegExp[] = [
 	// Common Tailwind patterns
 	/^(sm|md|lg|xl|2xl|hover|focus|active|disabled|dark|group-hover):/, // responsive/state prefixes
-	/^(m|p|mx|my|mt|mr|mb|ml|px|py|pt|pr|pb|pl)-[\d.\[\]]+/, // spacing
-	/^(w|h|min-w|min-h|max-w|max-h)-[\d.\[\]a-z]+/, // sizing
+	/^(m|p|mx|my|mt|mr|mb|ml|px|py|pt|pr|pb|pl)-[\d.[\]]+/, // spacing
+	/^(w|h|min-w|min-h|max-w|max-h)-[\d.[\]a-z]+/, // sizing
 	/^(text|font|leading|tracking|decoration)-/, // typography
 	/^(bg|from|via|to|border|ring|outline|shadow)-/, // colors/effects
 	/^(flex|grid|col|row|gap|justify|items|self|content|place)-/, // layout
@@ -80,36 +80,143 @@ const TAILWIND_PATTERNS: RegExp[] = [
 const SVELTE_SCOPED_RE = /^s-[\w-]+$|^svelte-[\w]+$/;
 
 /**
- * Calculate CSS specificity of a selector
- * Returns [id, class, type] tuple
+ * Calculate CSS specificity of a selector.
+ * Returns an [id, class, type] tuple.
+ *
+ * NOTE: This is an approximation. It follows the spec's rules for the common
+ * cases — `:where()` contributes 0, `:is()`/`:has()`/`:not()` contribute the
+ * highest specificity among their arguments, IDs count as id, classes /
+ * attribute selectors / (other) pseudo-classes count as class, and element /
+ * pseudo-element selectors count as type — but it does not handle every exotic
+ * selector form (e.g. nested combinators inside functional pseudo-classes, the
+ * universal selector, or `:nth-child(... of S)`). It is good enough for the
+ * "which rule won" comparison this tool performs.
  */
 export function calculateSpecificity(selector: string): [number, number, number] {
 	let ids = 0;
 	let classes = 0;
 	let types = 0;
 
-	// Remove :not() content but count its internals
-	const cleaned = selector.replace(/:not\(([^)]*)\)/g, (_, inner) => {
-		const [i, c, t] = calculateSpecificity(inner);
-		ids += i;
-		classes += c;
-		types += t;
-		return '';
-	});
+	let working = selector;
+
+	// :where() always contributes ZERO specificity. Strip it (and its contents)
+	// before anything else so its internals are never counted.
+	working = stripFunctionalPseudo(working, 'where', () => [0, 0, 0]);
+
+	// :is(), :has() and :not() take the MAX specificity among their arguments
+	// (comma-separated). Replace each with its contribution removed from the
+	// string so the inner tokens aren't double-counted by the simple matches.
+	for (const name of ['is', 'has', 'not']) {
+		working = stripFunctionalPseudo(working, name, inner => {
+			const [i, c, t] = maxSpecificityOfList(inner);
+			ids += i;
+			classes += c;
+			types += t;
+			return [i, c, t];
+		});
+	}
+
+	// Any remaining functional pseudo-classes (e.g. :nth-child(2n+1),
+	// :lang(en)). Their arguments don't add specificity themselves, but the
+	// pseudo-class itself counts as one class. Drop the parenthesised argument so
+	// digits like "2n" aren't mistaken for type selectors below; the `:name`
+	// token that remains is counted by the pseudo-class match.
+	working = working.replace(/(:[a-zA-Z][\w-]*)\([^()]*\)/g, '$1');
 
 	// IDs
-	ids += (cleaned.match(/#[a-zA-Z][\w-]*/g) || []).length;
+	ids += (working.match(/#[a-zA-Z][\w-]*/g) || []).length;
 
-	// Classes, attribute selectors, pseudo-classes
-	classes += (cleaned.match(/\.[a-zA-Z][\w-]*/g) || []).length;
-	classes += (cleaned.match(/\[[\w-]+/g) || []).length;
-	classes += (cleaned.match(/:(hover|focus|active|visited|first-child|last-child|nth-child|focus-within|focus-visible|checked|disabled|enabled|empty|first-of-type|last-of-type|only-child|only-of-type|root|target|lang|is|where|has|any)/g) || []).length;
+	// Classes
+	classes += (working.match(/\.[a-zA-Z][\w-]*/g) || []).length;
+	// Attribute selectors
+	classes += (working.match(/\[[^\]]*\]?/g) || []).length;
+	// Pseudo-classes (single colon, not pseudo-elements which use ::).
+	// Excludes `where`, which has already been stripped to 0.
+	classes += (working.match(/(?<!:):[a-zA-Z][\w-]*/g) || []).length;
 
-	// Type selectors and pseudo-elements
-	types += (cleaned.match(/(^|[\s+>~])[\w][\w-]*/g) || []).length;
-	types += (cleaned.match(/::(before|after|first-line|first-letter|placeholder|selection|marker)/g) || []).length;
+	// Pseudo-elements (double colon) count as type.
+	types += (working.match(/::[a-zA-Z][\w-]*/g) || []).length;
+	// Remove pseudo-elements and pseudo-classes before counting element/type
+	// selectors so their names aren't re-counted as types.
+	const typeScan = working.replace(/::?[a-zA-Z][\w-]*/g, ' ');
+
+	// Element/type selectors: an identifier at the start of a compound selector
+	// (start of string or right after a combinator). Excludes the universal `*`.
+	types += (typeScan.match(/(?:^|[\s>+~])([a-zA-Z][\w-]*)/g) || []).length;
 
 	return [ids, classes, types];
+}
+
+/**
+ * Replace every `:<name>( ... )` occurrence in the selector with an empty
+ * string, invoking `onInner` with the (balanced) inner contents so the caller
+ * can accumulate its specificity contribution. Handles one level of nested
+ * parentheses, which is enough for real-world selectors.
+ */
+function stripFunctionalPseudo(
+	selector: string,
+	name: string,
+	onInner: (inner: string) => [number, number, number]
+): string {
+	const marker = `:${name}(`;
+	let result = '';
+	let i = 0;
+	const lower = selector.toLowerCase();
+	while (i < selector.length) {
+		const idx = lower.indexOf(marker, i);
+		if (idx === -1) {
+			result += selector.slice(i);
+			break;
+		}
+		result += selector.slice(i, idx);
+		// Find the matching closing paren starting after the opening one.
+		let depth = 1;
+		let j = idx + marker.length;
+		for (; j < selector.length && depth > 0; j++) {
+			if (selector[j] === '(') depth++;
+			else if (selector[j] === ')') depth--;
+		}
+		const inner = selector.slice(idx + marker.length, j - 1);
+		onInner(inner);
+		i = j; // continue after the closing paren
+	}
+	return result;
+}
+
+/**
+ * Given a comma-separated selector list (the inside of an :is()/:not()/:has()),
+ * return the highest specificity among the alternatives.
+ */
+function maxSpecificityOfList(list: string): [number, number, number] {
+	const parts = splitTopLevel(list, ',');
+	let best: [number, number, number] = [0, 0, 0];
+	for (const part of parts) {
+		if (!part.trim()) continue;
+		const spec = calculateSpecificity(part.trim());
+		if (compareSpecificity(spec, best) > 0) best = spec;
+	}
+	return best;
+}
+
+/**
+ * Split a string on a delimiter, ignoring delimiters inside parentheses.
+ */
+function splitTopLevel(input: string, delimiter: string): string[] {
+	const parts: string[] = [];
+	let depth = 0;
+	let current = '';
+	for (const ch of input) {
+		if (ch === '(') depth++;
+		else if (ch === ')') depth = Math.max(0, depth - 1);
+		if (ch === delimiter && depth === 0) {
+			parts.push(current);
+			current = '';
+		} else {
+			current += ch;
+		}
+	}
+	parts.push(current);
+	return parts;
 }
 
 /**
@@ -162,7 +269,7 @@ export function detectRuleSource(rule: CSSStyleRule, sheet: CSSStyleSheet): Styl
 	}
 
 	// Tailwind: check if selector classes are Tailwind-like
-	const selectorClasses = selector.match(/\.[\w-[\]\/]+/g) || [];
+	const selectorClasses = selector.match(/\.[\w-[\]/]+/g) || [];
 	const hasTailwind = selectorClasses.some(c => isTailwindClass(c.slice(1)));
 	if (hasTailwind) {
 		return {
@@ -366,7 +473,7 @@ export function analyzeStyles(element: HTMLElement): {
 
 	// Build categories
 	const categories: StyleCategory[] = [];
-	for (const [key, catDef] of Object.entries(CATEGORY_MAP)) {
+	for (const catDef of Object.values(CATEGORY_MAP)) {
 		const properties: StylePropertyInfo[] = [];
 
 		for (const propName of catDef.properties) {

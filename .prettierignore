@@ -1,0 +1,7 @@
+dist/
+node_modules/
+.svelte-kit/
+package-lock.json
+CHANGELOG.md
+*.mp4
+.changeset/

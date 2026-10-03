@@ -656,6 +656,42 @@ All tools share the same two-prop theme system:
 
 Available theme keys: `background`, `border`, `text`, `accent`.
 
+## Security
+
+svelte-grab is a **development-only** tool. The relay (WebSocket) and MCP (HTTP) servers bridge your browser to a local coding agent that can **execute shell commands and edit files on your machine**. Treat these servers like a local shell — they must never be reachable from a network.
+
+The servers ship with these protections enabled by default:
+
+- **Loopback only.** Both servers bind to `127.0.0.1`. They are not reachable from other hosts on your LAN. Do not put them behind a reverse proxy, tunnel, or `0.0.0.0` bind.
+- **Origin allowlist (primary browser defense).** Every browser connection's `Origin` header is checked. By default only `localhost`, `127.0.0.1`, `[::1]`, and `*.localhost` origins (your dev app, on any port) are allowed. Other origins are rejected (WebSocket 403, HTTP `403`/`401`). This stops any random web page you visit from driving your agent. Requests with **no** `Origin` (non-browser local tools like `curl` or an MCP stdio client) are allowed — the token below is the defense against those.
+- **No wildcard CORS.** The MCP server never sends `Access-Control-Allow-Origin: *`. It reflects the request Origin only when it is on the allowlist, with `Vary: Origin`.
+- **Payload & resource limits.** WebSocket messages and HTTP bodies are capped at 2 MB, message shapes are validated before use, and session/SSE stores are bounded to prevent unbounded memory growth.
+
+### Optional bearer token
+
+For defense against **other local processes** (which can send requests with no Origin), enable an opt-in token. It is **off by default** so existing setups keep working.
+
+```bash
+# Auto-generate a token (printed on startup)
+npx svelte-grab relay --token
+npx svelte-grab mcp --token
+
+# Or provide your own
+npx svelte-grab relay --token=my-secret
+SVELTE_GRAB_TOKEN=my-secret npx svelte-grab mcp
+```
+
+When enabled, clients must present the token via the `?token=<TOKEN>` query parameter or the `x-svelte-grab-token` header on both WebSocket connect and MCP endpoints. The token is printed on startup.
+
+### Configuration
+
+| Setting | How |
+|---------|-----|
+| Extend the Origin allowlist | `SVELTE_GRAB_ALLOWED_ORIGINS=https://a.example,https://b.example` (comma-separated), or the `allowedOrigins` option to `createRelayServer` / `startMcpServer` |
+| Enable token auth | `--token[=VALUE]` CLI flag, `SVELTE_GRAB_TOKEN` env var, or the `token` option |
+
+**Never expose the relay or MCP ports to a network.** If you need remote access, use an SSH tunnel to `127.0.0.1` and keep token auth on.
+
 ## How It Works
 
 Svelte 5 attaches `__svelte_meta` to DOM elements in development mode containing:

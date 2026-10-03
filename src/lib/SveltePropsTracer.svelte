@@ -1,20 +1,21 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { SveltePropsTracerProps, PropTrace, PropTraceNode, ThemeConfig } from './types.js';
+	import type { SveltePropsTracerProps, PropTrace, PropTraceNode } from './types.js';
 	import type { SvelteElement } from './utils/shared.js';
 	import {
-		detectDevMode,
 		findSvelteElement,
 		shortenPath,
 		extractComponentName,
-		copyToClipboard,
 		checkModifier,
 		isExcludedPath,
-		getElementPreview,
-		DARK_THEME,
-		LIGHT_THEME
+		getElementPreview
 	} from './utils/shared.js';
 	import { registerToolOutput } from './utils/unified-export.js';
+	import DevToolPopup from './ui/DevToolPopup.svelte';
+	import DevToolButton from './ui/DevToolButton.svelte';
+	import { resolveTheme } from './utils/resolve-theme.js';
+	import { createCopyFeedback } from './utils/copy-with-feedback.js';
+	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
 
 	let {
 		modifier = 'alt',
@@ -25,14 +26,20 @@
 		lightTheme = false
 	}: SveltePropsTracerProps = $props();
 
-	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
-	let colors = $derived({ ...baseTheme, ...theme } as Required<ThemeConfig>);
+	let colors = $derived(resolveTheme(theme, lightTheme));
 
 	let isDev = $state(false);
 	let visible = $state(false);
 	let copied = $state(false);
 	let copyFailed = $state(false);
 	let trace = $state<PropTrace | null>(null);
+
+	const copyFb = createCopyFeedback({
+		get copied() { return copied; },
+		set copied(v) { copied = v; },
+		get copyFailed() { return copyFailed; },
+		set copyFailed(v) { copyFailed = v; }
+	});
 
 	/**
 	 * Build the component hierarchy trace by walking __svelte_meta.parent chain
@@ -197,10 +204,7 @@
 		trace = buildTrace(svelteEl);
 		const formatted = formatForAgent(trace);
 		registerToolOutput('PropsTracer', formatted);
-		copyToClipboard(formatted).then(ok => {
-			if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
-			else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
-		});
+		copyFb.copy(formatted);
 
 		console.log('[SveltePropsTracer] Component trace:\n' + formatted);
 		if (showPopup) visible = true;
@@ -210,141 +214,84 @@
 		if (event.key === 'Escape' && visible) visible = false;
 	}
 
-	let cleanup: (() => void) | null = null;
-
-	onMount(() => {
-		setTimeout(() => {
-			isDev = detectDevMode(forceEnable);
-			if (!isDev) return;
-
+	const mount = useDevtoolMount(() => forceEnable, () => {
+		document.addEventListener('dblclick', handleClick, true);
+		document.addEventListener('keydown', handleKeydown);
+		return () => {
+			document.removeEventListener('dblclick', handleClick, true);
+			document.removeEventListener('keydown', handleKeydown);
+		};
+	}, {
+		onDev: () => {
+			isDev = true;
 			const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
 			console.log(`[SveltePropsTracer] Active! ${modLabel}+DoubleClick to trace component hierarchy`);
-
-			document.addEventListener('dblclick', handleClick, true);
-			document.addEventListener('keydown', handleKeydown);
-			cleanup = () => {
-				document.removeEventListener('dblclick', handleClick, true);
-				document.removeEventListener('keydown', handleKeydown);
-			};
-		}, 100);
+		}
 	});
 
-	onDestroy(() => cleanup?.());
+	onMount(mount.start);
+	onDestroy(() => {
+		mount.stop();
+		copyFb.reset();
+	});
 </script>
 
-{#if isDev && showPopup && visible && trace}
-	<div
-		class="sg-trace-overlay"
-		onclick={() => (visible = false)}
-		onkeydown={(e) => e.key === 'Escape' && (visible = false)}
-		role="presentation"
+{#if isDev && showPopup && trace}
+	<DevToolPopup
+		title="PropsTracer"
+		bind:visible
+		{colors}
+		titleColor="#34d399"
+		{copied}
+		{copyFailed}
+		ariaLabel="SveltePropsTracer"
+		minWidth={380}
 	>
-		<div
-			class="sg-trace-popup"
-			style="
-				--sg-bg: {colors.background};
-				--sg-border: {colors.border};
-				--sg-text: {colors.text};
-				--sg-accent: {colors.accent};
-			"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-label="SveltePropsTracer"
-			tabindex="-1"
-		>
-			<div class="sg-trace-header">
-				<span class="sg-trace-title">PropsTracer</span>
-				<span class="sg-trace-element">{trace.elementPreview}</span>
-				{#if copied}<span class="sg-trace-copied">Copied!</span>{/if}
-				{#if copyFailed}<span class="sg-trace-copied-failed" style="color: #ef4444; font-size: 11px;">Copy failed</span>{/if}
-				<button class="sg-trace-close" onclick={() => (visible = false)} aria-label="Close">&times;</button>
-			</div>
+		{#snippet headerExtra()}
+			<span class="sg-trace-element">{trace?.elementPreview}</span>
+		{/snippet}
 
-			<div class="sg-trace-content">
-				<div class="sg-trace-chain">
-					{#each trace.chain as node, i}
-						<div class="sg-trace-node" class:sg-trace-node-current={i === 0}>
-							<div class="sg-trace-depth">{i === 0 ? '◉' : '○'}</div>
-							<div class="sg-trace-node-info">
-								<span class="sg-trace-component">&lt;{node.componentName || 'element'}&gt;</span>
-								<span class="sg-trace-file">{shortenPath(node.file)}:{node.line}</span>
-								{#if node.propsProxy && Object.keys(node.propsProxy).length > 0}
-									<span class="sg-trace-attrs">{Object.entries(node.propsProxy).map(([k, v]) => `${k}="${v}"`).join(' ')}</span>
-								{/if}
-								{#if i === 0}
-									<span class="sg-trace-marker">← target</span>
-								{/if}
-							</div>
+		<div class="sg-trace-content">
+			<div class="sg-trace-chain">
+				{#each trace.chain as node, i (`${node.file}:${node.line}`)}
+					<div class="sg-trace-node" class:sg-trace-node-current={i === 0}>
+						<div class="sg-trace-depth">{i === 0 ? '◉' : '○'}</div>
+						<div class="sg-trace-node-info">
+							<span class="sg-trace-component">&lt;{node.componentName || 'element'}&gt;</span>
+							<span class="sg-trace-file">{shortenPath(node.file)}:{node.line}</span>
+							{#if node.propsProxy && Object.keys(node.propsProxy).length > 0}
+								<span class="sg-trace-attrs">{Object.entries(node.propsProxy).map(([k, v]) => `${k}="${v}"`).join(' ')}</span>
+							{/if}
+							{#if i === 0}
+								<span class="sg-trace-marker">← target</span>
+							{/if}
 						</div>
-						{#if i < trace.chain.length - 1}
-							<div class="sg-trace-connector">│</div>
-						{/if}
-					{/each}
-				</div>
-
-				<div class="sg-trace-summary">
-					🌳 {trace.chain.length} component{trace.chain.length !== 1 ? 's' : ''} in hierarchy
-					{#if trace.chain.length > 5}
-						<span class="sg-trace-warning">⚠️ Deep nesting - consider Context API or stores</span>
+					</div>
+					{#if i < trace.chain.length - 1}
+						<div class="sg-trace-connector">│</div>
 					{/if}
-				</div>
+				{/each}
 			</div>
 
-			<div class="sg-trace-footer">
-				<button
-					class="sg-trace-btn"
-					onclick={() => {
-						if (trace) copyToClipboard(formatForAgent(trace)).then(ok => {
-							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
-							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
-						});
-					}}
-				>Copy for Agent</button>
+			<div class="sg-trace-summary">
+				🌳 {trace.chain.length} component{trace.chain.length !== 1 ? 's' : ''} in hierarchy
+				{#if trace.chain.length > 5}
+					<span class="sg-trace-warning">⚠️ Deep nesting - consider Context API or stores</span>
+				{/if}
 			</div>
 		</div>
-	</div>
+
+		{#snippet footer()}
+			<DevToolButton
+				onclick={() => {
+					if (trace) copyFb.copy(formatForAgent(trace));
+				}}
+			>Copy for Agent</DevToolButton>
+		{/snippet}
+	</DevToolPopup>
 {/if}
 
 <style>
-	.sg-trace-overlay {
-		position: fixed;
-		inset: 0;
-		z-index: 99999;
-		background: rgba(0, 0, 0, 0.3);
-	}
-
-	.sg-trace-popup {
-		position: fixed;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		background: var(--sg-bg);
-		border: 1px solid var(--sg-border);
-		border-radius: 8px;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-		min-width: 380px;
-		max-width: 600px;
-		max-height: 500px;
-		overflow: hidden;
-		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
-		font-size: 12px;
-		color: var(--sg-text);
-		display: flex;
-		flex-direction: column;
-	}
-
-	.sg-trace-header {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 8px 12px;
-		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
-		border-bottom: 1px solid var(--sg-border);
-	}
-
-	.sg-trace-title { color: #34d399; font-weight: 600; }
-
 	.sg-trace-element {
 		color: #60a5fa;
 		font-size: 11px;
@@ -354,15 +301,7 @@
 		white-space: nowrap;
 	}
 
-	.sg-trace-copied { color: #4ade80; font-size: 11px; }
-
-	.sg-trace-close {
-		background: none; border: none; color: #888; cursor: pointer;
-		padding: 2px 6px; font-size: 14px; border-radius: 4px;
-	}
-	.sg-trace-close:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
-
-	.sg-trace-content { flex: 1; overflow-y: auto; padding: 12px; }
+	.sg-trace-content { padding: 12px; }
 
 	.sg-trace-chain { padding: 0 8px; }
 
@@ -428,25 +367,4 @@
 		margin-top: 4px;
 		font-size: 10px;
 	}
-
-	.sg-trace-footer {
-		display: flex;
-		gap: 8px;
-		padding: 8px 12px;
-		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
-		border-top: 1px solid var(--sg-border);
-	}
-
-	.sg-trace-btn {
-		flex: 1;
-		padding: 6px 12px;
-		background: rgba(255, 255, 255, 0.1);
-		border: 1px solid var(--sg-border);
-		border-radius: 4px;
-		color: var(--sg-text);
-		cursor: pointer;
-		font-size: 11px;
-		font-family: inherit;
-	}
-	.sg-trace-btn:hover { background: rgba(255, 255, 255, 0.15); }
 </style>

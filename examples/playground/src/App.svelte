@@ -1,0 +1,97 @@
+<script lang="ts">
+	import { SvelteDevKit } from 'svelte-grab';
+	import Card from './components/Card.svelte';
+	import List from './components/List.svelte';
+	import Counter from './components/Counter.svelte';
+	import ContrastText from './components/ContrastText.svelte';
+	import EditableBox from './components/EditableBox.svelte';
+	import DemoForm from './components/DemoForm.svelte';
+
+	const items = ['Apples', 'Bananas', 'Cherries', 'Dates'];
+</script>
+
+<!--
+	The full svelte-grab dev-tool suite, mounted from the REAL src/lib source via
+	the Vite alias. It auto-activates because vite dev emits __svelte_meta, which
+	detectDevMode() scans for. forceEnable is intentionally NOT set — we want the
+	genuine dev-mode detection path to run so e2e verifies it end-to-end.
+-->
+<SvelteDevKit />
+
+<main class="pg-app" data-testid="app-root">
+	<header class="pg-header">
+		<h1 class="pg-title">svelte-grab playground</h1>
+		<p class="pg-subtitle" data-testid="subtitle">
+			Alt+Click any element to grab its component stack.
+		</p>
+	</header>
+
+	<section class="pg-grid">
+		<Card title="Nested Card">
+			{#snippet children()}
+				<p data-testid="card-text">A card containing a nested Button component.</p>
+			{/snippet}
+		</Card>
+
+		<div class="pg-panel" data-testid="list-panel">
+			<h3 class="pg-panel-title">Fruit list</h3>
+			<List {items} />
+		</div>
+
+		<Counter />
+
+		<ContrastText />
+
+		<div class="pg-panel" data-testid="edit-panel">
+			<h3 class="pg-panel-title">Editable styles</h3>
+			<EditableBox />
+		</div>
+
+		<div class="pg-panel" data-testid="form-panel">
+			<h3 class="pg-panel-title">Form</h3>
+			<DemoForm />
+		</div>
+	</section>
+</main>
+
+<style>
+	:global(body) {
+		margin: 0;
+		font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+		background: #f9fafb;
+		color: #111827;
+	}
+	.pg-app {
+		max-width: 1100px;
+		margin: 0 auto;
+		padding: 32px 24px;
+	}
+	.pg-header {
+		margin-bottom: 24px;
+	}
+	.pg-title {
+		margin: 0 0 4px;
+		font-size: 28px;
+	}
+	.pg-subtitle {
+		margin: 0;
+		color: #4b5563;
+	}
+	.pg-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+		gap: 20px;
+		align-items: start;
+	}
+	.pg-panel {
+		border: 1px solid #d1d5db;
+		border-radius: 10px;
+		padding: 16px;
+		background: #ffffff;
+	}
+	.pg-panel-title {
+		margin: 0 0 10px;
+		font-size: 16px;
+		color: #111827;
+	}
+</style>

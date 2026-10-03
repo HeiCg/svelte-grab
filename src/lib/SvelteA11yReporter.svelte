@@ -1,16 +1,17 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { SvelteA11yReporterProps, A11yReport, ThemeConfig } from './types.js';
+	import type { SvelteA11yReporterProps, A11yReport } from './types.js';
 	import {
-		detectDevMode,
 		findSvelteElement,
-		copyToClipboard,
-		checkModifier,
-		DARK_THEME,
-		LIGHT_THEME
+		checkModifier
 	} from './utils/shared.js';
 	import { analyzeA11y, formatA11yForAgent } from './utils/a11y-checker.js';
 	import { registerToolOutput } from './utils/unified-export.js';
+	import DevToolPopup from './ui/DevToolPopup.svelte';
+	import DevToolButton from './ui/DevToolButton.svelte';
+	import { resolveTheme } from './utils/resolve-theme.js';
+	import { createCopyFeedback } from './utils/copy-with-feedback.js';
+	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
 
 	let {
 		modifier = 'alt',
@@ -22,8 +23,7 @@
 		includeSubtree = true
 	}: SvelteA11yReporterProps = $props();
 
-	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
-	let colors = $derived({ ...baseTheme, ...theme } as Required<ThemeConfig>);
+	let colors = $derived(resolveTheme(theme, lightTheme));
 
 	let isDev = $state(false);
 	let visible = $state(false);
@@ -31,6 +31,19 @@
 	let copyFailed = $state(false);
 	let report = $state<A11yReport | null>(null);
 	let activeTab = $state<'critical' | 'warnings' | 'passes'>('critical');
+
+	const copyFb = createCopyFeedback({
+		get copied() { return copied; },
+		set copied(v) { copied = v; },
+		get copyFailed() { return copyFailed; },
+		set copyFailed(v) { copyFailed = v; }
+	});
+
+	// DevToolPopup closes (overlay click / × / Escape) by setting `visible = false`
+	// directly, so mirror the old "clear highlights on close" behavior here.
+	$effect(() => {
+		if (!visible) clearHighlights();
+	});
 
 	function handleClick(event: MouseEvent) {
 		if (!checkModifier(event, modifier)) return;
@@ -56,10 +69,7 @@
 
 		const formatted = formatA11yForAgent(report);
 		registerToolOutput('A11yReporter', formatted);
-		copyToClipboard(formatted).then(ok => {
-			if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
-			else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
-		});
+		copyFb.copy(formatted);
 
 		console.log('[SvelteA11yReporter] A11y report:\n' + formatted);
 		if (showPopup) {
@@ -86,10 +96,7 @@
 
 			const formatted = formatA11yForAgent(report);
 			registerToolOutput("A11yReporter", formatted);
-			copyToClipboard(formatted).then(ok => {
-				if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
-				else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
-			});
+			copyFb.copy(formatted);
 			console.log('[SvelteA11yReporter] Full page a11y report:\n' + formatted);
 			if (showPopup) {
 				visible = true;
@@ -135,67 +142,57 @@
 		}
 	}
 
-	let cleanup: (() => void) | null = null;
-
-	onMount(() => {
-		setTimeout(() => {
-			isDev = detectDevMode(forceEnable);
-			if (!isDev) return;
-
+	const mount = useDevtoolMount(() => forceEnable, () => {
+		document.addEventListener('mousedown', handleClick, true);
+		document.addEventListener('contextmenu', handleContextMenu, true);
+		document.addEventListener('keydown', handleKeydown);
+		return () => {
+			document.removeEventListener('mousedown', handleClick, true);
+			document.removeEventListener('contextmenu', handleContextMenu, true);
+			document.removeEventListener('keydown', handleKeydown);
+		};
+	}, {
+		onDev: () => {
+			isDev = true;
 			const modLabel = modifier.charAt(0).toUpperCase() + modifier.slice(1);
 			console.log(`[SvelteA11yReporter] Active! ${modLabel}+RightClick element or ${modLabel}+A for full page audit`);
-
-			document.addEventListener('mousedown', handleClick, true);
-			document.addEventListener('contextmenu', handleContextMenu, true);
-			document.addEventListener('keydown', handleKeydown);
-			cleanup = () => {
-				document.removeEventListener('mousedown', handleClick, true);
-				document.removeEventListener('contextmenu', handleContextMenu, true);
-				document.removeEventListener('keydown', handleKeydown);
-			};
-		}, 100);
+		}
 	});
 
-	onDestroy(() => { cleanup?.(); clearHighlights(); });
+	onMount(mount.start);
+	onDestroy(() => {
+		mount.stop();
+		clearHighlights();
+		copyFb.reset();
+	});
 </script>
 
-{#if isDev && showPopup && visible && report}
-	<div
-		class="sg-a11y-overlay"
-		onclick={() => { visible = false; clearHighlights(); }}
-		onkeydown={(e) => { if (e.key === 'Escape') { visible = false; clearHighlights(); } }}
-		role="presentation"
+{#if isDev && showPopup && report}
+	<DevToolPopup
+		title="A11yReporter"
+		bind:visible
+		{colors}
+		titleColor="#818cf8"
+		{copied}
+		{copyFailed}
+		ariaLabel="SvelteA11yReporter"
+		minWidth={420}
 	>
-		<div
-			class="sg-a11y-popup"
-			style="
-				--sg-bg: {colors.background};
-				--sg-border: {colors.border};
-				--sg-text: {colors.text};
-				--sg-accent: {colors.accent};
-			"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-label="SvelteA11yReporter"
-			tabindex="-1"
-		>
-			<div class="sg-a11y-header">
-				<span class="sg-a11y-title">A11yReporter</span>
-				<span class="sg-a11y-element">{report.elementTag}</span>
+		{#snippet headerExtra()}
+			<span class="sg-a11y-element">{report?.elementTag}</span>
+			{#if report}
 				<span class="sg-a11y-score" style="color: {getScoreColor(report.score)}">
 					{report.score}/100
 				</span>
-				{#if copied}<span class="sg-a11y-copied">Copied!</span>{/if}
-				{#if copyFailed}<span class="sg-a11y-copied-failed" style="color: #ef4444; font-size: 11px;">Copy failed</span>{/if}
-				<button class="sg-a11y-close" onclick={() => { visible = false; clearHighlights(); }} aria-label="Close">&times;</button>
-			</div>
-
-			{#if report.file}
-				<div class="sg-a11y-location">{report.file}{report.line ? ':' + report.line : ''}</div>
 			{/if}
+		{/snippet}
 
-			<div class="sg-a11y-tabs">
+		<div class="sg-a11y-body">
+		{#if report.file}
+			<div class="sg-a11y-location">{report.file}{report.line ? ':' + report.line : ''}</div>
+		{/if}
+
+		<div class="sg-a11y-tabs">
 				<button
 					class="sg-a11y-tab"
 					class:sg-a11y-tab-active={activeTab === 'critical'}
@@ -283,67 +280,35 @@
 					{/if}
 				{/if}
 			</div>
-
-			<div class="sg-a11y-footer">
-				<button
-					class="sg-a11y-btn"
-					onclick={() => {
-						if (report) copyToClipboard(formatA11yForAgent(report)).then(ok => {
-							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
-							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
-						});
-					}}
-				>Copy for Agent</button>
-				<button
-					class="sg-a11y-btn"
-					onclick={() => {
-						report = analyzeA11y(document.body, true);
-						const formatted = formatA11yForAgent(report);
-						registerToolOutput("A11yReporter", formatted);
-						copyToClipboard(formatted).then(ok => {
-							if (ok) { copied = true; setTimeout(() => (copied = false), 1500); }
-							else { copyFailed = true; setTimeout(() => (copyFailed = false), 3000); }
-						});
-					}}
-				>Audit Full Page</button>
-			</div>
 		</div>
-	</div>
+
+		{#snippet footer()}
+			<DevToolButton
+				onclick={() => {
+					if (report) copyFb.copy(formatA11yForAgent(report));
+				}}
+			>Copy for Agent</DevToolButton>
+			<DevToolButton
+				onclick={() => {
+					report = analyzeA11y(document.body, true);
+					const formatted = formatA11yForAgent(report);
+					registerToolOutput("A11yReporter", formatted);
+					copyFb.copy(formatted);
+				}}
+			>Audit Full Page</DevToolButton>
+		{/snippet}
+	</DevToolPopup>
 {/if}
 
 <style>
-	.sg-a11y-overlay {
-		position: fixed; inset: 0; z-index: 99999; background: rgba(0, 0, 0, 0.3);
+	.sg-a11y-body {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
 	}
 
-	.sg-a11y-popup {
-		position: fixed; top: 50%; left: 50%;
-		transform: translate(-50%, -50%);
-		background: var(--sg-bg); border: 1px solid var(--sg-border);
-		border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-		min-width: 420px; max-width: 650px; max-height: 550px;
-		overflow: hidden;
-		font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
-		font-size: 12px; color: var(--sg-text);
-		display: flex; flex-direction: column;
-	}
-
-	.sg-a11y-header {
-		display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
-		border-bottom: 1px solid var(--sg-border);
-	}
-
-	.sg-a11y-title { color: #818cf8; font-weight: 600; }
 	.sg-a11y-element { color: #60a5fa; font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.sg-a11y-score { font-weight: 700; font-size: 13px; }
-	.sg-a11y-copied { color: #4ade80; font-size: 11px; }
-
-	.sg-a11y-close {
-		background: none; border: none; color: #888; cursor: pointer;
-		padding: 2px 6px; font-size: 14px; border-radius: 4px;
-	}
-	.sg-a11y-close:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
 
 	.sg-a11y-location {
 		padding: 4px 12px; font-size: 10px; color: #888;
@@ -411,18 +376,4 @@
 		padding: 8px 12px; font-size: 11px; color: #4ade80;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 	}
-
-	.sg-a11y-footer {
-		display: flex; gap: 8px; padding: 8px 12px;
-		background: color-mix(in srgb, var(--sg-bg) 70%, white 10%);
-		border-top: 1px solid var(--sg-border);
-	}
-
-	.sg-a11y-btn {
-		flex: 1; padding: 6px 12px;
-		background: rgba(255, 255, 255, 0.1); border: 1px solid var(--sg-border);
-		border-radius: 4px; color: var(--sg-text); cursor: pointer;
-		font-size: 11px; font-family: inherit;
-	}
-	.sg-a11y-btn:hover { background: rgba(255, 255, 255, 0.15); }
 </style>

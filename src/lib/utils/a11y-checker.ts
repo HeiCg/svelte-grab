@@ -76,29 +76,88 @@ function getElementSource(el: HTMLElement): { file?: string; line?: number } {
 	return {};
 }
 
+/** An RGB color with an alpha channel in the range [0, 1]. */
+interface RGBA {
+	r: number;
+	g: number;
+	b: number;
+	a: number;
+}
+
 /**
- * Parse a color to RGB
+ * Parse a color to RGBA. The alpha channel defaults to 1 (fully opaque) when the
+ * input has no alpha component. Returns null for colors we cannot parse (e.g.
+ * named colors other than transparent, or `currentColor`).
  */
-function parseColor(color: string): { r: number; g: number; b: number } | null {
-	// Handle rgb/rgba
-	const rgbMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-	if (rgbMatch) {
-		return { r: parseInt(rgbMatch[1]), g: parseInt(rgbMatch[2]), b: parseInt(rgbMatch[3]) };
+function parseColor(color: string): RGBA | null {
+	if (!color) return null;
+
+	const trimmed = color.trim();
+
+	// `transparent` keyword -> fully transparent black.
+	if (trimmed.toLowerCase() === 'transparent') {
+		return { r: 0, g: 0, b: 0, a: 0 };
 	}
 
-	// Handle hex
-	const hexMatch = color.match(/^#([0-9a-f]{3,8})$/i);
+	// Handle rgb/rgba (alpha may be a decimal, integer, or percentage).
+	const rgbMatch = trimmed.match(
+		/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+%?)\s*)?\)/i
+	);
+	if (rgbMatch) {
+		let a = 1;
+		if (rgbMatch[4] !== undefined) {
+			a = rgbMatch[4].endsWith('%')
+				? parseFloat(rgbMatch[4]) / 100
+				: parseFloat(rgbMatch[4]);
+		}
+		if (!Number.isFinite(a)) a = 1;
+		return {
+			r: parseInt(rgbMatch[1]),
+			g: parseInt(rgbMatch[2]),
+			b: parseInt(rgbMatch[3]),
+			a: Math.min(1, Math.max(0, a))
+		};
+	}
+
+	// Handle hex (#rgb, #rgba, #rrggbb, #rrggbbaa)
+	const hexMatch = trimmed.match(/^#([0-9a-f]{3,8})$/i);
 	if (hexMatch) {
 		let hex = hexMatch[1];
-		if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+		if (hex.length === 3 || hex.length === 4) {
+			hex = hex
+				.split('')
+				.map(ch => ch + ch)
+				.join('');
+		}
+		if (hex.length !== 6 && hex.length !== 8) return null;
+		const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
 		return {
 			r: parseInt(hex.slice(0, 2), 16),
 			g: parseInt(hex.slice(2, 4), 16),
-			b: parseInt(hex.slice(4, 6), 16)
+			b: parseInt(hex.slice(4, 6), 16),
+			a
 		};
 	}
 
 	return null;
+}
+
+/**
+ * Alpha-composite a (possibly translucent) foreground color over an opaque
+ * background, returning the resulting opaque RGB. Uses the standard
+ * "source over" compositing formula.
+ */
+function compositeOver(fg: RGBA, bg: { r: number; g: number; b: number }): {
+	r: number;
+	g: number;
+	b: number;
+} {
+	const a = fg.a;
+	return {
+		r: Math.round(fg.r * a + bg.r * (1 - a)),
+		g: Math.round(fg.g * a + bg.g * (1 - a)),
+		b: Math.round(fg.b * a + bg.b * (1 - a))
+	};
 }
 
 /**
@@ -113,14 +172,28 @@ function relativeLuminance(r: number, g: number, b: number): number {
 }
 
 /**
- * Calculate contrast ratio between two colors
+ * Calculate contrast ratio between two colors.
+ *
+ * The background is expected to be effectively opaque (see
+ * `getEffectiveBackground`, which alpha-blends down to an opaque color). If the
+ * background still has alpha < 1 we cannot know what is behind it, so the result
+ * is indeterminate and we return null rather than reporting a wrong ratio.
+ *
+ * A translucent foreground (e.g. `rgba(0,0,0,.6)` muted text) is composited over
+ * the opaque background before computing luminance, matching what the user sees.
  */
 export function contrastRatio(fg: string, bg: string): number | null {
 	const fgColor = parseColor(fg);
 	const bgColor = parseColor(bg);
 	if (!fgColor || !bgColor) return null;
 
-	const l1 = relativeLuminance(fgColor.r, fgColor.g, fgColor.b);
+	// A non-opaque background is indeterminate: skip rather than mislead.
+	if (bgColor.a < 1) return null;
+
+	// Composite a translucent foreground over the opaque background.
+	const fgResolved = fgColor.a < 1 ? compositeOver(fgColor, bgColor) : fgColor;
+
+	const l1 = relativeLuminance(fgResolved.r, fgResolved.g, fgResolved.b);
 	const l2 = relativeLuminance(bgColor.r, bgColor.g, bgColor.b);
 
 	const lighter = Math.max(l1, l2);
@@ -278,12 +351,14 @@ function checkContrast(root: HTMLElement): A11yIssue[] {
 
 		const computed = window.getComputedStyle(element);
 		const fg = computed.color;
-		const bg = getEffectiveBackground(element);
-
-		const key = `${fg}|${bg}`;
+		// Dedup on the element's own foreground + background-color *before* doing
+		// the more expensive effective-background tree walk and ratio math.
+		const ownBg = computed.backgroundColor;
+		const key = `${fg}|${ownBg}|${computed.fontSize}|${computed.fontWeight}`;
 		if (checked.has(key)) return;
 		checked.add(key);
 
+		const bg = getEffectiveBackground(element);
 		const ratio = contrastRatio(fg, bg);
 		if (ratio === null) return;
 
@@ -311,18 +386,36 @@ function checkContrast(root: HTMLElement): A11yIssue[] {
 }
 
 /**
- * Get the effective background color by walking up the tree
+ * Get the effective background color by walking up the tree.
+ *
+ * Translucent backgrounds are alpha-composited over whatever lies behind them so
+ * that the returned color is opaque. A fully transparent layer is skipped (we
+ * keep walking up); a partially transparent layer is blended onto the resolved
+ * background of its ancestors. The final fallback is opaque white, matching the
+ * default page background. The returned string is always an opaque `rgb(...)`.
  */
 function getEffectiveBackground(el: HTMLElement): string {
+	// Collect background layers from the element up to the root, stopping once we
+	// hit a fully opaque layer (anything behind it is invisible).
+	const layers: RGBA[] = [];
 	let current: HTMLElement | null = el;
 	while (current) {
-		const bg = window.getComputedStyle(current).backgroundColor;
-		if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-			return bg;
+		const raw = window.getComputedStyle(current).backgroundColor;
+		const parsed = parseColor(raw);
+		if (parsed && parsed.a > 0) {
+			layers.push(parsed);
+			if (parsed.a >= 1) break; // opaque: nothing behind it matters
 		}
 		current = current.parentElement;
 	}
-	return 'rgb(255, 255, 255)';
+
+	// Composite the collected layers from back (last/root) to front (element).
+	let base = { r: 255, g: 255, b: 255 }; // opaque white page default
+	for (let i = layers.length - 1; i >= 0; i--) {
+		base = compositeOver(layers[i], base);
+	}
+
+	return `rgb(${base.r}, ${base.g}, ${base.b})`;
 }
 
 /**

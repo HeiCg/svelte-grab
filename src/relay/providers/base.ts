@@ -48,3 +48,20 @@ export interface AgentProvider {
 	 */
 	resume(sessionId: string, prompt: string, callbacks: AgentProviderCallbacks): Promise<void>;
 }
+
+/** Max session-history entries a provider retains before evicting the oldest. */
+export const MAX_SESSION_HISTORY = 200;
+
+/**
+ * Insert/update a value in a bounded session-history map, evicting the oldest
+ * entry once the map exceeds MAX_SESSION_HISTORY. Re-inserts on update so the
+ * map's insertion order tracks recency.
+ */
+export function setBoundedSession<V>(map: Map<string, V>, sessionId: string, value: V): void {
+	map.delete(sessionId);
+	map.set(sessionId, value);
+	if (map.size > MAX_SESSION_HISTORY) {
+		const oldest = map.keys().next().value;
+		if (oldest !== undefined) map.delete(oldest);
+	}
+}
