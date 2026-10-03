@@ -197,7 +197,7 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 | `enableMcp` | `boolean` | `false` | Enable MCP bridge to Claude Code |
 | `mcpPort` | `number` | `4723` | MCP server port. If the server is not there, the page probes the next 9 ports via `/health` |
 | `mcpToken` | `string` | — | Token for an MCP server started with `SVELTE_GRAB_TOKEN` / `--token` (sent as `x-svelte-grab-token` on POSTs, `?token=` on `/events`) |
-| `enableAgentRuntime` | `boolean` | `true` | With `enableMcp`, let coding agents query the page (`ui_snapshot`, `ui_find`) through the MCP server |
+| `enableAgentRuntime` | `boolean` | `true` | With `enableMcp`, let coding agents query the page (`ui_snapshot`, `ui_find`, `ui_inspect`, ...) through the MCP server |
 | `freezeAnimations` | `boolean` | `true` | Freeze CSS animations during selection |
 | `freezePseudoStates` | `boolean` | `true` | Preserve :hover/:focus states during selection |
 | `enableHistoryPersistence` | `boolean` | `true` | Persist history to sessionStorage |
