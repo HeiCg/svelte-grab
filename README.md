@@ -1081,6 +1081,7 @@ SvelteGrab walks up this metadata tree to build the full component hierarchy. Al
 ## Requirements
 
 - Svelte 5.35.1+ (the `__svelte_meta.parent` chain behind component stacks starts there)
+- Node.js 22.12+ for the CLI, MCP server and Vite plugin (CDP mode uses Node's built-in `WebSocket`)
 - Development mode (`DEV=true`)
 
 ### Optional Dependencies

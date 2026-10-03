@@ -21,7 +21,7 @@ code and vice versa.
 
 ## Prerequisites
 
-- Node.js **>= 18**
+- Node.js **>= 22.12**
 - npm (the repo uses `package-lock.json`)
 
 Install dependencies:

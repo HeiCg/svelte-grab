@@ -14,6 +14,7 @@ feat: svelte-grab 2.0, the agent runtime. Give coding agents eyes into your Svel
 
 Breaking:
 
+- Requires Node.js 22.12+ (`engines`). Node 18 and 20 are end-of-life; CDP mode relies on Node 22's built-in `WebSocket`, and Vite 8 / SvelteKit 3 need Node 22 too.
 - Peer dependency `svelte` is now `^5.35.1` (the `__svelte_meta.parent` chain behind component stacks starts there); `init` warns below it.
 - `svelte-grab init` edits more files by default (`.mcp.json`, `vite.config.*`) and no longer calls `process.exit` from the library function (`init()` returns a result; the CLI sets the exit code).
 - Inside `SvelteDevKit` with multi-select on, the State Inspector trigger moved from Alt+Shift+Click to Alt+Meta+Click (Shift+Alt+Click is multi-select). Override with `stateSecondaryModifier`.

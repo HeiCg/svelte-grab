@@ -68,7 +68,7 @@
     "prepublishOnly": "npm run check && npm run build && npm run test:run"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12"
   },
   "sideEffects": false,
   "peerDependencies": {
