@@ -201,12 +201,68 @@ Consequences in the code:
 - e2e: `e2e/hmr.spec.ts` edits playground files on disk, so it runs in its own
   Playwright project after the others (`dependencies: ['chromium']`).
 
+## Phase 8 — performance and memory (approved 2026-10-03)
+
+Svelte 5 has no component re-render; "renders" = DOM mutations attributed to
+a component (existing `profiler-tracker.ts`). Effect/derived run counts stay
+out of scope (no public hook).
+
+### 8a. `ui_profile` (in-page, no CDP)
+
+- Page command `ui_profile({ durationMs?: number (default 3000, max 30000),
+  action?: { ref: string, type: 'click'|'input'|'scroll', value?: string,
+  repeat?: number }, component?: string, ref?: string })`.
+  Starts the existing ProfilerTracker (the same one Alt+P uses, without opening
+  the human UI), optionally performs the in-page action (best effort,
+  `isTrusted=false`), records for `durationMs`, stops.
+- Returns per component: mutations, mutations/sec, bursts (threshold/window
+  from the tracker), top mutated elements as refs with source, mutation kinds
+  (childList/attributes/characterData), plus FPS min/avg (existing
+  `fps-meter.ts`) and long frames (> 50ms via `PerformanceObserver`
+  `longtask`/`long-animation-frame` when available). Verdict line: `HOT
+  <Component> 240 mutations in 3s (burst x4)`.
+- Scope filter by `component` or a ref subtree.
+- Server tool `ui_profile` (timeout `durationMs + 10s`, cap 60s).
+- `get_profiler_report` stays for human-started sessions.
+
+### 8b. CDP mode (opt-in, Node side)
+
+- MCP server flag `--cdp=<url>` / env `SVELTE_GRAB_CDP` (e.g.
+  `http://127.0.0.1:9222`, Chrome started with `--remote-debugging-port`).
+  **Loopback only** (reject non-127.0.0.1/localhost hosts); never on by default;
+  README security note: a CDP port gives full control of the browser.
+- Connect with Node's built-in `WebSocket` (Node 22) — no new deps. Pick the
+  target whose URL matches the active runtime tab (`/runtime/hello` url).
+- Tools:
+  - `ui_perf_metrics({ action?, ref? })`: `Performance.getMetrics` +
+    `Memory.getDOMCounters` before/after (Nodes, JSEventListeners,
+    JSHeapUsedSize, LayoutCount, RecalcStyleCount, ScriptDuration,
+    TaskDuration), deltas highlighted.
+  - `ui_leak_check({ action, iterations?: 5, ref?|component? })`: forced GC
+    (`HeapProfiler.collectGarbage`) -> baseline counters -> repeat action N
+    times (action is a page command, e.g. click a toggle ref twice to
+    mount+unmount) -> GC -> counters. Attribution without heap-snapshot
+    parsing: the page records `WeakRef`s to every Svelte-meta element that
+    gets disconnected during the iterations; after the forced GC, elements
+    whose `WeakRef.deref()` is still alive are retained ("detached but alive")
+    and grouped by `__svelte_meta` source -> `LEAK? Modal.svelte:12 retains 40
+    detached nodes per iteration`. Report growth per iteration for nodes,
+    listeners, heap.
+  - Without `--cdp`, both tools return a clear error explaining how to enable,
+    and `ui_leak_check` still runs the page-side WeakRef part (no forced GC ->
+    result marked `inconclusive (no forced GC)`).
+- Playground fixtures: a component that leaks (pushes its root element into a
+  module-level array / leaves a window listener on destroy) behind a toggle,
+  and a non-leaking twin; a "hot" component with a fast interval.
+
 ## Out of scope (for now)
 
 - Own compiler manifest / `data-sg` IDs at build time (revisit only if
   rebinding by `file:line:col` fails in practice).
 - Automatic `$state` instrumentation via compiler transform.
 - Built-in pixel diff / multi-viewport runner (delegate to Playwright).
+- `$effect` / `$derived` run counts (no public Svelte hook; would need a
+  compiler transform).
 
 ## Acceptance (whole project)
 
