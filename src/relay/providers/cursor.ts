@@ -163,7 +163,8 @@ export class CursorProvider implements AgentProvider {
 					reject(err);
 				});
 			});
-		} catch (err: any) {
+		} catch (caught: unknown) {
+			const err = caught as { name?: string; message?: string } | null | undefined;
 			this.activeSessions.delete(sessionId);
 
 			if (err?.name === 'AbortError') return;

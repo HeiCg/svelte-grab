@@ -74,7 +74,8 @@ export class ClaudeCodeProvider implements AgentProvider {
 
 			this.activeSessions.delete(sessionId);
 			callbacks.onDone(resultStr);
-		} catch (err: any) {
+		} catch (caught: unknown) {
+			const err = caught as { name?: string; message?: string } | null | undefined;
 			this.activeSessions.delete(sessionId);
 
 			if (err?.name === 'AbortError') return;

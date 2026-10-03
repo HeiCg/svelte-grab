@@ -298,7 +298,7 @@
 		};
 		categories = showAll
 			? result.categories
-			: result.categories.filter(c => showCategories.includes(categoryKeyMap[c.name] as any));
+			: result.categories.filter(c => (showCategories as string[]).includes(categoryKeyMap[c.name]));
 		conflicts = result.conflicts;
 		activeCategory = categories.length > 0 ? categories[0].name : null;
 

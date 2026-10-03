@@ -25,7 +25,6 @@
 
 	let {
 		modifier = 'alt',
-		secondaryModifier = 'shift',
 		forceEnable = false,
 		showPopup = true,
 		theme = {},

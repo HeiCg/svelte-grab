@@ -122,7 +122,8 @@ export class CodexProvider implements AgentProvider {
 
 			this.activeSessions.delete(sessionId);
 			callbacks.onDone(result);
-		} catch (err: any) {
+		} catch (caught: unknown) {
+			const err = caught as { name?: string; message?: string } | null | undefined;
 			this.activeSessions.delete(sessionId);
 
 			if (err?.name === 'AbortError') return;

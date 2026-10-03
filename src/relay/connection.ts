@@ -157,7 +157,7 @@ export async function connectToRelay(options: ConnectRelayOptions): Promise<Rela
 			});
 		});
 
-		socket.on('message', async (data: any) => {
+		socket.on('message', async (data: { toString(): string }) => {
 			let msg: InvokeHandlerMessage;
 			try {
 				msg = JSON.parse(data.toString());
@@ -198,7 +198,7 @@ export async function connectToRelay(options: ConnectRelayOptions): Promise<Rela
 			}
 		});
 
-		socket.on('error', (err: any) => {
+		socket.on('error', (err: { message?: string }) => {
 			console.error(`[svelte-grab connection] WebSocket error:`, err.message ?? err);
 			reject(new Error(`WebSocket connection error: ${err.message ?? err}`));
 		});

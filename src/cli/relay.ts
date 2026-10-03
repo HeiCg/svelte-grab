@@ -41,8 +41,8 @@ export async function startRelay(
 			server.close();
 			process.exit(0);
 		});
-	} catch (err: any) {
-		console.error(`[svelte-grab] Failed to start relay: ${err.message}`);
+	} catch (err: unknown) {
+		console.error(`[svelte-grab] Failed to start relay: ${(err as Error).message}`);
 		process.exit(1);
 	}
 }
