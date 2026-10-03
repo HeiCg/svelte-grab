@@ -24,6 +24,8 @@ const KEY_NAME_LENGTH = 40;
 const PRUNE_THRESHOLD = 2000;
 
 const REF_PATTERN = /^e\d+$/;
+/** Max hops followed through rebind aliases (`e1 -> e7 -> e12`). */
+const MAX_ALIAS_HOPS = 16;
 
 interface WeakElementRef {
 	deref(): Element | undefined;
@@ -153,11 +155,67 @@ export function findByStableKey(key: string, doc: Document = document): Element 
 	return matches[Math.min(parts.index, matches.length - 1)];
 }
 
+export interface StableKeyMatch {
+	element: Element;
+	/** The key the element has now (its `[i]` may differ from the one asked for). */
+	stableKey: string;
+}
+
+/**
+ * {@link findByStableKey} for many keys in one pass over the page. Keys that
+ * match nothing are absent from the result.
+ */
+export function findByStableKeys(
+	keys: Iterable<string>,
+	doc: Document = document
+): Map<string, StableKeyMatch> {
+	const result = new Map<string, StableKeyMatch>();
+	const wanted = new Map<string, { base: string; prefix: string; index: number }>();
+	const prefixes = new Set<string>();
+	for (const key of keys) {
+		const parts = splitKey(key);
+		if (!parts) continue;
+		wanted.set(key, parts);
+		prefixes.add(parts.prefix);
+	}
+	if (wanted.size === 0) return result;
+
+	const byBase = new Map<string, Element[]>();
+	for (const el of allPageElements(doc)) {
+		const prefix = stableKeyPrefix(el);
+		if (!prefixes.has(prefix)) continue;
+		const base = stableKeyBase(el, prefix);
+		let list = byBase.get(base);
+		if (!list) byBase.set(base, (list = []));
+		list.push(el);
+	}
+
+	for (const [key, parts] of wanted) {
+		const matches = byBase.get(parts.base);
+		if (!matches || matches.length === 0) continue;
+		const i = Math.min(parts.index, matches.length - 1);
+		result.set(key, { element: matches[i], stableKey: `${parts.base}[${i}]` });
+	}
+	return result;
+}
+
+/** Outcome of {@link RefRegistry.rebindAll}. */
+export interface RebindReport {
+	/** Refs whose element is still connected. */
+	kept: number;
+	/** Refs whose element was replaced (e.g. by HMR) and found again by stable key. */
+	rebound: { from: string; to: string }[];
+	/** Refs whose element is gone with no replacement; they stop resolving. */
+	lost: string[];
+}
+
 /** Per-tab registry `eN -> {stableKey, WeakRef<Element>}`. */
 export class RefRegistry {
 	private counter = 0;
 	private byRef = new Map<string, RefEntry>();
 	private byElement = new WeakMap<Element, string>();
+	/** Old ref -> the ref it was rebound to by `rebindAll()`. */
+	private aliases = new Map<string, string>();
 
 	constructor(private readonly doc: () => Document = () => document) {}
 
@@ -212,6 +270,7 @@ export class RefRegistry {
 		if (!REF_PATTERN.test(query)) return null;
 
 		const entry = this.byRef.get(query);
+		if (!entry && this.aliases.has(query)) return this.resolveAlias(query);
 		if (!entry) {
 			// Stamped by an earlier registry instance (e.g. the module was reloaded).
 			const stamped = this.doc().querySelector(`[${REF_ATTR}="${query}"]`);
@@ -233,6 +292,64 @@ export class RefRegistry {
 		this.counter = 0;
 		this.byRef.clear();
 		this.byElement = new WeakMap();
+		this.aliases.clear();
+	}
+
+	/**
+	 * Re-resolve every registered ref whose element is no longer connected (call
+	 * after an HMR update). A ref found again by its stable key is rebound: the
+	 * replacement gets (or keeps) its own ref and the old one becomes an alias,
+	 * so `resolve(old)` keeps working and reports `{ rebound, previous }`. A ref
+	 * with no replacement is dropped (reported once in `lost`).
+	 */
+	rebindAll(): RebindReport {
+		const report: RebindReport = { kept: 0, rebound: [], lost: [] };
+		const stale: RefEntry[] = [];
+		for (const entry of this.byRef.values()) {
+			const el = entry.element.deref();
+			if (el && el.isConnected) report.kept++;
+			else stale.push(entry);
+		}
+		if (stale.length === 0) return report;
+
+		const found = findByStableKeys(
+			stale.map((e) => e.stableKey),
+			this.doc()
+		);
+		for (const entry of stale) {
+			this.byRef.delete(entry.ref);
+			const match = found.get(entry.stableKey);
+			if (!match) {
+				report.lost.push(entry.ref);
+				continue;
+			}
+			const to = this.refFor(match.element, match.stableKey);
+			this.setAlias(entry.ref, to);
+			report.rebound.push({ from: entry.ref, to });
+		}
+		return report;
+	}
+
+	private setAlias(from: string, to: string): void {
+		if (this.aliases.size >= PRUNE_THRESHOLD) {
+			// Oldest first (Map keeps insertion order).
+			const oldest = this.aliases.keys().next().value;
+			if (oldest !== undefined) this.aliases.delete(oldest);
+		}
+		this.aliases.set(from, to);
+	}
+
+	private resolveAlias(ref: string): ResolvedRef | null {
+		let target = ref;
+		for (let hop = 0; hop < MAX_ALIAS_HOPS; hop++) {
+			const next = this.aliases.get(target);
+			if (!next) break;
+			target = next;
+		}
+		if (target === ref) return null;
+		const resolved = this.resolve(target);
+		if (!resolved) return null;
+		return { ...resolved, rebound: true, previous: ref };
 	}
 
 	private describe(el: Element): ResolvedRef {
