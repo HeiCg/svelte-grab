@@ -102,7 +102,8 @@ async function main() {
 			const mcpPortArg = args.find((a: string) => a.startsWith('--port='));
 			const mcpPort = parsePortArg(mcpPortArg, DEFAULT_MCP_PORT);
 			const stdio = args.includes('--stdio');
-			await startMcpServer({ port: mcpPort, stdio, token: parseTokenArg(args) });
+			const { cdpArgFromArgv } = await import('../mcp/cdp/client.js');
+			await startMcpServer({ port: mcpPort, stdio, token: parseTokenArg(args), cdp: cdpArgFromArgv(args) });
 			break;
 		}
 
@@ -165,6 +166,10 @@ Commands:
                             MCP config: "command": "npx svelte-grab-mcp --stdio")
               --token[=VALUE]  Require a bearer token (auto-generated if no
                             VALUE). Also via SVELTE_GRAB_TOKEN env var.
+              --cdp=URL     Opt-in CDP mode for ui_perf_metrics / ui_leak_check,
+                            e.g. --cdp=http://127.0.0.1:9222 (Chrome started with
+                            --remote-debugging-port). Loopback only. Also via
+                            SVELTE_GRAB_CDP env var.
 
   help      Show this help message
 

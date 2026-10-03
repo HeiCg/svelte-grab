@@ -5,6 +5,7 @@ import { uiAnnotations } from './annotations.js';
 import { uiFind } from './find.js';
 import { uiComponentImpact } from './impact.js';
 import { uiInspect } from './inspect.js';
+import { uiLeakTrackReport, uiLeakTrackStart, uiRunActions } from './leak.js';
 import { uiProfile } from './profile.js';
 import { uiWaitForHmr } from './hmr.js';
 import { uiSnapshot } from './snapshot.js';
@@ -20,7 +21,11 @@ export const runtimeTools: Readonly<Record<string, RuntimeToolHandler>> = Object
 	ui_wait_for_hmr: (args) => uiWaitForHmr(args),
 	ui_verify: (args) => uiVerify(args),
 	ui_component_impact: (args) => uiComponentImpact(args),
-	ui_profile: (args) => uiProfile(args)
+	ui_profile: (args) => uiProfile(args),
+	// Phase 8b: internal commands driven by ui_leak_check / ui_perf_metrics (server, CDP mode).
+	ui_leak_track_start: (args) => uiLeakTrackStart(args),
+	ui_leak_track_report: () => uiLeakTrackReport(),
+	ui_run_actions: (args) => uiRunActions(args)
 });
 
 /**

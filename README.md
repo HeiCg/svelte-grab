@@ -110,6 +110,8 @@ All tools are served by the same local MCP server (`svelte-grab-mcp`). The `ui_*
 | `ui_verify` | PASS/WARN/FAIL checks on one element after an edit: visible, overflow, console errors, a11y, contrast. |
 | `ui_component_impact` | Before editing a shared component: its instances on the page, importers from the Vite module graph and whether to edit it or the usage site. |
 | `ui_annotations` | The comments the human left on elements with annotation mode, with refs ready for `ui_inspect`. |
+| `ui_perf_metrics` | CDP mode (`--cdp`): Chrome counters (DOM nodes, listeners, heap, layouts, style recalcs, script/task time) before and after an in-page action, as deltas. |
+| `ui_leak_check` | Repeats actions (e.g. open then close) and reports detached elements still alive after a forced GC, by component and `file:line`. Without `--cdp` the result is `INCONCLUSIVE`. |
 | `watch_for_grab` | Block until the human Alt+Clicks an element and sends a prompt from the page; returns stack, HTML preview and the instruction. |
 | `get_element_context` | Last grabbed context, non-blocking (cleared after reading). |
 | `get_a11y_report` | Last accessibility audit from SvelteA11yReporter. |
@@ -529,6 +531,8 @@ The recommended way to connect svelte-grab to Claude Code (and any other MCP cli
 | `ui_verify` | Call after `ui_wait_for_hmr`. PASS/WARN/FAIL checks on one element: `visible` (rendered, in viewport, not covered; names the coverer), `overflow` (clipped or spilling content, page-level horizontal overflow), `console` (errors FAIL, warnings WARN since `since`, else the last HMR update), `a11y` (element-level checks), `contrast` (below 3:1 FAIL, below WCAG AA WARN). Text starts with the verdict line; `structuredContent` is `{ verdict, checks: [{ check, status, summary, details }] }`. Args: `ref`, `checks` (default all), `since`, `tabId`. |
 | `ui_component_impact` | Call before editing a component that may be shared, with a ref to any element it renders. Returns the definition file, instances on the page grouped by usage site, variants (instances grouped by root classes), importers from the Vite module graph (needs `svelte-grab/vite`, else "unknown") and a recommendation: edit the component for a single usage, else prefer a prop/variant or a local class at the usage site. Args: `ref`, `tabId`. |
 | `ui_profile` | Records which components mutate the DOM for `durationMs` (default 3000, max 30000), optionally while performing an in-page `action` (`{ ref, type: "click"\|"input"\|"scroll", value?, repeat? }`, `isTrusted=false`). Verdict `HOT <Component> N mutations in Xs (burst xK)` or `QUIET`, then per component mutations, mutations/sec, bursts, kinds and the top mutated elements as refs, plus FPS and long frames. Scope with `component` or `ref`. See [Profiling with ui_profile](#profiling-with-ui_profile). |
+| `ui_perf_metrics` | CDP mode only (see [CDP mode](#cdp-mode-ui_perf_metrics-and-ui_leak_check)). Reads `Memory.getDOMCounters` + `Performance.getMetrics` of the tab before and after an optional in-page `action` (`{ ref, type, value? }`, or `ref` alone for a click) and a settle (2 frames + `waitMs`, default 300): Nodes, JSEventListeners, Documents, JSHeapUsedSize, LayoutCount, RecalcStyleCount, ScriptDuration, TaskDuration. First line lists the changed counters, then a before/after/delta table. Without `--cdp` it returns an error saying how to enable it. Args: `action`, `ref`, `waitMs`, `tabId`. |
+| `ui_leak_check` | Runs `actions` (or one `action`) `iterations` times (default 5, max 20), e.g. `[open, close]` on a modal toggle. The page records a WeakRef + source of every Svelte element removed meanwhile; with `--cdp` the server forces GC before and after, so whatever is still alive and detached is retained: `LEAK? <Component> <file:line> retains N detached nodes (~N/iteration)`, plus growth of Nodes, JSEventListeners and JSHeapUsedSize per iteration. Verdict `LEAK SUSPECTED`, `NO LEAK DETECTED` or `INCONCLUSIVE` (always without `--cdp`: no forced GC). Args: `actions`, `action`, `iterations`, `waitMs`, `tabId`. |
 
 The `ui_*` tools query the page live: the app must be open in dev with `<SvelteGrab/>` mounted (otherwise they return "No browser tab connected"). Refs are stamped on elements as `data-sg-ref`, so `[data-sg-ref="e12"]` works as a locator in Playwright MCP or chrome-devtools MCP for real clicks and screenshots.
 
@@ -558,6 +562,40 @@ COMPONENTS by mutations (2 of 2):
 FPS avg 120, min 120 (1 whole-second sample)
 LONG FRAMES 0 (long-animation-frame, > 50ms)
 ```
+
+### CDP mode: `ui_perf_metrics` and `ui_leak_check`
+
+Some numbers only the browser has: DOM node and event listener counts, heap size, layout and style recalc counts, and a forced garbage collection to tell a real leak from garbage that was simply not collected yet. svelte-grab can read them over the Chrome DevTools Protocol (CDP). It is **off by default** and needs two things:
+
+```bash
+# 1. Chrome (or Chromium) with a debugging port on loopback. Recent Chrome requires a
+#    non-default profile directory for remote debugging.
+chrome --remote-debugging-port=9222 --user-data-dir=/tmp/svelte-grab-chrome
+
+# 2. The MCP server pointed at it (flag or env var; loopback hosts only)
+npx svelte-grab-mcp --cdp=http://127.0.0.1:9222
+SVELTE_GRAB_CDP=http://127.0.0.1:9222 npx svelte-grab-mcp --stdio
+```
+
+Open the app in that Chrome window. The server talks to the page target whose URL matches the active runtime tab (`ui_tabs`), using Node's built-in `WebSocket` (Node 22+, no extra dependency). A URL whose host is not `127.0.0.1`, `localhost` or `[::1]` is rejected at startup.
+
+- `ui_perf_metrics({ action: { ref, type: "click" } })` measures one interaction: counters before, the in-page action, 2 frames + `waitMs`, counters after.
+- `ui_leak_check({ actions: [{ ref: openRef, type: "click" }, { ref: closeRef, type: "click" }], iterations: 5 })` mounts and unmounts a component 5 times. A component that keeps its elements (a module-level array, a store, a closure in a `window` listener that is never removed) shows up as retained detached nodes after GC, grouped by the root of each detached subtree:
+
+```
+LEAK SUSPECTED: 5 iterations of [click e1 -> click e2], forced GC via CDP
+LEAK? LeakyFixture src/components/fixtures/LeakyFixture.svelte:23 retains 30 detached nodes (~6/iteration)
+LEAK? +5 JS event listeners after GC (~1/iteration): a listener added on mount is not removed on destroy
+COUNTERS after forced GC (baseline -> after, growth per iteration):
+  Nodes             943 -> 1023       +80 (~16/iteration)
+  JSEventListeners  70 -> 75          +5 (~1/iteration)
+  JSHeapUsedSize    5.8 MB -> 6.0 MB  +182.4 KB (~36.5 KB/iteration)
+PAGE TRACKING: 30 Svelte elements removed during the run, 30 still alive and detached after GC
+```
+
+Without `--cdp`, `ui_perf_metrics` returns an error with these instructions, and `ui_leak_check` still runs the page-side tracking but answers `INCONCLUSIVE (no forced GC; enable --cdp)`, listing the alive elements only as unconfirmed candidates.
+
+**A CDP port gives full control of that browser** (every tab, cookies, script execution). Only start Chrome with `--remote-debugging-port` on a throwaway profile, never bind it to a non-loopback address and never expose it. See [Security](#security).
 
 ### Vite plugin (`svelte-grab/vite`)
 
@@ -915,6 +953,7 @@ The servers ship with these protections enabled by default:
 - **Loopback only.** Both servers bind to `127.0.0.1`. They are not reachable from other hosts on your LAN. Do not put them behind a reverse proxy, tunnel, or `0.0.0.0` bind.
 - **Origin allowlist (primary browser defense).** Every browser connection's `Origin` header is checked. By default only `localhost`, `127.0.0.1`, `[::1]`, and `*.localhost` origins (your dev app, on any port) are allowed. Other origins are rejected (WebSocket 403, HTTP `403`/`401`). This stops any random web page you visit from driving your agent. Requests with **no** `Origin` (non-browser local tools like `curl` or an MCP stdio client) are allowed — the token below is the defense against those.
 - **No wildcard CORS.** The MCP server never sends `Access-Control-Allow-Origin: *`. It reflects the request Origin only when it is on the allowlist, with `Vary: Origin`.
+- **CDP mode is opt-in and loopback-only.** `ui_perf_metrics` / `ui_leak_check` talk to Chrome over the DevTools Protocol only when you pass `--cdp=<url>` (or set `SVELTE_GRAB_CDP`). The URL must be `http(s)://` or `ws://` on `127.0.0.1`, `localhost` or `[::1]`; anything else stops the server at startup, and the WebSocket URL Chrome hands back is checked the same way. A CDP port gives full control of the browser, so start Chrome with `--remote-debugging-port` only on a throwaway profile (`--user-data-dir`) and never expose that port.
 - **Payload & resource limits.** WebSocket messages and HTTP bodies are capped at 2 MB, message shapes are validated before use, and session/SSE stores are bounded to prevent unbounded memory growth.
 
 ### Optional bearer token
@@ -945,6 +984,7 @@ In the browser, pass the MCP token to the component; it is sent on `/context`, `
 |---------|-----|
 | Extend the Origin allowlist | `SVELTE_GRAB_ALLOWED_ORIGINS=https://a.example,https://b.example` (comma-separated), or the `allowedOrigins` option to `createRelayServer` / `startMcpServer` |
 | Enable token auth | `--token[=VALUE]` CLI flag, `SVELTE_GRAB_TOKEN` env var, or the `token` option |
+| Enable CDP mode (off by default) | `--cdp=http://127.0.0.1:9222` CLI flag, `SVELTE_GRAB_CDP` env var, or the `cdp` option to `startMcpServer` (loopback hosts only) |
 
 **Never expose the relay or MCP ports to a network.** If you need remote access, use an SSH tunnel to `127.0.0.1` and keep token auth on.
 
