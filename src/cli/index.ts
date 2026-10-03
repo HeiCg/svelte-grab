@@ -54,9 +54,9 @@ async function main() {
 
 	switch (command) {
 		case 'init': {
-			const { init } = await import('./init.js');
-			const dryRun = args.includes('--dry-run');
-			init(undefined, { dryRun });
+			const { init, parseInitArgs } = await import('./init.js');
+			const result = init(undefined, parseInitArgs(args));
+			if (!result.ok) process.exitCode = 1;
 			break;
 		}
 
@@ -117,11 +117,20 @@ Usage:
   svelte-grab <command> [options]
 
 Commands:
-  init      Detect your Svelte project and add SvelteDevKit to the root layout.
-            Works with SvelteKit (auto-injects into +layout.svelte) and plain
-            Vite+Svelte projects (injects into src/App.svelte).
+  init      Set up svelte-grab for coding agents in a Svelte project:
+            - writes/merges .mcp.json (svelte-grab MCP server + official Svelte
+              MCP; existing entries are never replaced)
+            - adds svelteGrab() from svelte-grab/vite to vite.config.(ts|js)
+            - injects <SvelteDevKit /> into src/routes/+layout.svelte (SvelteKit)
+              or src/App.svelte (Vite+Svelte), with enableMcp when .mcp.json
+              declares the svelte-grab server
             Options:
-              --dry-run     Show what would be changed without writing files
+              --dry-run               Show what would be changed without writing files
+              --no-mcp-json           Do not touch .mcp.json (and no enableMcp)
+              --no-svelte-mcp         Skip the @sveltejs/mcp entry (alias:
+                                      --with-svelte-mcp=false; default on)
+              --with-playwright-mcp   Also add the @playwright/mcp entry (default off)
+              --no-vite-plugin        Do not edit vite.config
 
   add       Add an agent provider (claude-code, cursor, copilot, codex).
             Options:
@@ -162,17 +171,21 @@ Commands:
 Global Options:
   --version, -v   Print version number
 
-Claude Code Integration (recommended):
-  1. Add MCP server to Claude Code settings (~/.claude.json):
-     { "mcpServers": { "svelte-grab": { "command": "npx", "args": ["svelte-grab-mcp", "--stdio"] } } }
-  2. Add <SvelteDevKit enableMcp /> to your root layout
-  3. In Claude Code, say: "use watch_for_grab to listen for my selections"
-  4. Alt+Click any element in the browser, type your prompt, hit Cmd+Enter
-  5. Claude Code receives the component context + your instruction and acts on it
+Agent loop (recommended):
+  1. npx svelte-grab init   (writes .mcp.json, vite plugin, <SvelteDevKit enableMcp />)
+  2. Start your dev server and open the app
+  3. Your agent runs: ui_snapshot -> ui_find -> ui_inspect -> edit
+                      -> ui_wait_for_hmr -> ui_verify
+  Human handoff: say "use watch_for_grab to listen for my selections", then
+  Alt+Click an element, type your prompt and hit Cmd+Enter.
+
+  The relay (svelte-grab relay / add / remove) is in maintenance mode: still
+  supported, new integrations should use MCP.
 
 Examples:
   npx svelte-grab init                     # Add to your SvelteKit project
   npx svelte-grab init --dry-run           # Preview changes without writing
+  npx svelte-grab init --with-playwright-mcp  # Also add Playwright MCP to .mcp.json
   npx svelte-grab add cursor               # Add Cursor agent provider
   npx svelte-grab remove copilot           # Remove Copilot provider
   npx svelte-grab configure                # Interactive configuration
