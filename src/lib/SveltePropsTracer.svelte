@@ -3,6 +3,12 @@
 	import type { SveltePropsTracerProps, PropTrace, PropTraceNode } from './types.js';
 	import type { SvelteElement } from './utils/shared.js';
 	import {
+		findMetaElement,
+		getSvelteLoc,
+		getSvelteMeta,
+		walkDevStack
+	} from './utils/component-stack.js';
+	import {
 		findSvelteElement,
 		shortenPath,
 		extractComponentName,
@@ -19,11 +25,11 @@
 
 	let {
 		modifier = 'alt',
-		secondaryModifier = 'shift',
 		forceEnable = false,
 		showPopup = true,
 		theme = {},
-		lightTheme = false
+		lightTheme = false,
+		enableHotkeys = true
 	}: SveltePropsTracerProps = $props();
 
 	let colors = $derived(resolveTheme(theme, lightTheme));
@@ -33,6 +39,7 @@
 	let copied = $state(false);
 	let copyFailed = $state(false);
 	let trace = $state<PropTrace | null>(null);
+	let traceDepth = $derived(trace ? componentCount(trace) : 0);
 
 	const copyFb = createCopyFeedback({
 		get copied() { return copied; },
@@ -41,9 +48,6 @@
 		set copyFailed(v) { copyFailed = v; }
 	});
 
-	/**
-	 * Build the component hierarchy trace by walking __svelte_meta.parent chain
-	 */
 	/**
 	 * Extract meaningful HTML attributes from an element as a proxy for props
 	 */
@@ -58,68 +62,73 @@
 		return proxy;
 	}
 
+	/**
+	 * Build the component hierarchy trace: the element's own location, then the
+	 * dev stack (components named by their tag, located at their usage site;
+	 * blocks kept as blocks without adding depth), then ancestor elements.
+	 */
 	function buildTrace(element: SvelteElement): PropTrace {
 		const chain: PropTraceNode[] = [];
 		const seen = new Set<string>();
-		const meta = element.__svelte_meta;
+		let depth = 0;
 
-		// Add the element's own location
-		if (meta?.loc && !isExcludedPath(meta.loc.file)) {
-			const key = `${meta.loc.file}:${meta.loc.line}`;
-			if (!seen.has(key)) {
-				seen.add(key);
-				chain.push({
-					file: meta.loc.file,
-					line: meta.loc.line,
-					column: meta.loc.column,
-					componentName: extractComponentName(meta.loc.file),
-					depth: 0,
-					propsProxy: extractPropsProxy(element)
-				});
-			}
+		const add = (node: PropTraceNode): boolean => {
+			if (isExcludedPath(node.file)) return false;
+			const key = `${node.file}:${node.line}`;
+			if (seen.has(key)) return false;
+			seen.add(key);
+			chain.push(node);
+			return true;
+		};
+
+		// The element's own location
+		const loc = getSvelteLoc(element);
+		if (loc) {
+			add({
+				file: loc.file,
+				line: loc.line,
+				column: loc.column,
+				componentName: extractComponentName(loc.file),
+				depth: 0,
+				kind: 'element',
+				propsProxy: extractPropsProxy(element)
+			});
 		}
 
-		// Walk the parent chain
-		let parent = meta?.parent;
-		let depth = 1;
-		while (parent) {
-			if (parent.file && parent.line && !isExcludedPath(parent.file)) {
-				const key = `${parent.file}:${parent.line}`;
-				if (!seen.has(key)) {
-					seen.add(key);
-					chain.push({
-						file: parent.file,
-						line: parent.line,
-						column: parent.column || 0,
-						componentName: extractComponentName(parent.file),
-						depth
-					});
-					depth++;
-				}
-			}
-			parent = parent.parent;
+		// The dev stack (nearest first)
+		for (const item of walkDevStack(getSvelteMeta(element))) {
+			const isBlock = item.kind === 'block';
+			const added = add({
+				file: item.usageSite.file,
+				line: item.usageSite.line,
+				column: item.usageSite.column,
+				componentName: isBlock ? null : item.componentName,
+				depth: isBlock ? depth : depth + 1,
+				kind: item.kind,
+				...(isBlock ? { blockType: String(item.type) } : {})
+			});
+			if (added && !isBlock) depth++;
 		}
 
 		// Also walk up the DOM to find additional component boundaries
-		let current: HTMLElement | null = element.parentElement;
+		let current = findMetaElement(element.parentElement);
 		while (current) {
-			const currentMeta = (current as SvelteElement).__svelte_meta;
-			if (currentMeta?.loc && !isExcludedPath(currentMeta.loc.file)) {
-				const key = `${currentMeta.loc.file}:${currentMeta.loc.line}`;
-				if (!seen.has(key)) {
-					seen.add(key);
-					chain.push({
-						file: currentMeta.loc.file,
-						line: currentMeta.loc.line,
-						column: currentMeta.loc.column,
-						componentName: extractComponentName(currentMeta.loc.file),
-						depth,
-						propsProxy: extractPropsProxy(current)
-					});
-					depth++;
-				}
+			const currentLoc = getSvelteLoc(current);
+			if (
+				currentLoc &&
+				add({
+					file: currentLoc.file,
+					line: currentLoc.line,
+					column: currentLoc.column,
+					componentName: extractComponentName(currentLoc.file),
+					depth: depth + 1,
+					kind: 'element',
+					propsProxy: extractPropsProxy(current)
+				})
+			) {
+				depth++;
 			}
-			current = current.parentElement;
+			current = findMetaElement(current.parentElement);
 		}
 
 		return {
@@ -127,6 +136,22 @@
 			elementTag: element.tagName.toLowerCase(),
 			elementPreview: getElementPreview(element)
 		};
+	}
+
+	/**
+	 * Display label for a trace node: `<Name>` for components/elements,
+	 * `{#if}` / `{#each}` / `{@render}` for blocks.
+	 */
+	function nodeLabel(node: PropTraceNode): string {
+		if (node.kind === 'block') {
+			return node.blockType === 'render' ? '{@render}' : `{#${node.blockType ?? 'block'}}`;
+		}
+		return `<${node.componentName || 'element'}>`;
+	}
+
+	/** Number of non-block nodes (component depth). */
+	function componentCount(t: PropTrace): number {
+		return t.chain.filter((n) => n.kind !== 'block').length;
 	}
 
 	/**
@@ -142,12 +167,11 @@
 
 		for (let i = t.chain.length - 1; i >= 0; i--) {
 			const node = t.chain[i];
-			const name = node.componentName || 'element';
 			const file = shortenPath(node.file);
 			const marker = i === 0 ? ' \u2190 YOU ARE HERE' : '';
 
 			parts.push(`  [${t.chain.length - i}] ${file}:${node.line}${marker}`);
-			parts.push(`      \u2502 <${name}>`);
+			parts.push(`      \u2502 ${nodeLabel(node)}`);
 
 			// Show props proxy (HTML attributes) as a proxy for actual props
 			if (node.propsProxy && Object.keys(node.propsProxy).length > 0) {
@@ -162,22 +186,23 @@
 			}
 		}
 
+		const depthCount = componentCount(t);
 		parts.push('');
-		parts.push(`\u{1F333} Depth: ${t.chain.length} component${t.chain.length !== 1 ? 's' : ''}`);
+		parts.push(`\u{1F333} Depth: ${depthCount} component${depthCount !== 1 ? 's' : ''}`);
 
 		// Categorize nesting chain
 		const hasDataAttrs = t.chain.some(n => n.propsProxy && Object.keys(n.propsProxy).some(k => k.startsWith('data-')));
 		const allLayoutOnly = t.chain.every(n => !n.propsProxy || Object.keys(n.propsProxy).length === 0);
-		if (allLayoutOnly && t.chain.length > 3) {
+		if (allLayoutOnly && depthCount > 3) {
 			parts.push(`\u{1F4A1} Chain type: layout-only (no data attributes) - may be over-wrapped`);
 		} else if (hasDataAttrs) {
 			parts.push(`\u{1F4A1} Chain type: data-carrying (has data attributes)`);
 		}
 
 		// Insight about deep nesting
-		if (t.chain.length > 5) {
+		if (depthCount > 5) {
 			parts.push(`\n\u{1F4A1} INSIGHT:`);
-			parts.push(`  Deep nesting (${t.chain.length} levels). Consider:`);
+			parts.push(`  Deep nesting (${depthCount} levels). Consider:`);
 			parts.push(`  - Using Context API to avoid prop drilling`);
 			parts.push(`  - Using stores for shared state`);
 		}
@@ -187,6 +212,7 @@
 
 	function handleClick(event: MouseEvent) {
 		// Double-click with modifier for props tracer
+		if (!enableHotkeys) return;
 		if (!checkModifier(event, modifier)) return;
 		if (!event.detail || event.detail < 2) return; // require double-click
 
@@ -257,7 +283,7 @@
 					<div class="sg-trace-node" class:sg-trace-node-current={i === 0}>
 						<div class="sg-trace-depth">{i === 0 ? '◉' : '○'}</div>
 						<div class="sg-trace-node-info">
-							<span class="sg-trace-component">&lt;{node.componentName || 'element'}&gt;</span>
+							<span class="sg-trace-component">{nodeLabel(node)}</span>
 							<span class="sg-trace-file">{shortenPath(node.file)}:{node.line}</span>
 							{#if node.propsProxy && Object.keys(node.propsProxy).length > 0}
 								<span class="sg-trace-attrs">{Object.entries(node.propsProxy).map(([k, v]) => `${k}="${v}"`).join(' ')}</span>
@@ -274,8 +300,8 @@
 			</div>
 
 			<div class="sg-trace-summary">
-				🌳 {trace.chain.length} component{trace.chain.length !== 1 ? 's' : ''} in hierarchy
-				{#if trace.chain.length > 5}
+				🌳 {traceDepth} component{traceDepth !== 1 ? 's' : ''} in hierarchy
+				{#if traceDepth > 5}
 					<span class="sg-trace-warning">⚠️ Deep nesting - consider Context API or stores</span>
 				{/if}
 			</div>

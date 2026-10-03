@@ -15,12 +15,12 @@
 
 	let {
 		modifier = 'alt',
-		secondaryModifier = 'shift',
 		forceEnable = false,
 		showPopup = true,
 		theme = {},
 		lightTheme = false,
-		includeSubtree = true
+		includeSubtree = true,
+		enableHotkeys = true
 	}: SvelteA11yReporterProps = $props();
 
 	let colors = $derived(resolveTheme(theme, lightTheme));
@@ -46,6 +46,7 @@
 	});
 
 	function handleClick(event: MouseEvent) {
+		if (!enableHotkeys) return;
 		if (!checkModifier(event, modifier)) return;
 		// Triple-click or Alt+A keyboard shortcut for a11y
 		// We'll use right-click with modifier instead
@@ -79,6 +80,7 @@
 	}
 
 	function handleContextMenu(event: MouseEvent) {
+		if (!enableHotkeys) return;
 		if (!checkModifier(event, modifier)) return;
 		event.preventDefault(); // Prevent default context menu
 	}
@@ -87,7 +89,7 @@
 		if (event.key === 'Escape' && visible) { visible = false; clearHighlights(); }
 
 		// Alt+A to analyze full page
-		if (checkModifier(event, modifier) && (event.key === 'a' || event.key === 'A')) {
+		if (enableHotkeys && checkModifier(event, modifier) && (event.key === 'a' || event.key === 'A')) {
 			event.preventDefault();
 			report = analyzeA11y(document.body, true);
 			if (report.critical.length > 0) activeTab = 'critical';

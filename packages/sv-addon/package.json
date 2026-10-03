@@ -1,0 +1,49 @@
+{
+	"name": "@svelte-grab/sv",
+	"description": "sv add-on for svelte-grab: give coding agents eyes into your Svelte app (npx sv add @svelte-grab)",
+	"version": "0.1.0",
+	"type": "module",
+	"license": "MIT",
+	"author": "HeiCg",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/HeiCg/svelte-grab",
+		"directory": "packages/sv-addon"
+	},
+	"homepage": "https://github.com/HeiCg/svelte-grab#readme",
+	"scripts": {
+		"build": "tsdown",
+		"check": "tsc --noEmit",
+		"demo-create": "sv create demo --types ts --template minimal --no-add-ons --no-install",
+		"demo-add": "npm run build && sv add file:../ --cwd demo --no-git-check --no-install",
+		"prepublishOnly": "npm run build"
+	},
+	"files": [
+		"dist"
+	],
+	"exports": {
+		".": {
+			"default": "./dist/index.mjs"
+		}
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"dependencies": {},
+	"peerDependencies": {
+		"sv": "^1.0.0"
+	},
+	"devDependencies": {
+		"sv": "^1.0.1",
+		"tsdown": "^0.22.1",
+		"typescript": "^5.0.0"
+	},
+	"keywords": [
+		"sv-add",
+		"svelte",
+		"sveltekit",
+		"svelte-grab",
+		"mcp",
+		"agent"
+	]
+}

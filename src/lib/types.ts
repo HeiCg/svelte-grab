@@ -1,34 +1,65 @@
 /**
- * Svelte internal metadata attached to elements in dev mode
+ * A source location as Svelte reports it in dev metadata.
  */
-export interface SvelteMeta {
-	loc?: {
-		file: string;
-		line: number;
-		column: number;
-	};
-	parent?: DevStackEntry;
+export interface SvelteSourceLocation {
+	file: string;
+	line: number;
+	column: number;
 }
 
 /**
- * Internal stack entry from Svelte's dev metadata
+ * Svelte internal metadata attached to elements in dev mode (Svelte >= 5.35.1).
+ *
+ * `loc` is where the element is written; `parent` is the dev stack (nearest
+ * block/component first), `null` at the root.
+ */
+export interface SvelteMeta {
+	loc: SvelteSourceLocation;
+	parent: DevStackEntry | null;
+}
+
+/**
+ * Kind of a dev stack entry. `'component'` marks a component boundary; the
+ * others are template blocks. Open-ended so newer Svelte types still type-check.
+ */
+export type DevStackEntryType =
+	| 'component'
+	| 'if'
+	| 'each'
+	| 'await'
+	| 'key'
+	| 'render'
+	| (string & {});
+
+/**
+ * Internal stack entry from Svelte's dev metadata.
+ *
+ * For `type: 'component'`, `file/line/column` is the USAGE SITE (the parent
+ * file where `<Child />` is written) and `componentTag` is the child's tag name.
  */
 export interface DevStackEntry {
-	type?: string;
-	file?: string;
-	line?: number;
-	column?: number;
-	parent?: DevStackEntry;
+	type: DevStackEntryType;
+	file: string;
+	line: number;
+	column: number;
+	parent: DevStackEntry | null;
+	componentTag?: string;
 }
 
 /**
  * Processed stack entry with component location info
  */
 export interface StackEntry {
+	/** `'element'` for the grabbed element, otherwise the dev stack entry type. */
 	type: string;
 	file: string;
 	line: number;
 	column: number;
+	/**
+	 * Component name for this entry: the tag of a component entry, otherwise
+	 * the component whose file contains the location.
+	 */
+	componentName?: string;
 }
 
 /**
@@ -55,6 +86,9 @@ export interface ThemeConfig {
 	text?: string;
 	accent?: string;
 }
+
+/** Shortcut set of SvelteGrab / SvelteDevKit (see `hotkeys`). */
+export type HotkeysMode = 'full' | 'minimal';
 
 /**
  * Props for the SvelteGrab component
@@ -112,8 +146,25 @@ export interface SvelteGrabProps {
 	enableDragSelect?: boolean;
 	/** Enable auto-send to MCP server on grab. Default: false */
 	enableMcp?: boolean;
-	/** Port for MCP HTTP server. Default: 4723 */
+	/**
+	 * Port for MCP HTTP server. Default: 4723. If the server is not there (or
+	 * another service answers), the page probes `GET /health` on the next 9
+	 * ports and uses the first svelte-grab server it finds.
+	 */
 	mcpPort?: number;
+	/**
+	 * Token for an MCP server started with `SVELTE_GRAB_TOKEN` / `--token`.
+	 * Sent as the `x-svelte-grab-token` header on POSTs and as `?token=` on the
+	 * `/events` stream. Default: none
+	 */
+	mcpToken?: string;
+	/**
+	 * Let coding agents query this page through the MCP server (`ui_snapshot`,
+	 * `ui_find`): the page listens for `runtime-command` events on the server's
+	 * SSE stream and stamps `data-sg-ref` on the elements it reports. Only
+	 * active together with `enableMcp`, and only in dev builds. Default: true
+	 */
+	enableAgentRuntime?: boolean;
 	/** Freeze CSS animations/transitions while selection mode is active. Default: true */
 	freezeAnimations?: boolean;
 	/** Freeze :hover/:focus pseudo-states while selection mode is active. Default: true */
@@ -122,6 +173,22 @@ export interface SvelteGrabProps {
 	enableHistoryPersistence?: boolean;
 	/** Enable prompt/input mode (Enter key opens textarea for context). Default: true */
 	enablePromptMode?: boolean;
+	/**
+	 * Annotation mode: while selecting, press N (or "Add annotation" in the
+	 * prompt overlay) to store the hovered element, or the current multi /
+	 * region selection, with a comment as annotation #N. A tray lists them
+	 * (edit, delete, clear all, global instruction) and "Send all" copies one
+	 * agent text and, with `enableMcp`, posts it to the MCP server. Agents read
+	 * them with the `ui_annotations` tool. Default: true
+	 */
+	enableAnnotations?: boolean;
+	/**
+	 * Shortcut set. `'full'`: every shortcut (current behavior). `'minimal'`:
+	 * only Alt+Click (point), Shift+Alt+Click (multi), Alt+Drag (region),
+	 * Escape and N (annotate); Enter (prompt), O, S, Tab, arrows, Cmd/Ctrl+C,
+	 * Alt+? and the right-click menu are off. Default: 'full'
+	 */
+	hotkeys?: HotkeysMode;
 }
 
 // ============================================================
@@ -134,6 +201,15 @@ export interface ChildComponentInfo {
 	count: number;
 }
 
+export interface InspectableStateInstance {
+	/** Display label, e.g. `"Counter #2"`. */
+	label: string;
+	/** 1-based instance number among live instances sharing the name. */
+	instance: number;
+	/** Snapshot of the values passed to `inspectable()`. */
+	values: Record<string, unknown>;
+}
+
 export interface ComponentStateInfo {
 	componentName: string | null;
 	file: string;
@@ -142,7 +218,10 @@ export interface ComponentStateInfo {
 	attributes: Record<string, string>;
 	dataAttributes: Record<string, string>;
 	boundValues: Record<string, unknown>;
+	/** Values of the first matching `inspectable()` instance (legacy single view). */
 	inspectableState?: Record<string, unknown>;
+	/** Every matching `inspectable()` instance (one per mounted component instance). */
+	inspectableInstances?: InspectableStateInstance[];
 	childComponentCount: number;
 	childComponents: ChildComponentInfo[];
 	elementTag: string;
@@ -180,6 +259,12 @@ export interface SvelteStateGrabProps {
 	maxStringLength?: number;
 	/** Maximum number of state snapshots to keep. Default: 5 */
 	maxSnapshots?: number;
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -236,6 +321,12 @@ export interface SvelteStyleGrabProps {
 	lightTheme?: boolean;
 	/** Which CSS categories to display. Default: ['all'] */
 	showCategories?: ('box-model' | 'visual' | 'typography' | 'layout' | 'all')[];
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -247,7 +338,12 @@ export interface PropTraceNode {
 	line: number;
 	column: number;
 	componentName: string | null;
+	/** Component depth (block nodes share the depth of their enclosing node). */
 	depth: number;
+	/** `'element'` (DOM element), `'component'` (component boundary) or `'block'` (if/each/...). */
+	kind?: 'element' | 'component' | 'block';
+	/** Dev stack type for block nodes (`'if'`, `'each'`, ...). */
+	blockType?: string;
 	propsProxy?: Record<string, string>;
 }
 
@@ -270,6 +366,12 @@ export interface SveltePropsTracerProps {
 	theme?: ThemeConfig;
 	/** Use the light theme preset instead of dark. Default: false */
 	lightTheme?: boolean;
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -314,6 +416,12 @@ export interface SvelteA11yReporterProps {
 	lightTheme?: boolean;
 	/** Also audit child elements within the selected element. Default: true */
 	includeSubtree?: boolean;
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -359,6 +467,12 @@ export interface SvelteErrorContextProps {
 	bufferMinutes?: number;
 	/** Hide stack frames from node_modules for cleaner traces. Default: true */
 	filterNodeModules?: boolean;
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -411,6 +525,12 @@ export interface SvelteRenderProfilerProps {
 	burstThreshold?: number;
 	/** Time window in milliseconds for burst detection. Default: 1000 */
 	burstWindow?: number;
+	/**
+	 * Trigger shortcuts of this tool (Alt+{key}). `false` keeps the tool mounted
+	 * (its logic still serves the MCP runtime) but ignores its trigger; Escape
+	 * still closes an open popup. SvelteDevKit sets it from `hotkeys`. Default: true
+	 */
+	enableHotkeys?: boolean;
 }
 
 // ============================================================
@@ -447,8 +567,25 @@ export interface SvelteDevKitProps {
 	enableDragSelect?: boolean;
 	/** Enable auto-send to MCP server on grab. Default: false */
 	enableMcp?: boolean;
-	/** Port for MCP HTTP server. Default: 4723 */
+	/**
+	 * Port for MCP HTTP server. Default: 4723. If the server is not there (or
+	 * another service answers), the page probes `GET /health` on the next 9
+	 * ports and uses the first svelte-grab server it finds.
+	 */
 	mcpPort?: number;
+	/**
+	 * Token for an MCP server started with `SVELTE_GRAB_TOKEN` / `--token`.
+	 * Sent as the `x-svelte-grab-token` header on POSTs and as `?token=` on the
+	 * `/events` stream. Default: none
+	 */
+	mcpToken?: string;
+	/**
+	 * Let coding agents query this page through the MCP server (`ui_snapshot`,
+	 * `ui_find`): the page listens for `runtime-command` events on the server's
+	 * SSE stream and stamps `data-sg-ref` on the elements it reports. Only
+	 * active together with `enableMcp`, and only in dev builds. Default: true
+	 */
+	enableAgentRuntime?: boolean;
 
 	// SvelteGrab props forwarding
 	/** Auto-copy format when element is grabbed. Default: 'agent' */
@@ -473,7 +610,11 @@ export interface SvelteDevKitProps {
 	maxHistorySize?: number;
 
 	// Sub-tool config props
-	/** Secondary modifier for StateGrab. Default: 'shift' */
+	/**
+	 * Secondary modifier for StateGrab. Default: 'meta' (Alt+Meta+Click) when
+	 * SvelteGrab is enabled with multi-select, since Shift+Alt+Click is
+	 * multi-select; otherwise 'shift' (Alt+Shift+Click, the standalone default).
+	 */
 	stateSecondaryModifier?: 'shift' | 'ctrl' | 'meta';
 	/** Secondary modifier for StyleGrab. Default: 'ctrl' */
 	styleSecondaryModifier?: 'shift' | 'ctrl' | 'meta';
@@ -503,6 +644,18 @@ export interface SvelteDevKitProps {
 	enableHistoryPersistence?: boolean;
 	/** Enable prompt/input mode. Default: true */
 	enablePromptMode?: boolean;
+	/** Annotation mode in SvelteGrab (N while selecting; see SvelteGrabProps). Default: true */
+	enableAnnotations?: boolean;
+	/**
+	 * Shortcut set. `'full'`: every tool's shortcuts (current behavior).
+	 * `'minimal'`: only Alt+Click (point), Shift+Alt+Click (multi), Alt+Drag
+	 * (region), Escape and N (annotate). The other tools' triggers (Alt+Shift+
+	 * Click state, Alt+Ctrl+Click style, Alt+DoubleClick tracer, Alt+RightClick /
+	 * Alt+A a11y, Alt+E errors, Alt+P profiler) and DevKit's Alt+Shift+C / Alt+?
+	 * are off; those tools stay mounted so the MCP runtime can still use them.
+	 * Default: 'full'
+	 */
+	hotkeys?: HotkeysMode;
 }
 
 // ============================================================

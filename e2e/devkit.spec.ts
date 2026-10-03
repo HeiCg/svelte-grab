@@ -40,6 +40,15 @@ test.describe('SvelteDevKit — dev-mode activation', () => {
 		await expect(
 			page.locator('[role="dialog"][aria-label="SvelteDevKit Keyboard Shortcuts"]')
 		).toBeVisible();
+
+		// The help popup is mounted hidden and opened later: its overlay root must
+		// still get the svelte-grab UI marker (keeps it out of ui_snapshot /
+		// ui_find) and the third-party redaction marks.
+		const overlay = page.locator(
+			'.sg-overlay:has([role="dialog"][aria-label="SvelteDevKit Keyboard Shortcuts"])'
+		);
+		await expect(overlay).toHaveAttribute('data-svelte-grab-ui', '');
+		await expect(overlay).toHaveAttribute('data-sentry-block', '');
 	});
 
 	test('Alt+Shift+C copies the unified context export including prior tool output', async ({
@@ -59,5 +68,30 @@ test.describe('SvelteDevKit — dev-mode activation', () => {
 		await page.keyboard.up('Alt');
 
 		await expectClipboardToContain(page, 'Unified Context Export');
+	});
+
+	test('Shift+Alt+Click multi-selects without StateGrab; Alt+Meta+Click opens StateGrab', async ({
+		page
+	}) => {
+		await gotoPlayground(page);
+		const stateDialog = page.locator('[role="dialog"][aria-label="SvelteStateGrab inspector"]');
+
+		// Two Shift+Alt+Clicks: both land in the multi-selection, no StateGrab popup.
+		await page.getByTestId('fx-button-a').click({ modifiers: ['Alt', 'Shift'] });
+		await page.getByTestId('fx-button-b').click({ modifiers: ['Alt', 'Shift'] });
+		await expect(page.locator('.svelte-grab-highlight-selected')).toHaveCount(2);
+		await expect(stateDialog).toHaveCount(0);
+		await page.locator('.svelte-grab-floating-bar button', { hasText: 'Clear' }).click();
+		await expect(page.locator('.svelte-grab-highlight-selected')).toHaveCount(0);
+
+		// DevKit's StateGrab trigger is Alt+Meta+Click.
+		await page.getByTestId('fx-button-a').click({ modifiers: ['Alt', 'Meta'] });
+		await expect(stateDialog).toBeVisible();
+
+		// The help overlay lists the new trigger.
+		await page.keyboard.press('Escape');
+		await altKey(page, '?');
+		const help = page.locator('[role="dialog"][aria-label="SvelteDevKit Keyboard Shortcuts"]');
+		await expect(help.locator('tr', { hasText: 'State Inspector' })).toContainText('Alt+Meta+Click');
 	});
 });

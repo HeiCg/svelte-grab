@@ -26,7 +26,6 @@
 
 	let {
 		modifier = 'alt',
-		secondaryModifier = 'shift',
 		forceEnable = false,
 		showPopup = true,
 		theme = {},
@@ -36,7 +35,8 @@
 		burstWindow = 1000,
 		liveHighlight = false,
 		showFps = true,
-		showWidget = true
+		showWidget = true,
+		enableHotkeys = true
 	}: LiveProfilerProps = $props();
 
 	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
@@ -167,7 +167,7 @@
 		}
 
 		// Alt+P to toggle profiler
-		if (checkModifier(event, modifier) && (event.key === 'p' || event.key === 'P')) {
+		if (enableHotkeys && checkModifier(event, modifier) && (event.key === 'p' || event.key === 'P')) {
 			event.preventDefault();
 			if (isProfiling) {
 				stopProfiling();

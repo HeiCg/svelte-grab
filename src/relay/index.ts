@@ -1,3 +1,12 @@
+/**
+ * svelte-grab/relay: WebSocket relay between the browser overlay and a coding
+ * agent provider (Claude Code, Cursor, Copilot, Codex).
+ *
+ * MAINTENANCE MODE. Still supported (bug and security fixes), but it gets no
+ * new providers or features. New integrations should use the MCP server
+ * (`svelte-grab/mcp`, `svelte-grab-mcp --stdio`), where the agent queries the
+ * live page itself through the `ui_*` tools. See docs/agent-runtime-spec.md.
+ */
 export { createRelayServer } from './server.js';
 export type { RelayServerOptions } from './server.js';
 export type { AgentProvider, AgentProviderCallbacks } from './providers/base.js';

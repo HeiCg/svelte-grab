@@ -85,7 +85,7 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 		host: LOOPBACK_HOST,
 		port,
 		maxPayload: MAX_PAYLOAD,
-		verifyClient: (info: { origin?: string; req: any }, cb: (ok: boolean, code?: number, msg?: string) => void) => {
+		verifyClient: (info: { origin?: string; req?: { url?: string; headers?: Record<string, string | string[] | undefined> } }, cb: (ok: boolean, code?: number, msg?: string) => void) => {
 			if (!isOriginAllowed(info.origin, security)) {
 				cb(false, 403, 'Origin not allowed');
 				return;
@@ -116,7 +116,7 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 		};
 		ws.send(JSON.stringify(handlersMsg));
 
-		ws.on('message', async (data: any) => {
+		ws.on('message', async (data: { toString(): string }) => {
 			let parsed: unknown;
 			try {
 				parsed = JSON.parse(data.toString());

@@ -22,6 +22,9 @@ export type {
 	ThemeConfig,
 	SvelteMeta,
 	DevStackEntry,
+	DevStackEntryType,
+	SvelteSourceLocation,
+	HotkeysMode,
 
 	// Plugin system types
 	SvelteGrabPlugin,
@@ -37,6 +40,7 @@ export type {
 	// StateGrab types
 	SvelteStateGrabProps,
 	ComponentStateInfo,
+	InspectableStateInstance,
 	ChildComponentInfo,
 	StateSnapshot,
 	StateDiff,

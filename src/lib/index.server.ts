@@ -15,6 +15,13 @@ export const SvelteErrorContext = noop;
 export const SvelteRenderProfiler = noop;
 export const SvelteDevKit = noop;
 
+// inspectable() is a client-only dev registry; on the server it does nothing.
+// Same name and call signature as the client export.
+export function inspectable(_name: string, _values: Record<string, unknown>): () => void {
+	return noop;
+}
+export function uninspectable(_name: string): void {}
+
 // Core utilities (already SSR-safe)
 export { PluginRegistry } from './core/plugin-registry.js';
 export { createGlobalAPI, destroyGlobalAPI } from './core/global-api.js';
@@ -28,6 +35,9 @@ export type {
 	ThemeConfig,
 	SvelteMeta,
 	DevStackEntry,
+	DevStackEntryType,
+	SvelteSourceLocation,
+	HotkeysMode,
 
 	// Plugin system types
 	SvelteGrabPlugin,

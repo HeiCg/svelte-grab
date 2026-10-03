@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { fileURLToPath } from 'node:url';
+// The repo's own Vite plugin source (what `svelte-grab/vite` ships): HMR
+// bridge, /__svelte-grab/importers and the editor-link root marker.
+import { svelteGrab } from '../../src/vite/index.ts';
 
 // Resolve the library's REAL source so e2e exercises the actual code in src/lib,
 // not the published dist. The `@sveltejs/vite-plugin-svelte` dev build is what
@@ -9,8 +12,23 @@ import { fileURLToPath } from 'node:url';
 // so this app MUST be served via `vite dev` for the tools to activate.
 const libIndex = fileURLToPath(new URL('../../src/lib/index.ts', import.meta.url));
 
+// e2e port: `SG_E2E_PORT` (set by playwright.config.ts) lets several Playwright
+// runs serve their own playground side by side. strictPort: never drift to
+// another port the tests would not be pointed at.
+const port = Number(process.env.SG_E2E_PORT || 5189);
+
 export default defineConfig({
-	plugins: [svelte()],
+	plugins: [
+		svelte({
+			// Svelte's experimental async mode: enables `await` in component
+			// script/markup and `<svelte:boundary>` `pending` snippets. The
+			// agent-runtime fixtures (AsyncFixture) depend on it.
+			compilerOptions: {
+				experimental: { async: true }
+			}
+		}),
+		svelteGrab()
+	],
 	resolve: {
 		alias: {
 			// `import { SvelteDevKit } from 'svelte-grab'` -> repo's src/lib/index.ts
@@ -18,7 +36,14 @@ export default defineConfig({
 		}
 	},
 	server: {
-		port: 5189,
+		port,
+		strictPort: true,
+		// CI runners (Linux, containerised FS) can miss fast successive native
+		// fs events, which made the HMR e2e (edit then restore a fixture) flaky.
+		watch: process.env.CI ? { usePolling: true, interval: 100 } : undefined
+	},
+	preview: {
+		port,
 		strictPort: true
 	},
 	// The library imports a couple of optional peer deps via dynamic import()

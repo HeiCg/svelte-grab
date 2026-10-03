@@ -11,7 +11,7 @@
 		DARK_THEME,
 		LIGHT_THEME
 	} from './utils/shared.js';
-	import type { SvelteElement } from './utils/shared.js';
+	import { getSvelteLoc } from './utils/component-stack.js';
 	import { analyzeStyles, formatStylesForAgent } from './utils/css-analyzer.js';
 	import { registerToolOutput } from './utils/unified-export.js';
 	import { createCopyFeedback } from './utils/copy-with-feedback.js';
@@ -35,7 +35,8 @@
 		showPopup = true,
 		theme = {},
 		lightTheme = false,
-		showCategories = ['all']
+		showCategories = ['all'],
+		enableHotkeys = true
 	}: SvelteStyleGrabProps = $props();
 
 	let baseTheme = $derived(lightTheme ? LIGHT_THEME : DARK_THEME);
@@ -259,6 +260,7 @@
 	}
 
 	function handleClick(event: MouseEvent) {
+		if (!enableHotkeys) return;
 		if (!checkModifier(event, modifier)) return;
 		// Require Ctrl as secondary (not Shift which is StateGrab)
 		if (secondaryModifier === 'ctrl' && !event.ctrlKey) return;
@@ -281,9 +283,9 @@
 		const cls = svelteEl.className ? ` class="${String(svelteEl.className).slice(0, 40)}"` : '';
 		elementTag = `<${tag}${cls}>`;
 
-		const meta = (svelteEl as SvelteElement).__svelte_meta;
-		elementFile = meta?.loc ? shortenPath(meta.loc.file) : undefined;
-		elementLine = meta?.loc?.line;
+		const loc = getSvelteLoc(svelteEl);
+		elementFile = loc ? shortenPath(loc.file) : undefined;
+		elementLine = loc?.line;
 
 		capturedElement = svelteEl;
 		const result = analyzeStyles(svelteEl);
@@ -296,7 +298,7 @@
 		};
 		categories = showAll
 			? result.categories
-			: result.categories.filter(c => showCategories.includes(categoryKeyMap[c.name] as any));
+			: result.categories.filter(c => (showCategories as string[]).includes(categoryKeyMap[c.name]));
 		conflicts = result.conflicts;
 		activeCategory = categories.length > 0 ? categories[0].name : null;
 

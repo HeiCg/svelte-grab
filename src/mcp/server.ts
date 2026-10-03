@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { DEFAULT_MCP_PORT } from './constants.js';
+import { readFileSync } from 'node:fs';
+import { DEFAULT_MCP_PORT, MCP_PORT_RANGE_SIZE, MCP_SERVICE_ID } from './constants.js';
 import { findAvailablePort } from '../utils/port.js';
 import {
 	LOOPBACK_HOST,
@@ -11,9 +12,16 @@ import {
 	type SecurityConfig,
 	type SecurityOptions
 } from '../utils/security.js';
+import { TabRegistry } from './runtime/tab-registry.js';
+import { CommandChannel, type RuntimeCommandMessage, type SendOptions } from './runtime/command-channel.js';
+import { parseHelloPayload, parseResultPayload, isPlainObject, type RuntimeResultData } from './runtime/validate.js';
+import { registerRuntimeTools, type McpToolServer, type ZodNamespace } from './runtime/tools.js';
 
 /** Max request body size (2 MB) for POST endpoints. */
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+/** How long / how much of an oversized body is discarded before the 413 is forced out. */
+const OVERSIZED_DRAIN_MS = 5_000;
+const OVERSIZED_DRAIN_BYTES = 64 * 1024 * 1024;
 /** Cap on retained SSE clients and pending watchers (bounds memory). */
 const MAX_SSE_CLIENTS = 100;
 const MAX_WATCHERS = 100;
@@ -22,6 +30,31 @@ export interface McpServerOptions extends SecurityOptions {
 	port?: number;
 	stdio?: boolean;
 }
+
+/** Port actually bound vs. the one asked for (differs after a fallback). */
+interface ListenInfo {
+	port: number;
+	preferredPort: number;
+}
+
+/**
+ * svelte-grab version for `GET /health`. package.json sits two levels up from
+ * both src/mcp/ (tests) and dist/mcp/ (published build).
+ */
+function readPackageVersion(): string {
+	try {
+		const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
+			name?: unknown;
+			version?: unknown;
+		};
+		if (pkg.name === 'svelte-grab' && typeof pkg.version === 'string') return pkg.version;
+	} catch {
+		// fall through
+	}
+	return 'unknown';
+}
+
+const PACKAGE_VERSION = readPackageVersion();
 
 // Module-level security config — resolved when the server starts.
 // Defaults to "origin check on, token off" until startMcpServer overrides it.
@@ -75,16 +108,46 @@ function notifyWatchers(ctx: ContextPayload): void {
 
 /**
  * Send an SSE event to all connected browsers.
+ * Returns how many clients the event was written to.
  */
-function broadcastSSE(event: string, data: unknown): void {
+function broadcastSSE(event: string, data: unknown): number {
 	const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+	let delivered = 0;
 	for (const client of sseClients) {
+		if (client.destroyed || client.writableEnded) {
+			sseClients.delete(client);
+			continue;
+		}
 		try {
 			client.write(payload);
+			delivered++;
 		} catch {
 			sseClients.delete(client);
 		}
 	}
+	return delivered;
+}
+
+// ============================================================
+// Agent runtime channel (docs/agent-runtime-spec.md, wire contract v1)
+// ============================================================
+const tabRegistry = new TabRegistry();
+const commandChannel = new CommandChannel({
+	registry: tabRegistry,
+	broadcast: (message: RuntimeCommandMessage) => broadcastSSE('runtime-command', message)
+});
+
+/**
+ * Send a runtime command to a connected browser tab (explicit `tabId` or the
+ * active tab) and wait for its `POST /runtime/result`. Rejects when no tab is
+ * connected, on page error, or on timeout (default 10s, max 60s).
+ */
+export function sendRuntimeCommand(
+	tool: string,
+	args: Record<string, unknown>,
+	options: SendOptions = {}
+): Promise<RuntimeResultData> {
+	return commandChannel.send(tool, args, options);
 }
 
 /**
@@ -137,25 +200,106 @@ function checkAccess(req: IncomingMessage, res: ServerResponse): boolean {
 	return true;
 }
 
+class BodyTooLargeError extends Error {
+	constructor() {
+		super('Request body too large');
+	}
+}
+
 /**
- * Read request body as string, rejecting bodies that exceed MAX_BODY_BYTES.
+ * Read request body as string, rejecting with BodyTooLargeError when it
+ * exceeds MAX_BODY_BYTES (declared Content-Length or bytes received). On
+ * rejection nothing more is buffered and the request is left unread: the
+ * caller answers with respondTooLarge().
  */
 function readBody(req: IncomingMessage): Promise<string> {
 	return new Promise((resolve, reject) => {
-		const chunks: Buffer[] = [];
+		const declared = Number(req.headers['content-length']);
+		if (declared > MAX_BODY_BYTES) {
+			reject(new BodyTooLargeError());
+			return;
+		}
+		let chunks: Buffer[] = [];
 		let size = 0;
-		req.on('data', (chunk: Buffer) => {
+		const onData = (chunk: Buffer) => {
 			size += chunk.length;
 			if (size > MAX_BODY_BYTES) {
-				reject(new Error('Request body too large'));
-				req.destroy();
+				req.off('data', onData);
+				req.off('end', onEnd);
+				chunks = [];
+				reject(new BodyTooLargeError());
 				return;
 			}
 			chunks.push(chunk);
-		});
-		req.on('end', () => resolve(Buffer.concat(chunks).toString()));
+		};
+		const onEnd = () => resolve(Buffer.concat(chunks).toString());
+		req.on('data', onData);
+		req.on('end', onEnd);
+		// Stays attached after an overflow so a late socket error is never unhandled.
 		req.on('error', reject);
 	});
+}
+
+/**
+ * Answer an oversized request with a 413 the client can actually read.
+ *
+ * Closing a socket that still has unread request bytes makes the kernel send
+ * a RST, and the client gets a connection reset instead of the response. So
+ * the rest of the body is read and discarded (never buffered) until the client
+ * is done, then the 413 goes out with `Connection: close`. A client still
+ * sending after OVERSIZED_DRAIN_MS or OVERSIZED_DRAIN_BYTES gets the 413
+ * right away and the socket is closed behind it.
+ */
+function respondTooLarge(req: IncomingMessage, res: ServerResponse): void {
+	let drained = 0;
+	let done = false;
+	const finish = (respond: boolean) => {
+		if (done) return;
+		done = true;
+		clearTimeout(timer);
+		req.off('data', onData);
+		req.off('end', onEnd);
+		req.off('close', onClose);
+		// Keep discarding whatever still arrives until the socket closes.
+		req.resume();
+		if (!respond || res.headersSent) return;
+		res.setHeader('Connection', 'close');
+		sendJson(res, 413, { error: 'Request body too large' });
+	};
+	const onData = (chunk: Buffer) => {
+		drained += chunk.length;
+		if (drained > OVERSIZED_DRAIN_BYTES) finish(true);
+	};
+	const onEnd = () => finish(true);
+	const onClose = () => finish(false);
+	const timer = setTimeout(() => finish(true), OVERSIZED_DRAIN_MS);
+	timer.unref();
+	req.on('data', onData);
+	req.on('end', onEnd);
+	req.on('close', onClose);
+	if (req.readableEnded) finish(true);
+}
+
+/**
+ * Read and JSON-parse a POST body with the shared cap and error mapping
+ * (413 too large, 400 invalid JSON). Returns `undefined` after writing the
+ * error response.
+ */
+async function readJsonBody(req: IncomingMessage, res: ServerResponse): Promise<{ data: unknown } | undefined> {
+	let body: string;
+	try {
+		body = await readBody(req);
+	} catch (err) {
+		if (err instanceof BodyTooLargeError) respondTooLarge(req, res);
+		else sendJson(res, 400, { error: 'Invalid JSON' });
+		return undefined;
+	}
+	try {
+		return { data: JSON.parse(body) };
+	} catch {
+		sendJson(res, 400, { error: 'Invalid JSON' });
+		return undefined;
+	}
 }
 
 /**
@@ -211,22 +355,39 @@ function processIncomingContext(data: ContextPayload): void {
  * Uses @modelcontextprotocol/sdk if available, otherwise returns 501.
  */
 async function handleMcpProtocol(req: IncomingMessage, res: ServerResponse): Promise<void> {
+	// Read the body here (same 2 MB cap as the other POST endpoints) and hand it
+	// to the transport as `parsedBody`, so the SDK never buffers it unbounded.
+	let parsedBody: unknown;
+	try {
+		parsedBody = JSON.parse(await readBody(req));
+	} catch (err) {
+		if (err instanceof BodyTooLargeError) {
+			respondTooLarge(req, res);
+		} else {
+			// Same JSON-RPC parse error the SDK returns for a malformed body.
+			sendJson(res, 400, { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error: Invalid JSON' }, id: null });
+		}
+		return;
+	}
+
 	try {
 		const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
 		const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
+		const { z } = await import('zod');
 
 		const server = new McpServer({
 			name: 'svelte-grab',
 			version: '1.0.0'
 		});
 
-		registerMcpTools(server);
+		registerMcpTools(server, z);
 
-		const transport = new StreamableHTTPServerTransport('/mcp');
+		// Stateless: a fresh server + transport per request, no session ids.
+		const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 		await server.connect(transport);
-		await transport.handleRequest(req, res);
+		await transport.handleRequest(req, res, parsedBody);
 	} catch {
-		sendJson(res, 501, { error: '@modelcontextprotocol/sdk not installed' });
+		if (!res.headersSent) sendJson(res, 501, { error: '@modelcontextprotocol/sdk not installed' });
 	}
 }
 
@@ -248,18 +409,21 @@ function extractToolSection(toolName: string): string | null {
 /**
  * Register MCP tools on a server instance.
  */
-function registerMcpTools(server: any): void {
+function registerMcpTools(server: McpToolServer, z: ZodNamespace): void {
 	// ============================================================
 	// watch_for_grab — blocks until the browser sends new context
 	// ============================================================
-	server.tool(
+	server.registerTool(
 		'watch_for_grab',
-		'Waits for the user to select a component in the browser and send context via svelte-grab. ' +
-		'This tool BLOCKS until the user Alt+Clicks an element and submits their prompt. ' +
-		'Returns the component context (file paths, component stack, HTML) plus the user\'s instruction. ' +
-		'Call this in a loop to continuously receive instructions from the browser. ' +
-		'The user selects a component, types what they want changed, and hits Enter — you receive everything here.',
-		{},
+		{
+			title: 'Watch for browser grab',
+			description:
+				'Waits for the user to select a component in the browser and send context via svelte-grab. ' +
+				'This tool BLOCKS until the user Alt+Clicks an element and submits their prompt. ' +
+				'Returns the component context (file paths, component stack, HTML) plus the user\'s instruction. ' +
+				'Call this in a loop to continuously receive instructions from the browser. ' +
+				'The user selects a component, types what they want changed, and hits Enter — you receive everything here.'
+		},
 		async () => {
 			agentWatching = true;
 			broadcastSSE('agent-status', { status: 'watching', message: 'Claude Code is listening...' });
@@ -305,10 +469,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_element_context',
-		'Returns the last element context captured by svelte-grab in the browser. Returns the grabbed component stack, HTML preview, and optional prompt. Context is cleared after reading.',
-		{},
+		{
+			title: 'Get last element context',
+			description:
+				'Returns the last element context captured by svelte-grab in the browser. Returns the grabbed component stack, HTML preview, and optional prompt. Context is cleared after reading.'
+		},
 		async () => {
 			if (!storedContext) {
 				return {
@@ -330,10 +497,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'undo_last_action',
-		'Returns an undo instruction with the original context from the last interaction. Use this to instruct the agent to undo its last change.',
-		{},
+		{
+			title: 'Undo last action',
+			description:
+				'Returns an undo instruction with the original context from the last interaction. Use this to instruct the agent to undo its last change.'
+		},
 		async () => {
 			if (sessionHistory.length === 0) {
 				return {
@@ -355,10 +525,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_session_history',
-		'Returns the list of recent interactions (contexts sent by the browser). Each entry includes the content, prompt, and timestamp.',
-		{},
+		{
+			title: 'Get session history',
+			description:
+				'Returns the list of recent interactions (contexts sent by the browser). Each entry includes the content, prompt, and timestamp.'
+		},
 		async () => {
 			if (sessionHistory.length === 0) {
 				return {
@@ -381,10 +554,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_a11y_report',
-		'Returns the last accessibility audit report captured by SvelteA11yReporter. Includes WCAG violations, scores, and fix suggestions.',
-		{},
+		{
+			title: 'Get accessibility report',
+			description:
+				'Returns the last accessibility audit report captured by SvelteA11yReporter. Includes WCAG violations, scores, and fix suggestions.'
+		},
 		async () => {
 			const section = extractToolSection('A11yReporter');
 			if (!section) {
@@ -396,10 +572,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_style_context',
-		'Returns the last CSS style analysis captured by SvelteStyleGrab. Includes computed styles, conflicts, and source attribution.',
-		{},
+		{
+			title: 'Get style context',
+			description:
+				'Returns the last CSS style analysis captured by SvelteStyleGrab. Includes computed styles, conflicts, and source attribution.'
+		},
 		async () => {
 			const section = extractToolSection('StyleGrab');
 			if (!section) {
@@ -411,10 +590,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_error_context',
-		'Returns captured console errors and warnings from SvelteErrorContext. Includes stack traces, component attribution, and error patterns.',
-		{},
+		{
+			title: 'Get error context',
+			description:
+				'Returns captured console errors and warnings from SvelteErrorContext. Includes stack traces, component attribution, and error patterns.'
+		},
 		async () => {
 			const section = extractToolSection('ErrorContext');
 			if (!section) {
@@ -426,10 +608,13 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'get_profiler_report',
-		'Returns the last render profiler report from SvelteRenderProfiler. Includes hot components, render counts, and burst detection.',
-		{},
+		{
+			title: 'Get render profiler report',
+			description:
+				'Returns the last render profiler report from SvelteRenderProfiler. Includes hot components, render counts, and burst detection.'
+		},
 		async () => {
 			const section = extractToolSection('RenderProfiler');
 			if (!section) {
@@ -441,10 +626,12 @@ function registerMcpTools(server: any): void {
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		'list_available_tools',
-		'Lists which svelte-grab tools have data available and when it was last captured.',
-		{},
+		{
+			title: 'List available tool data',
+			description: 'Lists which svelte-grab tools have data available and when it was last captured.'
+		},
 		async () => {
 			const tools: string[] = [];
 
@@ -473,13 +660,16 @@ function registerMcpTools(server: any): void {
 			};
 		}
 	);
+
+	// Agent runtime: ui_tabs (server-only), ui_snapshot / ui_find / ui_inspect (page round trip).
+	registerRuntimeTools(server, z, { registry: tabRegistry, channel: commandChannel });
 }
 
 /**
  * Create the HTTP request handler for the context bridge.
  * Used by both standalone HTTP mode and as a sidecar in stdio mode.
  */
-function createHttpHandler() {
+function createHttpHandler(listen: ListenInfo) {
 	return async (req: IncomingMessage, res: ServerResponse) => {
 		setCorsHeaders(req, res);
 
@@ -503,6 +693,13 @@ function createHttpHandler() {
 		if (req.method === 'GET' && path === '/health') {
 			sendJson(res, 200, {
 				status: 'ok',
+				// Identity: lets the page confirm it reached this server and not
+				// something else on the port (the port may have fallen back).
+				service: MCP_SERVICE_ID,
+				version: PACKAGE_VERSION,
+				port: listen.port,
+				preferredPort: listen.preferredPort,
+				portFallback: listen.port !== listen.preferredPort,
 				hasContext: storedContext !== null,
 				agentWatching,
 				watcherCount: watchQueue.length,
@@ -545,26 +742,59 @@ function createHttpHandler() {
 
 		// POST /context — browser sends grabbed context here
 		if (req.method === 'POST' && path === '/context') {
-			try {
-				const body = await readBody(req);
-				const data = JSON.parse(body);
-
-				if (!isValidContextPayload(data)) {
-					sendJson(res, 400, { error: 'Invalid payload. Expected { content: string[], prompt?: string }' });
-					return;
-				}
-
-				processIncomingContext(data);
-
-				sendJson(res, 200, { ok: true, agentWatching });
-			} catch (err) {
-				const tooLarge = err instanceof Error && err.message === 'Request body too large';
-				sendJson(res, tooLarge ? 413 : 400, { error: tooLarge ? 'Request body too large' : 'Invalid JSON' });
+			const body = await readJsonBody(req, res);
+			if (!body) return;
+			if (!isValidContextPayload(body.data)) {
+				sendJson(res, 400, { error: 'Invalid payload. Expected { content: string[], prompt?: string }' });
+				return;
 			}
+			processIncomingContext(body.data);
+			sendJson(res, 200, { ok: true, agentWatching });
 			return;
 		}
 
-		// POST /mcp — MCP protocol endpoint (only in HTTP mode)
+		// POST /runtime/hello — page registers/heartbeats its tab (wire contract v1)
+		if (req.method === 'POST' && path === '/runtime/hello') {
+			const body = await readJsonBody(req, res);
+			if (!body) return;
+			const parsed = parseHelloPayload(body.data);
+			if (!parsed.ok) {
+				sendJson(res, 400, { error: `Invalid payload: ${parsed.error}` });
+				return;
+			}
+			tabRegistry.hello(parsed.value);
+			sendJson(res, 200, { ok: true });
+			return;
+		}
+
+		// POST /runtime/result — page answers a runtime-command (wire contract v1)
+		if (req.method === 'POST' && path === '/runtime/result') {
+			const body = await readJsonBody(req, res);
+			if (!body) return;
+			const parsed = parseResultPayload(body.data);
+			if (!parsed.ok) {
+				// Fail the matching command now instead of letting the agent wait for the timeout.
+				const id = isPlainObject(body.data) ? body.data.id : undefined;
+				if (typeof id === 'string') {
+					commandChannel.fail(id, new Error(`Browser tab sent an invalid result: ${parsed.error}`));
+				}
+				sendJson(res, 400, { error: `Invalid payload: ${parsed.error}` });
+				return;
+			}
+			const outcome = commandChannel.settle(parsed.value);
+			if (outcome === 'unknown-id') {
+				sendJson(res, 404, { error: 'Unknown or expired command id' });
+				return;
+			}
+			if (outcome === 'tab-mismatch') {
+				sendJson(res, 404, { error: 'Command id was not sent to this tab' });
+				return;
+			}
+			sendJson(res, 200, { ok: true });
+			return;
+		}
+
+		// POST /mcp — MCP protocol endpoint (HTTP mode and the stdio sidecar)
 		if (req.method === 'POST' && path === '/mcp') {
 			await handleMcpProtocol(req, res);
 			return;
@@ -579,19 +809,25 @@ function createHttpHandler() {
  * Start the HTTP server on the given port.
  */
 async function startHttpListener(preferredPort: number): Promise<{ close: () => void; port: number }> {
+	const lastPort = preferredPort + MCP_PORT_RANGE_SIZE - 1;
 	let port: number;
 	try {
-		port = await findAvailablePort(preferredPort);
+		port = await findAvailablePort(preferredPort, MCP_PORT_RANGE_SIZE - 1);
 	} catch {
-		throw new Error(`Could not find available port starting from ${preferredPort}`);
+		throw new Error(`Could not find an available port in ${preferredPort}-${lastPort}`);
 	}
 
 	if (port !== preferredPort) {
-		console.error(`[svelte-grab mcp] Port ${preferredPort} was in use, using ${port} instead`);
+		// stderr: stdout belongs to the stdio transport in sidecar mode.
+		console.error(
+			`[svelte-grab mcp] Port ${preferredPort} was in use, using ${port} instead. ` +
+				`The page finds it by probing GET /health on ${preferredPort}-${lastPort}; ` +
+				`pass mcpPort=${port} (e.g. <SvelteGrab mcpPort={${port}} />) to skip the probe.`
+		);
 	}
 
 	return new Promise((resolve, reject) => {
-		const server = createServer(createHttpHandler());
+		const server = createServer(createHttpHandler({ port, preferredPort }));
 
 		server.on('error', (err: NodeJS.ErrnoException) => {
 			reject(err);
@@ -607,16 +843,17 @@ async function startHttpListener(preferredPort: number): Promise<{ close: () => 
 /**
  * Start the MCP server in HTTP mode.
  */
-async function startHttpServer(preferredPort: number): Promise<{ close: () => void }> {
+async function startHttpServer(preferredPort: number): Promise<{ close: () => void; port: number }> {
 	const { close, port } = await startHttpListener(preferredPort);
 
 	console.log(`[svelte-grab mcp] HTTP server listening on http://localhost:${port}`);
 	console.log(`[svelte-grab mcp] Health check: http://localhost:${port}/health`);
 	console.log(`[svelte-grab mcp] Context endpoint: POST http://localhost:${port}/context`);
 	console.log(`[svelte-grab mcp] SSE events: http://localhost:${port}/events`);
+	console.log(`[svelte-grab mcp] Runtime channel: POST http://localhost:${port}/runtime/hello, /runtime/result`);
 	logSecurityBanner('mcp', security);
 
-	return { close };
+	return { close, port };
 }
 
 /**
@@ -626,13 +863,17 @@ async function startHttpServer(preferredPort: number): Promise<{ close: () => vo
 async function startStdioServer(httpPort: number): Promise<void> {
 	const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
 	const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
+	const { z } = await import('zod');
 
 	const server = new McpServer({
 		name: 'svelte-grab',
 		version: '1.0.0'
 	});
 
-	registerMcpTools(server);
+	// ui_* tools reach the page through the sidecar HTTP listener below (same
+	// process, shared tab registry). If the sidecar cannot start, no tab can
+	// connect and ui_* tools return the "No browser tab connected" error.
+	registerMcpTools(server, z);
 
 	// Start sidecar HTTP server for browser context bridge
 	try {
@@ -656,7 +897,7 @@ async function startStdioServer(httpPort: number): Promise<void> {
  * and starts a sidecar HTTP server for browser context.
  * In HTTP mode, starts an HTTP server with /health, /context, /events, and /mcp endpoints.
  */
-export async function startMcpServer(options: McpServerOptions = {}): Promise<{ close: () => void } | void> {
+export async function startMcpServer(options: McpServerOptions = {}): Promise<{ close: () => void; port: number } | void> {
 	const { port = DEFAULT_MCP_PORT, stdio = false } = options;
 
 	// Resolve security config (Origin allowlist + optional token) from

@@ -54,6 +54,23 @@ opt into jsdom per-file with a docblock pragma:
 Add tests for any pure utility you change, and run `npm run test:run` before
 opening a PR.
 
+### End-to-end tests
+
+`npm run test:e2e` runs Playwright against `examples/playground`, served by
+`vite dev` on port **5189**. Playwright starts the dev server itself (and reuses
+one already running on 5189 outside CI).
+
+The port comes from `SG_E2E_PORT`, read by both `playwright.config.ts` and the
+playground's `vite.config.ts`. To run a second suite in parallel (another
+checkout or worktree), give it its own port:
+
+```bash
+SG_E2E_PORT=5219 npx playwright test
+```
+
+With `SG_E2E_PORT` set, Playwright always starts a fresh playground and never
+reuses a server already listening on that port.
+
 ## Dev-only security note
 
 svelte-grab is a **development tool**. All components read `__svelte_meta`,

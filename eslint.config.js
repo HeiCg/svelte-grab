@@ -25,7 +25,14 @@ export default tseslint.config(
 			// Scratch repos cloned during dev/testing
 			'tmp/',
 			'scratch/',
-			'**/cloned-*/'
+			'**/cloned-*/',
+			// Agent worktrees; demo app has its own Svelte/async compiler config
+			'.claude/',
+			'examples/',
+			// Standalone packages (sv add-on): build output and their own demo/deps
+			'packages/*/dist/',
+			'packages/*/node_modules/',
+			'packages/*/demo/'
 		]
 	},
 	js.configs.recommended,

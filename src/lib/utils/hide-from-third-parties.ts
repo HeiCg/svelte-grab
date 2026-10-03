@@ -62,6 +62,14 @@ export const THIRD_PARTY_REDACT_ATTRS: ReadonlyArray<readonly [string, string]> 
 ] as const;
 
 /**
+ * svelte-grab's own marker for its overlay roots. Not read by any third party:
+ * the agent runtime (`src/lib/runtime/`) uses it to keep the dev overlay out of
+ * `ui_snapshot` / `ui_find` results. Set by `hideFromThirdParties` because every
+ * overlay root already goes through it.
+ */
+export const SVELTE_GRAB_UI_ATTR = 'data-svelte-grab-ui';
+
+/**
  * Apply every known third-party redaction marker to `el`.
  *
  * Idempotent: classes are added via the DOM token list (no duplicates) and
@@ -84,4 +92,6 @@ export function hideFromThirdParties(el: HTMLElement): void {
 			el.setAttribute(name, value);
 		}
 	}
+
+	if (!el.hasAttribute(SVELTE_GRAB_UI_ATTR)) el.setAttribute(SVELTE_GRAB_UI_ATTR, '');
 }

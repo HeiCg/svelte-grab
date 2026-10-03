@@ -1,9 +1,14 @@
 <script lang="ts">
-	let { label = 'Button', onclick = () => {} }: { label?: string; onclick?: () => void } =
-		$props();
+	// `testid` defaults to the original id so existing specs keep matching;
+	// fixtures that reuse Button pass their own to stay unique on the page.
+	let {
+		label = 'Button',
+		onclick = () => {},
+		testid = 'demo-button'
+	}: { label?: string; onclick?: () => void; testid?: string } = $props();
 </script>
 
-<button class="pg-button" data-testid="demo-button" {onclick}>
+<button class="pg-button" data-testid={testid} {onclick}>
 	{label}
 </button>
 

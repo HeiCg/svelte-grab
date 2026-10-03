@@ -16,9 +16,11 @@ test.describe('SvelteGrab — Alt+Click', () => {
 		const clip = await expectClipboardToContain(page, 'Component Stack:');
 
 		// The nested Button > Card > App stack must be present with file:line refs.
+		// Component entries are named by `componentTag` and point at the USAGE
+		// site (`<Button>` in Card.svelte, `<Card>` in App.svelte).
 		expect(clip).toContain('Button (src/components/Button.svelte');
-		expect(clip).toContain('Card (src/components/Card.svelte');
-		expect(clip).toContain('App (src/App.svelte');
+		expect(clip).toContain('Button (src/components/Card.svelte');
+		expect(clip).toContain('Card (src/App.svelte');
 		// The line number for the grabbed element is included.
 		expect(clip).toMatch(/Button\.svelte:\d+/);
 	});
@@ -35,6 +37,7 @@ test.describe('SvelteGrab — Alt+Click', () => {
 		await grab(page, '[data-testid="demo-list-item-0"]');
 
 		const clip = await expectClipboardToContain(page, 'List.svelte');
-		expect(clip).toContain('App (src/App.svelte');
+		// `<List>` usage site in App.svelte.
+		expect(clip).toContain('List (src/App.svelte');
 	});
 });

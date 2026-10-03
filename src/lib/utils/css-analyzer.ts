@@ -560,7 +560,8 @@ export function formatStylesForAgent(
 	return parts.join('\n');
 }
 
-function formatSourceStr(source: StyleSource): string {
+/** ` → <source>` suffix used after a property value (StyleGrab, ui_inspect). */
+export function formatSourceStr(source: StyleSource): string {
 	switch (source.type) {
 		case 'inline': return ' \u2192 inline style';
 		case 'svelte-scoped': return ` \u2192 Svelte scoped${source.file ? ' (' + source.file + ')' : ''}`;
