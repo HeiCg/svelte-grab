@@ -14,9 +14,11 @@
  *
  * The tracker keeps a ring buffer of the last {@link HMR_LOG_SIZE} updates
  * (persisted in sessionStorage so a full reload keeps its record) and counts
- * console errors since the latest update.
+ * console errors since the latest update, read from the shared
+ * {@link ConsoleCapture} (it never wraps the console itself).
  */
 import { optionalInt } from './args.js';
+import { ConsoleCapture, consoleCapture } from './console-capture.js';
 import { isInOwnUi } from './node-info.js';
 import { refRegistry, type RebindReport, type RefRegistry } from './refs.js';
 import type { RuntimeToolResult } from './types.js';
@@ -46,6 +48,11 @@ export interface HmrRecord {
 	kind: HmrRecordKind;
 	/** Epoch ms when the update finished applying (or the error/reload arrived). */
 	at: number;
+	/**
+	 * Epoch ms of the matching `vite:beforeUpdate` (updates only): console
+	 * errors raised while the new modules run land between this and `at`.
+	 */
+	startedAt?: number;
 	/** Updated files, as Vite reports them (root-relative `/src/...`, no query). */
 	files: string[];
 	/** `vite:error` messages. */
@@ -171,8 +178,14 @@ export interface WaitForOptions {
 export interface HmrTrackerOptions {
 	/** Defaults to this module's `import.meta.hot`; `null` forces it off. */
 	hot?: HotContextLike | null;
-	/** Window for the plugin bridge, console and error events. Defaults to `window`. */
+	/** Window for the plugin bridge events. Defaults to `window`. */
 	target?: Window | null;
+	/**
+	 * Console capture errors are counted from. Defaults to the tab's shared
+	 * `consoleCapture`, or a private one for `target` when `target` is given;
+	 * `null` disables counting.
+	 */
+	capture?: ConsoleCapture | null;
 	/** Defaults to `sessionStorage`; `null` disables persistence. */
 	storage?: Storage | null;
 	now?: () => number;
@@ -191,14 +204,21 @@ export class HmrTracker {
 	private records: HmrRecord[] = [];
 	private waiters = new Set<Waiter>();
 	private retainCount = 0;
-	private pending: { files: string[] } | null = null;
+	private pending: { files: string[]; at: number } | null = null;
 	private bridgeSeen = false;
 	private cleanup: (() => void)[] = [];
 	private loaded = false;
 	private readonly opts: HmrTrackerOptions;
+	private readonly capture: ConsoleCapture | null;
 
 	constructor(options: HmrTrackerOptions = {}) {
 		this.opts = options;
+		this.capture =
+			options.capture !== undefined
+				? options.capture
+				: options.target !== undefined
+					? new ConsoleCapture({ target: options.target })
+					: consoleCapture;
 	}
 
 	private get hot(): HotContextLike | null {
@@ -288,12 +308,14 @@ export class HmrTracker {
 	ingest(type: string, payload: unknown, source: HmrSource): Promise<void> | undefined {
 		switch (type) {
 			case 'vite:beforeUpdate':
-				this.pending = { files: updateFiles(payload) };
+				this.pending = { files: updateFiles(payload), at: this.now() };
 				return undefined;
 			case 'vite:afterUpdate': {
 				const files = updateFiles(payload);
+				const at = this.now();
+				const startedAt = this.pending ? Math.min(this.pending.at, at) : at;
 				this.pending = null;
-				this.push({ kind: 'update', at: this.now(), files, errors: [], consoleErrors: 0, source });
+				this.push({ kind: 'update', at, startedAt, files, errors: [], consoleErrors: 0, source });
 				return undefined;
 			}
 			case 'vite:error': {
@@ -406,6 +428,8 @@ export class HmrTracker {
 			}
 		}
 
+		this.watchConsole();
+
 		const target = this.target;
 		if (!target) return;
 
@@ -420,30 +444,20 @@ export class HmrTracker {
 		};
 		target.addEventListener(HMR_BRIDGE_EVENT, onBridge);
 		this.cleanup.push(() => target.removeEventListener(HMR_BRIDGE_EVENT, onBridge));
+	}
 
-		const onError = () => this.noteConsoleError();
-		target.addEventListener('error', onError);
-		target.addEventListener('unhandledrejection', onError);
-		this.cleanup.push(() => {
-			target.removeEventListener('error', onError);
-			target.removeEventListener('unhandledrejection', onError);
+	/** Count console errors / uncaught errors from the shared capture while installed. */
+	private watchConsole(): void {
+		const capture = this.capture;
+		if (!capture) return;
+		capture.retain();
+		const unsubscribe = capture.subscribe((entry) => {
+			if (entry.level === 'error') this.noteConsoleError();
 		});
-
-		const con = (target as unknown as { console?: Console }).console;
-		if (con && typeof con.error === 'function') {
-			const original = con.error;
-			let enabled = true;
-			const wrapped = function (this: Console, ...args: unknown[]) {
-				if (enabled) onError();
-				return original.apply(this, args);
-			};
-			con.error = wrapped;
-			this.cleanup.push(() => {
-				enabled = false;
-				// Someone patched after us: leave the (now inert) wrapper in their chain.
-				if (con.error === wrapped) con.error = original;
-			});
-		}
+		this.cleanup.push(() => {
+			unsubscribe();
+			capture.release();
+		});
 	}
 
 	private uninstall(): void {

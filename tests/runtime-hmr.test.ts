@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { ConsoleCapture } from '../src/lib/runtime/console-capture.js';
 import {
 	HmrTracker,
 	HMR_LOG_SIZE,
@@ -114,7 +115,7 @@ describe('HmrTracker', () => {
 		expect(hot.count()).toBe(4);
 		emitUpdate(hot, '/src/A.svelte', '/src/A.svelte?svelte&type=style&lang.css');
 		expect(tracker.log()).toEqual([
-			{ kind: 'update', at: 1_000, files: ['/src/A.svelte'], errors: [], consoleErrors: 0, source: 'vite-hmr' }
+			{ kind: 'update', at: 1_000, startedAt: 1_000, files: ['/src/A.svelte'], errors: [], consoleErrors: 0, source: 'vite-hmr' }
 		]);
 		tracker.release();
 		expect(hot.count()).toBe(4);
@@ -163,6 +164,34 @@ describe('HmrTracker', () => {
 		console.error('after release');
 		expect(tracker.log()[0].consoleErrors).toBe(2);
 		spy.mockRestore();
+	});
+
+	it('records when an update started (vite:beforeUpdate) as startedAt', () => {
+		tracker.retain();
+		clock = 5_000;
+		hot.emit('vite:beforeUpdate', update('/src/A.svelte'));
+		clock = 5_040;
+		hot.emit('vite:afterUpdate', update('/src/A.svelte'));
+		expect(tracker.log()[0]).toMatchObject({ at: 5_040, startedAt: 5_000 });
+	});
+
+	it('reads console errors from the shared console capture and never wraps console.error itself', () => {
+		const capture = new ConsoleCapture({ target: window, now: () => clock });
+		const t = new HmrTracker({ hot, storage: null, now: () => clock, pluginInfo: () => null, capture });
+		const original = console.error;
+		capture.retain();
+		const wrapped = console.error;
+		expect(wrapped).not.toBe(original);
+		t.retain();
+		expect(console.error).toBe(wrapped); // no second wrapper
+		emitUpdate(hot, '/src/A.svelte');
+		capture.record({ level: 'error', origin: 'console', message: 'x', source: null });
+		capture.record({ level: 'warn', origin: 'console', message: 'w', source: null });
+		expect(t.log()[0].consoleErrors).toBe(1);
+		t.release();
+		expect(capture.active).toBe(true); // still retained by its other owner
+		capture.release();
+		expect(console.error).toBe(original);
 	});
 
 	it('uses the plugin bridge only without import.meta.hot', () => {
