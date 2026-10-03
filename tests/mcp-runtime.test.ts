@@ -407,7 +407,7 @@ describe('runtime MCP tools', () => {
 		expect(out.content[0].text).toContain('a [active, focused]');
 	});
 
-	it('registers ui_tabs, ui_snapshot, ui_find with the ref->locator recipe', () => {
+	it('registers ui_tabs, ui_snapshot, ui_find, ui_inspect with the ref->locator recipe', () => {
 		const chain: any = new Proxy(() => chain, { get: () => () => chain, apply: () => chain });
 		const fakeZ: any = new Proxy({}, { get: () => () => chain });
 		const tools = new Map<string, { config: McpToolConfig; handler: McpToolHandler }>();
@@ -416,8 +416,8 @@ describe('runtime MCP tools', () => {
 			fakeZ,
 			{ registry: new TabRegistry(), channel: new CommandChannel({ registry: new TabRegistry(), broadcast: () => 1 }) }
 		);
-		expect([...tools.keys()]).toEqual(['ui_tabs', 'ui_snapshot', 'ui_find']);
-		for (const name of ['ui_snapshot', 'ui_find']) {
+		expect([...tools.keys()]).toEqual(['ui_tabs', 'ui_snapshot', 'ui_find', 'ui_inspect']);
+		for (const name of ['ui_snapshot', 'ui_find', 'ui_inspect']) {
 			const { config } = tools.get(name)!;
 			expect(config.title).toBeTruthy();
 			expect(config.description).toContain('[data-sg-ref="e12"]');
@@ -434,7 +434,50 @@ describe('runtime MCP tools', () => {
 			'limit',
 			'tabId'
 		]);
+		expect(Object.keys(tools.get('ui_inspect')!.config.inputSchema!)).toEqual(['ref', 'include', 'tabId']);
+		expect(tools.get('ui_inspect')!.config.description).toMatch(/ui_snapshot \/ ui_find first/);
 		expect(tools.get('ui_tabs')!.config.outputSchema).toHaveProperty('tabs');
+	});
+
+	it('ui_inspect forwards ref + include to the page (tabId stripped) and maps the result', async () => {
+		const registry = new TabRegistry();
+		registry.hello(hello('a', true));
+		registry.hello(hello('b'));
+		const sent: RuntimeCommandMessage[] = [];
+		const channel: CommandChannel = new CommandChannel({
+			registry,
+			broadcast: (msg) => {
+				sent.push(msg);
+				queueMicrotask(() =>
+					channel.settle({
+						id: msg.id,
+						tabId: msg.targetTabId,
+						ok: true,
+						result: { text: 'e3 button\n\nCOMPONENT', data: { ref: 'e3' } }
+					})
+				);
+				return 1;
+			}
+		});
+		const chain: any = new Proxy(() => chain, { get: () => () => chain, apply: () => chain });
+		const fakeZ: any = new Proxy({}, { get: () => () => chain });
+		const tools = new Map<string, McpToolHandler>();
+		registerRuntimeTools({ registerTool: (name, _config, handler) => tools.set(name, handler) }, fakeZ, {
+			registry,
+			channel
+		});
+		const out = await tools.get('ui_inspect')!({ ref: 'e3', include: ['stack', 'layout'], tabId: 'b' }, {});
+		expect(sent).toHaveLength(1);
+		expect(sent[0]).toMatchObject({
+			targetTabId: 'b',
+			tool: 'ui_inspect',
+			args: { ref: 'e3', include: ['stack', 'layout'] }
+		});
+		expect(sent[0].args).not.toHaveProperty('tabId');
+		expect(out).toEqual({
+			content: [{ type: 'text', text: 'e3 button\n\nCOMPONENT' }],
+			structuredContent: { ref: 'e3' }
+		});
 	});
 });
 

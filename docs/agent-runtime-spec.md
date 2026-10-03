@@ -103,7 +103,7 @@ Coding agent --MCP--> svelte-grab MCP server (src/mcp/server.ts, HTTP :port)
 |---|---|---|
 | `ui_snapshot` | `scope: "viewport"\|"page"\|ref`, `detail: "minimal"\|"normal"`, `maxNodes` (default 200) | Indented tree: only elements with Svelte meta or a11y role/name; each line `eN <role/tag> "<name>" <Component> <file:line>`; `normal` adds box + classes |
 | `ui_find` | any of `text`, `role`, `name`, `component`, `file`, `selector`; `limit` | List of `{ref, stableKey, component, source, role, name, box, visible}` |
-| `ui_inspect` | `ref`, `include?: ("stack"\|"props"\|"state"\|"styles"\|"layout"\|"a11y"\|"events"\|"usage")[]` | Sectioned text built from existing formatters (component-stack, state, css-analyzer, a11y-checker) |
+| `ui_inspect` | `ref` (`eN` or `ui://` key), `include?: ("stack"\|"props"\|"state"\|"styles"\|"layout"\|"a11y"\|"usage")[]` (default all; `events` deferred) | Sectioned text (COMPONENT, SOURCE always; STACK, PROPS/ATTRIBUTES, STATE, LAYOUT, STYLES, A11Y, USAGE) built from existing formatters (component-stack, state-capture, css-analyzer, a11y-checker, ui_find matching), capped at ~8000 chars, plus the same data structured; rebound refs noted at the top |
 | `ui_wait_for_hmr` | `files?: string[]`, `timeoutMs?` | `{updated: string[], errors: string[], rebound: [{from,to}], consoleErrors: n}` |
 | `ui_verify` | `ref`, `checks: ("visible"\|"overflow"\|"console"\|"a11y"\|"contrast")[]` | Per check `PASS\|WARN\|FAIL` + detail |
 | `ui_component_impact` | `ref` | Instances of the component on page (count + refs), importers from Vite module graph when plugin present, else "unknown" |
