@@ -5,7 +5,12 @@
  * for the 8 supported editors and detect the project's absolute filesystem root
  * from Vite dev-server URLs / Svelte file paths. None of them close over
  * component `$state` — the editor and project root are passed in explicitly.
+ *
+ * With the `svelte-grab/vite` plugin installed, the project root comes from the
+ * plugin and files open through Vite's `/__open-in-editor` middleware; the
+ * deep-link heuristics below are the fallback.
  */
+import { OPEN_IN_EDITOR_PATH, getVitePluginInfo } from './vite-plugin-info.js';
 
 /** Editor identifiers supported by {@link buildEditorUrl}. */
 export type EditorId =
@@ -44,6 +49,10 @@ export function _resetViteProjectRootCache(): void {
  * @returns The detected absolute project root, or `null` if undetectable.
  */
 export function detectViteProjectRoot(): string | null {
+	// The svelte-grab/vite plugin knows the real root: no guessing needed.
+	const pluginRoot = getVitePluginInfo()?.root;
+	if (pluginRoot) return pluginRoot;
+
 	if (viteProjectRootCache !== undefined) return viteProjectRootCache;
 
 	try {
@@ -172,4 +181,83 @@ export function buildEditorUrl(
 		default:
 			return null;
 	}
+}
+
+/**
+ * Absolute path of `file` for Vite's launch-editor. Root-relative paths
+ * (`src/App.svelte`, `/src/App.svelte`) are joined to `root`; anything else
+ * starting with `/` (or a drive letter) is taken as already absolute.
+ */
+export function resolveFileForVite(file: string, root: string | null): string {
+	const f = file.replace(/\\/g, '/');
+	const r = root ? root.replace(/\\/g, '/').replace(/\/+$/, '') : null;
+	if (/^[a-zA-Z]:\//.test(f)) return f;
+	if (f.startsWith('/')) {
+		if (r && f.startsWith(`${r}/`)) return f;
+		const devRelative = f.startsWith('/src/') || f.startsWith('/lib/');
+		return devRelative && r ? r + f : f;
+	}
+	return r ? `${r}/${f.replace(/^\.\//, '')}` : f;
+}
+
+/**
+ * URL of Vite's launch-editor middleware for `file:line:column`, or `null`
+ * when the `svelte-grab/vite` plugin is not installed.
+ */
+export function buildViteOpenInEditorUrl(
+	file: string,
+	line: number,
+	column = 1,
+	root: string | null = null
+): string | null {
+	const plugin = getVitePluginInfo();
+	if (!plugin) return null;
+	const absolute = resolveFileForVite(file, root || plugin.root);
+	return `${OPEN_IN_EDITOR_PATH}?file=${encodeURIComponent(`${absolute}:${line}:${column}`)}`;
+}
+
+/** Follow a deep link with a temporary anchor (custom schemes do not navigate away). */
+function followDeepLink(url: string): void {
+	const a = document.createElement('a');
+	a.href = url;
+	a.click();
+}
+
+export interface OpenInEditorDeps {
+	fetch?: (url: string) => Promise<{ ok: boolean }>;
+	openUrl?: (url: string) => void;
+}
+
+/**
+ * Open `file:line` in the editor. With the `svelte-grab/vite` plugin, asks the
+ * dev server (`/__open-in-editor`, Vite's launch-editor) and falls back to the
+ * deep link if that request fails; without the plugin, uses the deep link.
+ * Does nothing when `editor` is `'none'`.
+ */
+export function openInEditor(
+	file: string,
+	line: number,
+	editor: EditorId,
+	root: string | null,
+	deps: OpenInEditorDeps = {}
+): void {
+	if (editor === 'none') return;
+	const openUrl = deps.openUrl ?? followDeepLink;
+	const fallback = () => {
+		const url = buildEditorUrl(file, line, editor, root || getVitePluginInfo()?.root || null);
+		if (url) openUrl(url);
+	};
+
+	const viteUrl = buildViteOpenInEditorUrl(file, line, 1, root);
+	const doFetch = deps.fetch ?? (typeof fetch === 'function' ? (u: string) => fetch(u) : undefined);
+	if (!viteUrl || !doFetch) {
+		fallback();
+		return;
+	}
+	doFetch(viteUrl).then(
+		(res) => {
+			if (!res.ok) fallback();
+		},
+		() => fallback()
+	);
 }

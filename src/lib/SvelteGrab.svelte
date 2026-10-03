@@ -47,7 +47,7 @@
 		hasSvelteLoc
 	} from './utils/component-stack.js';
 	import {
-		buildEditorUrl as buildEditorUrlPure,
+		openInEditor as openInEditorPure,
 		detectProjectRoot as detectProjectRootPure
 	} from './utils/editor-link.js';
 	import { getHTMLPreview as getHTMLPreviewPure } from './utils/html-preview.js';
@@ -246,23 +246,11 @@
 	}
 
 	/**
-	 * Build editor URL based on configured editor.
-	 * (Pure logic lives in ./utils/editor-link.ts)
-	 */
-	function buildEditorUrl(file: string, line: number): string | null {
-		return buildEditorUrlPure(file, line, editor, projectRoot || detectedProjectRoot);
-	}
-
-	/**
-	 * Open file in configured editor
+	 * Open file in configured editor: through Vite's `/__open-in-editor` when
+	 * the svelte-grab/vite plugin is installed, else the editor deep link.
 	 */
 	function openInEditor(file: string, line: number): void {
-		const url = buildEditorUrl(file, line);
-		if (url) {
-			const a = document.createElement('a');
-			a.href = url;
-			a.click();
-		}
+		openInEditorPure(file, line, editor, projectRoot || detectedProjectRoot);
 	}
 
 	// Use shared utilities (imported above)
