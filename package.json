@@ -35,6 +35,10 @@
     "./mcp": {
       "types": "./dist/mcp/index.d.ts",
       "default": "./dist/mcp/index.js"
+    },
+    "./vite": {
+      "types": "./dist/vite/index.d.ts",
+      "default": "./dist/vite/index.js"
     }
   },
   "bin": {
@@ -67,6 +71,7 @@
     "@openai/codex-sdk": ">=0.1.0",
     "html-to-image": "^1.11.0",
     "svelte": "^5.35.1",
+    "vite": ">=5.0.0",
     "ws": "^8.0.0"
   },
   "peerDependenciesMeta": {
@@ -83,6 +88,9 @@
       "optional": true
     },
     "@openai/codex-sdk": {
+      "optional": true
+    },
+    "vite": {
       "optional": true
     }
   },

@@ -10,6 +10,7 @@
 import type { TabRegistry, TabSummary } from './tab-registry.js';
 import { NO_TAB_MESSAGE, type CommandChannel } from './command-channel.js';
 import type { RuntimeResultData } from './validate.js';
+import { registerWaitForHmrTool } from './hmr-tool.js';
 
 /** Structural subset of a zod schema (v3.25+ and v4) used for tool schemas. */
 export interface ZodSchemaLike {
@@ -255,4 +256,6 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 		},
 		async (args) => forwardToPage(deps.channel, 'ui_annotations', args)
 	);
+
+	registerWaitForHmrTool(server, z, { channel: deps.channel, tabIdHint: TAB_ID_HINT });
 }

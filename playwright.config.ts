@@ -35,7 +35,16 @@ export default defineConfig({
 	projects: [
 		{
 			name: 'chromium',
-			use: { ...devices['Desktop Chrome'] }
+			use: { ...devices['Desktop Chrome'] },
+			testIgnore: /hmr\.spec\.ts$/
+		},
+		{
+			// hmr.spec.ts edits playground files on disk; the HMR updates it
+			// triggers would land in other specs' pages, so it runs after them.
+			name: 'hmr',
+			use: { ...devices['Desktop Chrome'] },
+			testMatch: /hmr\.spec\.ts$/,
+			dependencies: ['chromium']
 		}
 	],
 

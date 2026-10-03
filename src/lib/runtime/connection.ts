@@ -17,6 +17,7 @@
  */
 import { detectDevMode } from '../utils/shared.js';
 import { dispatchRuntimeCommand } from './commands.js';
+import { hmrTracker } from './hmr.js';
 import type { RuntimeCommandOutcome, RuntimeHello, RuntimeResultMessage } from './types.js';
 
 export const RUNTIME_TAB_ID_KEY = 'svelte-grab-tab-id';
@@ -49,13 +50,18 @@ export interface AgentRuntimeOptions {
 	/** Reconnect backoff bounds. Defaults 1000 / 30000. */
 	minBackoffMs?: number;
 	maxBackoffMs?: number;
-	/** Tool dispatcher. Defaults to the built-in `ui_snapshot` / `ui_find` table. */
+	/** Tool dispatcher. Defaults to the built-in tool table (`runtimeTools`). */
 	dispatch?: (tool: string, args: unknown) => Promise<RuntimeCommandOutcome>;
 	/** Test seams. Default to the globals. */
 	EventSource?: EventSourceCtor;
 	fetch?: FetchFn;
 	/** `null` skips duplicate-tab detection. */
 	BroadcastChannel?: BroadcastChannelCtor | null;
+	/**
+	 * Track Vite HMR events while running (ring buffer for `ui_wait_for_hmr`
+	 * `since`, console errors since the last update). Default true.
+	 */
+	trackHmr?: boolean;
 }
 
 /** Messages on RUNTIME_TAB_CHANNEL. `from` / `to` are per-runtime instance ids. */
@@ -280,6 +286,9 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 	document.addEventListener('visibilitychange', onFocusChange);
 	const heartbeat = setInterval(sendHello, heartbeatMs);
 
+	const trackHmr = options.trackHmr !== false;
+	if (trackHmr) hmrTracker.retain();
+
 	connect();
 
 	return {
@@ -292,6 +301,7 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 			stopped = true;
 			connected = false;
 			clearInterval(heartbeat);
+			if (trackHmr) hmrTracker.release();
 			if (reconnectTimer) clearTimeout(reconnectTimer);
 			reconnectTimer = null;
 			window.removeEventListener('focus', onFocusChange);

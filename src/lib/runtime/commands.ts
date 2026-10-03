@@ -4,6 +4,7 @@
 import { uiAnnotations } from './annotations.js';
 import { uiFind } from './find.js';
 import { uiInspect } from './inspect.js';
+import { uiWaitForHmr } from './hmr.js';
 import { uiSnapshot } from './snapshot.js';
 import type { RuntimeCommandOutcome, RuntimeToolHandler } from './types.js';
 
@@ -12,7 +13,8 @@ export const runtimeTools: Readonly<Record<string, RuntimeToolHandler>> = Object
 	ui_snapshot: (args) => uiSnapshot(args),
 	ui_find: (args) => uiFind(args),
 	ui_inspect: (args) => uiInspect(args),
-	ui_annotations: (args) => uiAnnotations(args)
+	ui_annotations: (args) => uiAnnotations(args),
+	ui_wait_for_hmr: (args) => uiWaitForHmr(args)
 });
 
 /**

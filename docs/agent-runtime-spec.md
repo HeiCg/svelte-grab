@@ -104,7 +104,7 @@ Coding agent --MCP--> svelte-grab MCP server (src/mcp/server.ts, HTTP :port)
 | `ui_snapshot` | `scope: "viewport"\|"page"\|ref`, `detail: "minimal"\|"normal"`, `maxNodes` (default 200) | Indented tree: only elements with Svelte meta or a11y role/name; each line `eN <role/tag> "<name>" <Component> <file:line>`; `normal` adds box + classes |
 | `ui_find` | any of `text`, `role`, `name`, `component`, `file`, `selector`; `limit` | List of `{ref, stableKey, component, source, role, name, box, visible}` |
 | `ui_inspect` | `ref` (`eN` or `ui://` key), `include?: ("stack"\|"props"\|"state"\|"styles"\|"layout"\|"a11y"\|"usage")[]` (default all; `events` deferred) | Sectioned text (COMPONENT, SOURCE always; STACK, PROPS/ATTRIBUTES, STATE, LAYOUT, STYLES, A11Y, USAGE) built from existing formatters (component-stack, state-capture, css-analyzer, a11y-checker, ui_find matching), capped at ~8000 chars, plus the same data structured; rebound refs noted at the top |
-| `ui_wait_for_hmr` | `files?: string[]`, `timeoutMs?` | `{updated: string[], errors: string[], rebound: [{from,to}], consoleErrors: n}` |
+| `ui_wait_for_hmr` | `files?: string[]`, `timeoutMs?` (default 15000, max 55000), `since?` (epoch ms) | `{status: "updated"\|"full-reload"\|"error", updated: string[], errors: string[], rebound: [{from,to}], lost: string[], kept: n, consoleErrors: n, source: "vite-hmr"\|"plugin"\|"heuristic"}` |
 | `ui_verify` | `ref`, `checks: ("visible"\|"overflow"\|"console"\|"a11y"\|"contrast")[]` | Per check `PASS\|WARN\|FAIL` + detail |
 | `ui_component_impact` | `ref` | Instances of the component on page (count + refs), importers from Vite module graph when plugin present, else "unknown" |
 | `ui_click` / `ui_scroll` | `ref` | Best-effort in-page action; result notes `isTrusted=false` and suggests Playwright for real input |
@@ -151,6 +151,55 @@ version in package.json supports it; migrate old tools to `registerTool` too.
    app", `.mcp.json` example with svelte-grab + `@sveltejs/mcp` + Playwright
    MCP, ref->locator recipe; `svelte-grab init` writes `.mcp.json`; `sv`
    community add-on (`npx sv add svelte-grab`); relay marked maintenance.
+
+## Phase 4 notes (implemented)
+
+**Does `import.meta.hot` reach svelte-grab's own modules?** Yes, in every
+setup checked (2026-10-03). Vite's `vite:import-analysis` runs on every module
+the dev server serves, including pre-bundled deps in `node_modules/.vite/deps`,
+and prepends `import.meta.hot = __vite__createHotContext(<url>)` to any module
+whose code contains the literal `import.meta.hot`. Neither optimizer (esbuild
+in Vite 6, rolldown in Vite 8) rewrites `import.meta.hot` (their `define` only
+touches `process.env.NODE_ENV`; Vite's `import.meta.hot -> undefined` define
+is build-only). Checked with a scratch app installing a packed copy of the
+package (not a link):
+
+| Setup | svelte-grab served as | hot context injected | `ui_wait_for_hmr` source |
+|---|---|---|---|
+| Vite 8.3 + vite-plugin-svelte 7.3, default | `/node_modules/.vite/deps/svelte-grab.js` (pre-bundled) | yes | `vite-hmr`, file list correct |
+| Vite 8.3, `optimizeDeps.exclude: ['svelte-grab']` | `/node_modules/svelte-grab/dist/runtime/hmr.js` | yes | `vite-hmr` |
+| Vite 8.3 + `svelteGrab()` plugin | pre-bundled | yes | `vite-hmr`; bridge events also fire, counted once |
+| Vite 6.4 + vite-plugin-svelte 5.1 + plugin | pre-bundled (esbuild chunks) | yes | `vite-hmr`; bridge events also fire |
+| Playground (alias to `src/lib`) | `/@fs/.../src/lib/runtime/hmr.ts` | yes | `vite-hmr` |
+
+Consequences in the code:
+
+- `src/lib/runtime/hmr.ts` must keep the literal `import.meta.hot` (a cast like
+  `const m = import.meta as X; m.hot` would hide it from the lexer); it uses a
+  `@ts-expect-error` line for that. Comments/strings mentioning it are ignored
+  by the lexer.
+- Sources in order: `vite-hmr` (import.meta.hot), `plugin` (the
+  `svelte-grab:hmr` window events from `svelte-grab/vite`, only consulted when
+  import.meta.hot is missing, so events are never double counted), `heuristic`
+  (MutationObserver burst, `updated: []`, the result text says so).
+- The plugin injects its client both via `transformIndexHtml` (plain Vite) and
+  by prepending `import "virtual:svelte-grab/client"` to app modules that
+  import `svelte-grab` (SvelteKit renders its own HTML, so the HTML hook does
+  not run there).
+- Vite awaits HMR listeners. On `vite:beforeFullReload` with a pending
+  `ui_wait_for_hmr`, the tracker holds the reload 250 ms (bridge: `waitUntil`,
+  capped at 1 s) so the `full-reload` result reaches the server before the
+  page unloads. The update log (last 20) is kept in sessionStorage, so
+  `since` still sees a full reload after the page comes back.
+- A `vite:error` for a watched file (or with no file) resolves the wait with
+  `status: "error"` instead of letting it time out.
+- After an update the page waits one frame (capped at 100 ms, hidden tabs do
+  not paint) plus a microtask flush, then `RefRegistry.rebindAll()` re-resolves
+  every disconnected ref in one page pass: rebound refs become aliases of the
+  new ref (`resolve(old)` keeps working), refs with no replacement are dropped
+  and reported once in `lost`.
+- e2e: `e2e/hmr.spec.ts` edits playground files on disk, so it runs in its own
+  Playwright project after the others (`dependencies: ['chromium']`).
 
 ## Out of scope (for now)
 

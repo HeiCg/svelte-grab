@@ -416,7 +416,7 @@ describe('runtime MCP tools', () => {
 			fakeZ,
 			{ registry: new TabRegistry(), channel: new CommandChannel({ registry: new TabRegistry(), broadcast: () => 1 }) }
 		);
-		expect([...tools.keys()]).toEqual(['ui_tabs', 'ui_snapshot', 'ui_find', 'ui_inspect', 'ui_annotations']);
+		expect([...tools.keys()]).toEqual(['ui_tabs', 'ui_snapshot', 'ui_find', 'ui_inspect', 'ui_annotations', 'ui_wait_for_hmr']);
 		for (const name of ['ui_snapshot', 'ui_find', 'ui_inspect']) {
 			const { config } = tools.get(name)!;
 			expect(config.title).toBeTruthy();
