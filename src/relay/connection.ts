@@ -4,6 +4,7 @@
  * with the relay server over WebSocket.
  */
 
+import type { WebSocket as WsSocket } from 'ws';
 import type { AgentProvider, AgentProviderCallbacks } from './providers/base.js';
 import type {
 	AgentStatusMessage,
@@ -64,16 +65,16 @@ export async function connectToRelay(options: ConnectRelayOptions): Promise<Rela
 	const wsUrl = url ?? `ws://localhost:${port}?handler=true&agentId=${encodeURIComponent(provider.name)}`;
 
 	// Lazy-load ws
-	let WebSocket: any;
+	let WebSocket: typeof WsSocket;
 	try {
 		const ws = await import('ws');
-		WebSocket = ws.default || ws;
+		WebSocket = ws.default || ws.WebSocket;
 	} catch {
 		throw new Error('ws package not installed. Run: npm install ws');
 	}
 
 	return new Promise<RelayConnection>((resolve, reject) => {
-		let socket: any;
+		let socket: WsSocket;
 
 		try {
 			socket = new WebSocket(wsUrl);

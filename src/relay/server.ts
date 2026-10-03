@@ -1,3 +1,4 @@
+import type { WebSocket as WsSocket, WebSocketServer as WsServer } from 'ws';
 import type { AgentProvider } from './providers/base.js';
 import type {
 	ClientMessage,
@@ -42,7 +43,7 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 	const { port: preferredPort = 4722, providers = [] } = options;
 
 	// Lazy-load ws
-	let WebSocketServer: any;
+	let WebSocketServer: typeof WsServer;
 	try {
 		const ws = await import('ws');
 		WebSocketServer = ws.WebSocketServer || ws.default?.WebSocketServer;
@@ -106,7 +107,7 @@ export async function createRelayServer(options: RelayServerOptions = {}): Promi
 	console.log(`[svelte-grab relay] Registered agents: ${providers.map(p => p.name).join(', ') || 'none'}`);
 	logSecurityBanner('relay', security);
 
-	wss.on('connection', (ws: any) => {
+	wss.on('connection', (ws: WsSocket) => {
 		console.log('[svelte-grab relay] Client connected');
 
 		// Send available handlers
