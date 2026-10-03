@@ -143,8 +143,18 @@ export interface SvelteGrabProps {
 	enableDragSelect?: boolean;
 	/** Enable auto-send to MCP server on grab. Default: false */
 	enableMcp?: boolean;
-	/** Port for MCP HTTP server. Default: 4723 */
+	/**
+	 * Port for MCP HTTP server. Default: 4723. If the server is not there (or
+	 * another service answers), the page probes `GET /health` on the next 9
+	 * ports and uses the first svelte-grab server it finds.
+	 */
 	mcpPort?: number;
+	/**
+	 * Token for an MCP server started with `SVELTE_GRAB_TOKEN` / `--token`.
+	 * Sent as the `x-svelte-grab-token` header on POSTs and as `?token=` on the
+	 * `/events` stream. Default: none
+	 */
+	mcpToken?: string;
 	/**
 	 * Let coding agents query this page through the MCP server (`ui_snapshot`,
 	 * `ui_find`): the page listens for `runtime-command` events on the server's
@@ -502,8 +512,18 @@ export interface SvelteDevKitProps {
 	enableDragSelect?: boolean;
 	/** Enable auto-send to MCP server on grab. Default: false */
 	enableMcp?: boolean;
-	/** Port for MCP HTTP server. Default: 4723 */
+	/**
+	 * Port for MCP HTTP server. Default: 4723. If the server is not there (or
+	 * another service answers), the page probes `GET /health` on the next 9
+	 * ports and uses the first svelte-grab server it finds.
+	 */
 	mcpPort?: number;
+	/**
+	 * Token for an MCP server started with `SVELTE_GRAB_TOKEN` / `--token`.
+	 * Sent as the `x-svelte-grab-token` header on POSTs and as `?token=` on the
+	 * `/events` stream. Default: none
+	 */
+	mcpToken?: string;
 	/**
 	 * Let coding agents query this page through the MCP server (`ui_snapshot`,
 	 * `ui_find`): the page listens for `runtime-command` events on the server's

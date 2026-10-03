@@ -32,7 +32,13 @@
 	import { createElementSelector } from './utils/element-selector.js';
 	import { getElementsInDragRect } from './utils/drag-selection.js';
 	import { hideFromThirdParties } from './utils/hide-from-third-parties.js';
-	import { startAgentRuntime, type AgentRuntimeHandle } from './runtime/connection.js';
+	import {
+		startAgentRuntime,
+		withToken,
+		MCP_TOKEN_HEADER,
+		type AgentRuntimeHandle
+	} from './runtime/connection.js';
+	import { resolveMcpPort } from './runtime/server-probe.js';
 	import {
 		getComponentStack as getComponentStackPure,
 		findMetaElement,
@@ -95,6 +101,7 @@
 		enableDragSelect = true,
 		enableMcp = false,
 		mcpPort = 4723,
+		mcpToken,
 		enableAgentRuntime = true,
 		freezeAnimations: freezeAnimationsProp = true,
 		freezePseudoStates: freezePseudoStatesProp = true,
@@ -217,6 +224,9 @@
 	let mcpAgentListening = $state(false);
 	let mcpStatus = $state<'idle' | 'watching' | 'processing' | 'sent'>('idle');
 	let mcpEventSource: EventSource | null = null;
+	// MCP server base URL after the port probe (the server may have fallen back
+	// to another port). `null` until resolved: `mcpPort` is used meanwhile.
+	let mcpBaseUrl: string | null = null;
 	// In-page agent runtime (ui_snapshot / ui_find over the MCP server channel)
 	let agentRuntime: AgentRuntimeHandle | null = null;
 
@@ -395,9 +405,11 @@
 	function sendToMcp(content: string[], prompt?: string): void {
 		if (!enableMcp) return;
 
-		fetch(`http://localhost:${mcpPort}/context`, {
+		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+		if (mcpToken) headers[MCP_TOKEN_HEADER] = mcpToken;
+		fetch(`${mcpBaseUrl ?? `http://localhost:${mcpPort}`}/context`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers,
 			body: JSON.stringify({ content, prompt })
 		}).catch(() => {
 			// Fire-and-forget: don't block the UI if MCP server is not running
@@ -1104,6 +1116,54 @@
 	}
 
 	let cleanup: (() => void) | null = null;
+	/**
+	 * Resolve the MCP server port, then connect the SSE status stream and the
+	 * in-page agent runtime (ui_snapshot / ui_find). Both carry `mcpToken` the
+	 * way the server's checkAccess reads it (`?token=` / x-svelte-grab-token).
+	 */
+	async function connectMcp(): Promise<void> {
+		const port = await resolveMcpPort(mcpPort);
+		if (destroyed) return;
+		mcpBaseUrl = `http://localhost:${port}`;
+
+		try {
+			mcpEventSource = new EventSource(withToken(`${mcpBaseUrl}/events`, mcpToken));
+			mcpEventSource.addEventListener('agent-status', (e) => {
+				const data = JSON.parse(e.data);
+				if (data.status === 'watching') {
+					mcpAgentListening = true;
+					mcpStatus = 'watching';
+				} else if (data.status === 'processing') {
+					mcpStatus = 'processing';
+				} else {
+					mcpAgentListening = false;
+					mcpStatus = 'idle';
+				}
+			});
+			mcpEventSource.addEventListener('context-received', (e) => {
+				const data = JSON.parse(e.data);
+				if (data.agentWatching) {
+					mcpStatus = 'processing';
+				}
+			});
+			mcpEventSource.onerror = () => {
+				mcpAgentListening = false;
+				mcpStatus = 'idle';
+			};
+		} catch {
+			// SSE not available, proceed without real-time status
+		}
+
+		// Answer agent queries (ui_snapshot / ui_find) relayed by the MCP server
+		if (enableAgentRuntime) {
+			agentRuntime = startAgentRuntime({
+				serverUrl: mcpBaseUrl,
+				token: mcpToken,
+				forceEnable
+			});
+		}
+	}
+
 	let destroyed = false;
 	let mountTimeoutId: ReturnType<typeof setTimeout>;
 
@@ -1206,44 +1266,9 @@
 			callbacks.getSelectedElements = () => [...selectedElementsSet];
 			callbacks.clearSelection = () => clearSelection();
 
-			// Connect to MCP server SSE for real-time status
-			if (enableMcp) {
-				try {
-					mcpEventSource = new EventSource(`http://localhost:${mcpPort}/events`);
-					mcpEventSource.addEventListener('agent-status', (e) => {
-						const data = JSON.parse(e.data);
-						if (data.status === 'watching') {
-							mcpAgentListening = true;
-							mcpStatus = 'watching';
-						} else if (data.status === 'processing') {
-							mcpStatus = 'processing';
-						} else {
-							mcpAgentListening = false;
-							mcpStatus = 'idle';
-						}
-					});
-					mcpEventSource.addEventListener('context-received', (e) => {
-						const data = JSON.parse(e.data);
-						if (data.agentWatching) {
-							mcpStatus = 'processing';
-						}
-					});
-					mcpEventSource.onerror = () => {
-						mcpAgentListening = false;
-						mcpStatus = 'idle';
-					};
-				} catch {
-					// SSE not available, proceed without real-time status
-				}
-			}
-
-			// Answer agent queries (ui_snapshot / ui_find) relayed by the MCP server
-			if (enableMcp && enableAgentRuntime) {
-				agentRuntime = startAgentRuntime({
-					serverUrl: `http://localhost:${mcpPort}`,
-					forceEnable
-				});
-			}
+			// MCP server: find its port (it may have fallen back), then open the
+			// status stream and the agent runtime there.
+			if (enableMcp) void connectMcp();
 
 			// Connect agent relay if enabled
 			if (enableAgentRelay) {

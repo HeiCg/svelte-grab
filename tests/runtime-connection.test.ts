@@ -5,6 +5,7 @@ import {
 	getRuntimeTabId,
 	resetRuntimeTabIdForTests,
 	RUNTIME_TAB_ID_KEY,
+	RUNTIME_TAB_CHANNEL,
 	type AgentRuntimeHandle
 } from '../src/lib/runtime/connection.js';
 import type { RuntimeCommandOutcome } from '../src/lib/runtime/types.js';
@@ -34,11 +35,42 @@ class FakeEventSource extends EventTarget {
 	}
 }
 
+/**
+ * BroadcastChannel double: delivers asynchronously to every OTHER open
+ * instance with the same name, like the real one. Two runtimes in one jsdom
+ * stand in for two tabs.
+ */
+class FakeBroadcastChannel extends EventTarget {
+	static open: FakeBroadcastChannel[] = [];
+	static sent: unknown[] = [];
+	closed = false;
+	constructor(public name: string) {
+		super();
+		FakeBroadcastChannel.open.push(this);
+	}
+	postMessage(data: unknown) {
+		if (this.closed) throw new Error('InvalidStateError: channel closed');
+		FakeBroadcastChannel.sent.push(data);
+		for (const other of FakeBroadcastChannel.open) {
+			if (other === this || other.name !== this.name) continue;
+			const copy = structuredClone(data);
+			queueMicrotask(() => {
+				if (!other.closed) other.dispatchEvent(new MessageEvent('message', { data: copy }));
+			});
+		}
+	}
+	close() {
+		this.closed = true;
+		FakeBroadcastChannel.open = FakeBroadcastChannel.open.filter((c) => c !== this);
+	}
+}
+
 type Call = { url: string; body: Record<string, unknown>; headers: Record<string, string> };
 
 let calls: Call[];
 let fetchMock: ReturnType<typeof vi.fn>;
 let handle: AgentRuntimeHandle | null;
+let handles: AgentRuntimeHandle[];
 
 function posts(path: string): Call[] {
 	return calls.filter((c) => c.url.endsWith(path));
@@ -54,13 +86,17 @@ function start(extra: Record<string, unknown> = {}): AgentRuntimeHandle {
 		forceEnable: true,
 		EventSource: FakeEventSource as unknown as new (url: string) => EventSource,
 		fetch: fetchMock as unknown as (input: string, init?: RequestInit) => Promise<Response>,
+		BroadcastChannel: FakeBroadcastChannel as unknown as new (name: string) => BroadcastChannel,
 		...extra
 	});
+	handles.push(handle);
 	return handle;
 }
 
 beforeEach(() => {
 	FakeEventSource.instances = [];
+	FakeBroadcastChannel.open = [];
+	FakeBroadcastChannel.sent = [];
 	calls = [];
 	fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
 		calls.push({
@@ -73,10 +109,11 @@ beforeEach(() => {
 	sessionStorage.clear();
 	resetRuntimeTabIdForTests();
 	handle = null;
+	handles = [];
 });
 
 afterEach(() => {
-	handle?.stop();
+	for (const h of handles) h.stop();
 	vi.useRealTimers();
 });
 
@@ -252,5 +289,68 @@ describe('tab id', () => {
 		const id = getRuntimeTabId();
 		expect(getRuntimeTabId()).toBe(id);
 		spy.mockRestore();
+	});
+});
+
+describe('duplicated tab', () => {
+	it('a lone tab keeps its id', async () => {
+		const h = start();
+		const id = h.tabId;
+		await flush();
+		expect(h.tabId).toBe(id);
+		expect(sessionStorage.getItem(RUNTIME_TAB_ID_KEY)).toBe(id);
+		expect(FakeBroadcastChannel.sent).toEqual([
+			expect.objectContaining({ type: 'ping', tabId: id })
+		]);
+		expect(FakeBroadcastChannel.open[0].name).toBe(RUNTIME_TAB_CHANNEL);
+	});
+
+	it('regenerates the id when another live tab answers with the same id', async () => {
+		// Tab A is live. Tab B is its duplicate: sessionStorage (shared here, copied
+		// by the browser on duplicate) hands it the same id.
+		const a = start();
+		const original = a.tabId!;
+		FakeEventSource.last().open();
+		await flush();
+
+		const b = start();
+		expect(b.tabId).toBe(original);
+		const esB = FakeEventSource.last();
+		esB.open();
+		await flush();
+
+		expect(a.tabId).toBe(original);
+		expect(b.tabId).not.toBe(original);
+		expect(b.tabId).toMatch(/\S{8,}/);
+		expect(sessionStorage.getItem(RUNTIME_TAB_ID_KEY)).toBe(b.tabId);
+
+		// B announced its new id right away.
+		const hellos = posts('/runtime/hello').map((c) => c.body.tabId);
+		expect(hellos[hellos.length - 1]).toBe(b.tabId);
+
+		// B answers only commands for its new id.
+		esB.command({ id: 'old', targetTabId: original, tool: 'ui_nope', args: {} });
+		esB.command({ id: 'new', targetTabId: b.tabId, tool: 'ui_nope', args: {} });
+		await flush();
+		expect(posts('/runtime/result').map((c) => c.body)).toEqual([
+			{ id: 'new', tabId: b.tabId, ok: false, error: 'Unknown tool' }
+		]);
+	});
+
+	it('a stopped tab no longer answers pings', async () => {
+		const a = start();
+		const id = a.tabId;
+		a.stop();
+		const b = start();
+		await flush();
+		expect(b.tabId).toBe(id);
+		expect(FakeBroadcastChannel.open).toHaveLength(1);
+	});
+
+	it('works without BroadcastChannel', async () => {
+		const h = start({ BroadcastChannel: null });
+		await flush();
+		expect(h.active).toBe(true);
+		expect(FakeBroadcastChannel.open).toHaveLength(0);
 	});
 });

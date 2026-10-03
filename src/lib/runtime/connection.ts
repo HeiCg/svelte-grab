@@ -7,6 +7,10 @@
  * - Announces the tab with `POST /runtime/hello` `{tabId, url, title, focused}`
  *   on connect, on focus/blur/visibilitychange and every 15s.
  * - Reconnects with exponential backoff.
+ * - Duplicated tabs: the browser copies sessionStorage (and so the tab id) into
+ *   a duplicated tab. On start the page pings the other tabs over a
+ *   BroadcastChannel; if a live tab answers with the same id, this tab takes a
+ *   fresh one and re-announces itself.
  *
  * No-op during SSR, without EventSource/fetch, or when Svelte dev metadata is
  * absent (production builds) unless `forceEnable`.
@@ -16,14 +20,21 @@ import { dispatchRuntimeCommand } from './commands.js';
 import type { RuntimeCommandOutcome, RuntimeHello, RuntimeResultMessage } from './types.js';
 
 export const RUNTIME_TAB_ID_KEY = 'svelte-grab-tab-id';
+/** BroadcastChannel used to detect a duplicated tab carrying a copied tab id. */
+export const RUNTIME_TAB_CHANNEL = 'svelte-grab-runtime-tabs';
 export const DEFAULT_HEARTBEAT_MS = 15_000;
 const DEFAULT_MIN_BACKOFF_MS = 1_000;
 const DEFAULT_MAX_BACKOFF_MS = 30_000;
 /** Recent command ids kept to drop duplicate deliveries. */
 const SEEN_IDS_CAP = 200;
-const TOKEN_HEADER = 'x-svelte-grab-token';
+/**
+ * Header the MCP server reads the token from (`TOKEN_HEADER` in
+ * src/utils/security.ts); `?token=` works too and is what EventSource uses.
+ */
+export const MCP_TOKEN_HEADER = 'x-svelte-grab-token';
 
 type EventSourceCtor = new (url: string) => EventSource;
+type BroadcastChannelCtor = new (name: string) => BroadcastChannel;
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 export interface AgentRuntimeOptions {
@@ -43,7 +54,14 @@ export interface AgentRuntimeOptions {
 	/** Test seams. Default to the globals. */
 	EventSource?: EventSourceCtor;
 	fetch?: FetchFn;
+	/** `null` skips duplicate-tab detection. */
+	BroadcastChannel?: BroadcastChannelCtor | null;
 }
+
+/** Messages on RUNTIME_TAB_CHANNEL. `from` / `to` are per-runtime instance ids. */
+type TabChannelMessage =
+	| { type: 'ping'; tabId: string; from: string }
+	| { type: 'pong'; tabId: string; to: string };
 
 export interface AgentRuntimeHandle {
 	/** `false` when the runtime decided to stay off (SSR / production / no EventSource). */
@@ -82,12 +100,25 @@ export function getRuntimeTabId(): string {
 	}
 }
 
+/** Replace this tab's id (duplicate detected) and persist the new one. */
+function regenerateRuntimeTabId(): string {
+	const id = randomId();
+	memoryTabId = id;
+	try {
+		sessionStorage.setItem(RUNTIME_TAB_ID_KEY, id);
+	} catch {
+		// memory fallback already holds it
+	}
+	return id;
+}
+
 /** Test helper: forget the in-memory tab id. */
 export function resetRuntimeTabIdForTests(): void {
 	memoryTabId = null;
 }
 
-function withToken(url: string, token: string | undefined): string {
+/** Append `?token=` (or `&token=`) when a token is set: EventSource cannot send headers. */
+export function withToken(url: string, token: string | undefined): string {
 	if (!token) return url;
 	return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
 }
@@ -110,7 +141,7 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 	const minBackoff = options.minBackoffMs ?? DEFAULT_MIN_BACKOFF_MS;
 	const maxBackoff = options.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
 	const dispatch = options.dispatch ?? dispatchRuntimeCommand;
-	const tabId = getRuntimeTabId();
+	let tabId = getRuntimeTabId();
 
 	let source: EventSource | null = null;
 	let connected = false;
@@ -120,7 +151,7 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 	const seenIds: string[] = [];
 
 	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-	if (token) headers[TOKEN_HEADER] = token;
+	if (token) headers[MCP_TOKEN_HEADER] = token;
 
 	const post = (path: string, body: unknown): void => {
 		doFetch(`${base}${path}`, {
@@ -216,6 +247,33 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 		});
 	};
 
+	// Duplicate-tab check: ask the other tabs whether one already uses this id.
+	const BC =
+		options.BroadcastChannel === undefined
+			? (globalThis as { BroadcastChannel?: BroadcastChannelCtor }).BroadcastChannel
+			: options.BroadcastChannel;
+	const instanceId = randomId();
+	let tabChannel: BroadcastChannel | null = null;
+	if (BC) {
+		try {
+			tabChannel = new BC(RUNTIME_TAB_CHANNEL);
+			tabChannel.addEventListener('message', (event: MessageEvent) => {
+				const msg = event.data as TabChannelMessage | null;
+				if (stopped || !msg || msg.tabId !== tabId) return;
+				if (msg.type === 'ping' && msg.from !== instanceId) {
+					// Someone started with our id: tell them, they regenerate.
+					tabChannel?.postMessage({ type: 'pong', tabId, to: msg.from } satisfies TabChannelMessage);
+				} else if (msg.type === 'pong' && msg.to === instanceId) {
+					tabId = regenerateRuntimeTabId();
+					sendHello();
+				}
+			});
+			tabChannel.postMessage({ type: 'ping', tabId, from: instanceId } satisfies TabChannelMessage);
+		} catch {
+			tabChannel = null;
+		}
+	}
+
 	const onFocusChange = (): void => sendHello();
 	window.addEventListener('focus', onFocusChange);
 	window.addEventListener('blur', onFocusChange);
@@ -226,7 +284,9 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 
 	return {
 		active: true,
-		tabId,
+		get tabId() {
+			return tabId;
+		},
 		stop() {
 			if (stopped) return;
 			stopped = true;
@@ -239,6 +299,8 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 			document.removeEventListener('visibilitychange', onFocusChange);
 			source?.close();
 			source = null;
+			tabChannel?.close();
+			tabChannel = null;
 		}
 	};
 }

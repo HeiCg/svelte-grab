@@ -195,7 +195,8 @@ The core tool. Hold Alt, hover to see file:line tooltips, click to capture the c
 | `agentRelayUrl` | `string` | `'ws://localhost:4722'` | Relay server URL |
 | `agentId` | `string` | `'claude-code'` | Agent identifier |
 | `enableMcp` | `boolean` | `false` | Enable MCP bridge to Claude Code |
-| `mcpPort` | `number` | `4723` | MCP server port |
+| `mcpPort` | `number` | `4723` | MCP server port. If the server is not there, the page probes the next 9 ports via `/health` |
+| `mcpToken` | `string` | — | Token for an MCP server started with `SVELTE_GRAB_TOKEN` / `--token` (sent as `x-svelte-grab-token` on POSTs, `?token=` on `/events`) |
 | `enableAgentRuntime` | `boolean` | `true` | With `enableMcp`, let coding agents query the page (`ui_snapshot`, `ui_find`) through the MCP server |
 | `freezeAnimations` | `boolean` | `true` | Freeze CSS animations during selection |
 | `freezePseudoStates` | `boolean` | `true` | Preserve :hover/:focus states during selection |
@@ -437,10 +438,10 @@ POST bodies are capped at 2 MB. A larger body gets a `413 {"error":"Request body
 The server listens on `4723` by default (`--port=<n>` to change it). If that port is busy it tries the next ones, up to 10 ports in total (`4723`-`4732` by default), and logs the port it picked on stderr:
 
 ```
-[svelte-grab mcp] Port 4723 was in use, using 4724 instead. The page must use mcpPort=4724 ...
+[svelte-grab mcp] Port 4723 was in use, using 4724 instead. The page finds it by probing GET /health on 4723-4732; pass mcpPort=4724 ...
 ```
 
-The page does not follow the fallback on its own yet: it keeps calling `mcpPort` (default `4723`), where it could reach some other server. When the log shows a fallback, pass the new port to the page:
+The page follows the fallback on its own. It checks `GET /health` on `mcpPort` first; when nothing answers there, or another service does, it probes the next 9 ports and uses the first one whose `service` is `svelte-grab-mcp`, logging the port it picked in the browser console. The result is cached for the page load. Passing the port directly skips the probe:
 
 ```svelte
 <SvelteGrab enableMcp mcpPort={4724} />
@@ -735,6 +736,12 @@ SVELTE_GRAB_TOKEN=my-secret npx svelte-grab mcp
 ```
 
 When enabled, clients must present the token via the `?token=<TOKEN>` query parameter or the `x-svelte-grab-token` header on both WebSocket connect and MCP endpoints. The token is printed on startup.
+
+In the browser, pass the MCP token to the component; it is sent on `/context`, `/events` and the agent runtime endpoints:
+
+```svelte
+<SvelteDevKit enableMcp mcpToken={import.meta.env.VITE_SVELTE_GRAB_TOKEN} />
+```
 
 ### Configuration
 
