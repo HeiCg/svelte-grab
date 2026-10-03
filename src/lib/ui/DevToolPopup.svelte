@@ -44,7 +44,7 @@
 	 *     {/snippet}
 	 *   </DevToolPopup>
 	 */
-	import { onMount, type Snippet } from 'svelte';
+	import type { Snippet } from 'svelte';
 	import type { ThemeConfig } from '../types.js';
 	import { resolveTheme, type ResolvedTheme } from '../utils/resolve-theme.js';
 	import { hideFromThirdParties } from '../utils/hide-from-third-parties.js';
@@ -108,9 +108,11 @@
 		visible = false;
 	}
 
-	onMount(() => {
-		// Opt the whole popup subtree out of third-party session-replay / replay
-		// tools so source paths, prop values and errors never leak.
+	// Opt the whole popup subtree out of third-party session-replay tools (so
+	// source paths, prop values and errors never leak) and out of ui_snapshot /
+	// ui_find. Re-runs whenever the overlay element is created: a popup that
+	// opens after mount is marked too, which an onMount check missed.
+	$effect(() => {
 		if (overlayEl) hideFromThirdParties(overlayEl);
 	});
 </script>

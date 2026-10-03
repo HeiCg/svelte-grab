@@ -40,6 +40,15 @@ test.describe('SvelteDevKit — dev-mode activation', () => {
 		await expect(
 			page.locator('[role="dialog"][aria-label="SvelteDevKit Keyboard Shortcuts"]')
 		).toBeVisible();
+
+		// The help popup is mounted hidden and opened later: its overlay root must
+		// still get the svelte-grab UI marker (keeps it out of ui_snapshot /
+		// ui_find) and the third-party redaction marks.
+		const overlay = page.locator(
+			'.sg-overlay:has([role="dialog"][aria-label="SvelteDevKit Keyboard Shortcuts"])'
+		);
+		await expect(overlay).toHaveAttribute('data-svelte-grab-ui', '');
+		await expect(overlay).toHaveAttribute('data-sentry-block', '');
 	});
 
 	test('Alt+Shift+C copies the unified context export including prior tool output', async ({
