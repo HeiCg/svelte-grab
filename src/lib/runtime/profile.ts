@@ -75,7 +75,8 @@ export interface ProfileOptions {
 	now?: () => number;
 }
 
-interface ParsedAction {
+/** A validated in-page action (also used by `ui_run_actions` in leak.ts). */
+export interface ParsedAction {
 	ref: string;
 	type: ProfileActionType;
 	value?: string;
@@ -152,28 +153,36 @@ export function observeLongFrames(): LongFrameWatch {
 function parseAction(args: Record<string, unknown>): ParsedAction | null {
 	const raw = args.action;
 	if (raw === undefined || raw === null) return null;
-	if (typeof raw !== 'object' || Array.isArray(raw)) {
-		throw new Error('"action" must be an object { ref, type: "click"|"input"|"scroll", value?, repeat? }');
+	return parseActionObject(raw);
+}
+
+/**
+ * Validate one action object `{ ref, type, value?, repeat? }`. `label` names
+ * it in error messages (e.g. `actions[1]`). Exported for leak.ts.
+ */
+export function parseActionObject(raw: unknown, label = 'action'): ParsedAction {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+		throw new Error(`"${label}" must be an object { ref, type: "click"|"input"|"scroll", value?, repeat? }`);
 	}
 	const a = raw as Record<string, unknown>;
 	const ref = optionalString(a, 'ref');
-	if (!ref) throw new Error('"action.ref" is required: an eN ref or a ui:// stable key from ui_find/ui_snapshot');
+	if (!ref) throw new Error(`"${label}.ref" is required: an eN ref or a ui:// stable key from ui_find/ui_snapshot`);
 	const type = a.type;
 	if (typeof type !== 'string' || !(PROFILE_ACTION_TYPES as readonly string[]).includes(type)) {
-		throw new Error(`"action.type" must be one of ${PROFILE_ACTION_TYPES.join(', ')}`);
+		throw new Error(`"${label}.type" must be one of ${PROFILE_ACTION_TYPES.join(', ')}`);
 	}
 	const value = a.value === undefined || a.value === null ? undefined : a.value;
-	if (value !== undefined && typeof value !== 'string') throw new Error('"action.value" must be a string');
+	if (value !== undefined && typeof value !== 'string') throw new Error(`"${label}.value" must be a string`);
 	const repeat = optionalInt(a, 'repeat', 1, 1, MAX_ACTION_REPEAT);
 	const action: ParsedAction = { ref, type: type as ProfileActionType, repeat };
 	if (value !== undefined) action.value = value;
 	if (action.type === 'input' && value === undefined) {
-		throw new Error('"action.value" is required for an input action (the text to set)');
+		throw new Error(`"${label}.value" is required for an input action (the text to set)`);
 	}
 	if (action.type === 'scroll' && value !== undefined && value.trim() !== '') {
 		const parts = value.split(',').map((p) => Number(p.trim()));
 		if (parts.length > 2 || parts.some((n) => !Number.isFinite(n))) {
-			throw new Error('"action.value" for scroll must be "dy" or "dx,dy" in px (omit it to scroll into view)');
+			throw new Error(`"${label}.value" for scroll must be "dy" or "dx,dy" in px (omit it to scroll into view)`);
 		}
 		action.delta = parts.length === 2 ? { x: parts[0], y: parts[1] } : { x: 0, y: parts[0] };
 	}

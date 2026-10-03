@@ -3,6 +3,7 @@
 import { startMcpServer } from './server.js';
 import { DEFAULT_MCP_PORT } from './constants.js';
 import { validatePort } from '../utils/port.js';
+import { cdpArgFromArgv } from './cdp/client.js';
 
 const args = process.argv.slice(2);
 
@@ -20,7 +21,11 @@ const token: boolean | string | undefined = tokenArg
 		? true
 		: undefined;
 
-startMcpServer({ port, stdio, token }).catch((err) => {
+// Opt-in CDP mode: --cdp=<http://127.0.0.1:9222> (or SVELTE_GRAB_CDP). Loopback
+// only; an invalid or remote URL makes startMcpServer reject (exit 1).
+const cdp = cdpArgFromArgv(args);
+
+startMcpServer({ port, stdio, token, cdp }).catch((err) => {
 	console.error('[svelte-grab mcp] Failed to start:', err.message || err);
 	process.exit(1);
 });
