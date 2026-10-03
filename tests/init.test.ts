@@ -79,14 +79,35 @@ describe('parseInitArgs', () => {
 			mcpJson: true,
 			svelteMcp: true,
 			playwrightMcp: false,
-			vitePlugin: true
+			vitePlugin: true,
+			skills: true,
+			skillsDir: '.claude/skills',
+			forceSkills: false
 		});
 	});
 
 	it('reads every flag', () => {
 		expect(
-			parseInitArgs(['--dry-run', '--no-mcp-json', '--no-svelte-mcp', '--with-playwright-mcp', '--no-vite-plugin'])
-		).toEqual({ dryRun: true, mcpJson: false, svelteMcp: false, playwrightMcp: true, vitePlugin: false });
+			parseInitArgs([
+				'--dry-run',
+				'--no-mcp-json',
+				'--no-svelte-mcp',
+				'--with-playwright-mcp',
+				'--no-vite-plugin',
+				'--no-skills',
+				'--skills-dir=.agents/skills',
+				'--force-skills'
+			])
+		).toEqual({
+			dryRun: true,
+			mcpJson: false,
+			svelteMcp: false,
+			playwrightMcp: true,
+			vitePlugin: false,
+			skills: false,
+			skillsDir: '.agents/skills',
+			forceSkills: true
+		});
 		expect(parseInitArgs(['--with-svelte-mcp=false', '--with-playwright-mcp=true'])).toMatchObject({
 			svelteMcp: false,
 			playwrightMcp: true
@@ -105,7 +126,12 @@ describe('init: SvelteKit', () => {
 		expect(result.mcpServersAdded).toEqual(['svelte-grab', 'svelte']);
 		expect(result.vitePlugin).toBe('added');
 		expect(result.layout).toBe('created');
-		expect(result.written.sort()).toEqual(['.mcp.json', 'src/routes/+layout.svelte', 'vite.config.ts']);
+		// Agent skills are covered in tests/skills.test.ts.
+		expect(result.written.filter((f) => !f.startsWith('.claude/skills/')).sort()).toEqual([
+			'.mcp.json',
+			'src/routes/+layout.svelte',
+			'vite.config.ts'
+		]);
 
 		const mcp = JSON.parse(read('.mcp.json'));
 		expect(mcp.mcpServers['svelte-grab']).toEqual({ type: 'stdio', command: 'npx', args: ['svelte-grab-mcp', '--stdio'] });

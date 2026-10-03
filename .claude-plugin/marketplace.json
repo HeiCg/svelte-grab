@@ -1,0 +1,16 @@
+{
+	"name": "svelte-grab",
+	"owner": {
+		"name": "HeiCg"
+	},
+	"metadata": {
+		"description": "svelte-grab for Claude Code: MCP server that gives coding agents eyes into a live Svelte app, plus UI-loop and security/performance audit skills."
+	},
+	"plugins": [
+		{
+			"name": "svelte-grab",
+			"source": "./",
+			"description": "svelte-grab MCP server + agent skills (UI loop, security and performance audit) for Svelte 5 / SvelteKit apps."
+		}
+	]
+}

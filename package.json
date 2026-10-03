@@ -51,7 +51,8 @@
     "svelte-grab-mcp": "./dist/mcp/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "scripts": {
     "build": "svelte-package -i src/lib -o dist && npm run build:server",
