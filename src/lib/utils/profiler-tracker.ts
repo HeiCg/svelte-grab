@@ -24,6 +24,32 @@ export interface MutationInfo {
 /** Callback fired per attributed component per mutation batch. */
 export type OnMutationCallback = (info: MutationInfo) => void;
 
+/** Optional extras for headless consumers (the agent runtime's `ui_profile`). */
+export interface ProfilerTrackerOptions {
+	/**
+	 * Return `false` to ignore a mutation. Receives the mutated element (the
+	 * parent element for `characterData`), after svelte-grab's own UI and
+	 * `data-sg-ref` stamps were already skipped.
+	 */
+	filter?: (target: HTMLElement) => boolean;
+	/** Count mutations per attributed element, for {@link ProfilerTracker.getTopElements}. */
+	trackElements?: boolean;
+}
+
+/** Mutation counts by kind for one component. */
+export interface MutationKindCounts {
+	childList: number;
+	attributes: number;
+	characterData: number;
+}
+
+/**
+ * Mutation targets that belong to svelte-grab's own UI (overlays, popups, the
+ * live outline painter, anything marked by `hideFromThirdParties`).
+ */
+const OWN_UI_SELECTOR =
+	'[class*="svelte-grab-"], [class*="svelte-devkit-"], [data-svelte-grab-outline], [data-svelte-grab-ui]';
+
 /**
  * Soft cap for the raw `events` / `userEvents` history. An earlier review
  * flagged these as unbounded during long live sessions. When the cap is
@@ -58,10 +84,21 @@ export class ProfilerTracker {
 	// Pre-grouped events by component file for O(1) lookup
 	private _eventsByFile: Map<string, RenderEvent[]> = new Map();
 
-	constructor(burstThreshold = 20, burstWindow = 1000, onMutation: OnMutationCallback | null = null) {
+	private readonly _filter: ((target: HTMLElement) => boolean) | null;
+	/** file -> attributed element -> mutation count (only with `trackElements`). */
+	private _elementCounts: Map<string, Map<HTMLElement, number>> | null;
+
+	constructor(
+		burstThreshold = 20,
+		burstWindow = 1000,
+		onMutation: OnMutationCallback | null = null,
+		options: ProfilerTrackerOptions = {}
+	) {
 		this.burstThreshold = burstThreshold;
 		this.burstWindow = burstWindow;
 		this._onMutation = onMutation;
+		this._filter = options.filter ?? null;
+		this._elementCounts = options.trackElements ? new Map() : null;
 	}
 
 	/**
@@ -110,104 +147,9 @@ export class ProfilerTracker {
 		this._burstsCache.clear();
 		this.startTime = performance.now();
 		this.mutationTypeCounts.clear();
+		this._elementCounts?.clear();
 
-		this.observer = new MutationObserver((mutations) => {
-			const now = performance.now();
-
-			// Group mutations by their closest Svelte component, tracking type breakdown
-			const componentMutations = new Map<string, {
-				file: string;
-				name: string;
-				count: number;
-				type: 'childList' | 'attributes' | 'characterData';
-				childList: number;
-				attributes: number;
-				characterData: number;
-				/** A representative mutated element, for the live overlay rect. */
-				element: HTMLElement;
-			}>();
-
-			for (const mutation of mutations) {
-				// For characterData mutations, the target is a Text node — use parentElement
-				let target: HTMLElement | null;
-				if (mutation.type === 'characterData') {
-					target = mutation.target.parentElement;
-				} else {
-					target = mutation.target as HTMLElement;
-				}
-				if (!target || !(target instanceof HTMLElement)) continue;
-
-				// Ref stamps from the agent runtime (runtime/refs.ts) are not renders.
-				if (mutation.type === 'attributes' && mutation.attributeName === 'data-sg-ref') continue;
-
-				// Skip our own UI elements (incl. the live outline overlay)
-				if (
-					target.closest('[class*="svelte-grab-"]') ||
-					target.closest('[class*="svelte-devkit-"]') ||
-					target.closest('[data-svelte-grab-outline]')
-				) continue;
-
-				const svelteEl = findMetaElement(target);
-				const loc = getSvelteLoc(svelteEl);
-				if (!svelteEl || !loc) continue;
-
-				const file = loc.file;
-				const mutType = mutation.type as 'childList' | 'attributes' | 'characterData';
-
-				if (componentMutations.has(file)) {
-					const entry = componentMutations.get(file)!;
-					entry.count++;
-					entry[mutType]++;
-				} else {
-					componentMutations.set(file, {
-						file,
-						name: extractComponentName(file) || 'unknown',
-						count: 1,
-						type: mutType,
-						childList: mutType === 'childList' ? 1 : 0,
-						attributes: mutType === 'attributes' ? 1 : 0,
-						characterData: mutType === 'characterData' ? 1 : 0,
-						element: svelteEl
-					});
-				}
-			}
-
-			// Record events and accumulate type counts
-			for (const [, comp] of componentMutations) {
-				// Determine dominant mutation type
-				const dominant: 'childList' | 'attributes' | 'characterData' =
-					comp.attributes >= comp.childList && comp.attributes >= comp.characterData ? 'attributes' :
-					comp.childList >= comp.characterData ? 'childList' : 'characterData';
-
-				this.addEvent({
-					componentFile: comp.file,
-					componentName: comp.name,
-					timestamp: now,
-					type: dominant === 'attributes' ? 'attribute' : dominant,
-					mutationCount: comp.count
-				});
-
-				// Accumulate totals per component
-				const existing = this.mutationTypeCounts.get(comp.file) || { childList: 0, attributes: 0, characterData: 0 };
-				existing.childList += comp.childList;
-				existing.attributes += comp.attributes;
-				existing.characterData += comp.characterData;
-				this.mutationTypeCounts.set(comp.file, existing);
-
-				// Live overlay sink. Compute the rect lazily only when wired, since
-				// getBoundingClientRect forces layout — skip it entirely otherwise.
-				if (this._onMutation && comp.element.isConnected) {
-					const rect = comp.element.getBoundingClientRect();
-					this._onMutation({
-						element: comp.element,
-						file: comp.file,
-						componentName: comp.name,
-						mutationCount: comp.count,
-						rect
-					});
-				}
-			}
-		});
+		this.observer = new MutationObserver((mutations) => this.handleMutations(mutations));
 
 		this.observer.observe(document.body, {
 			childList: true,
@@ -240,14 +182,141 @@ export class ProfilerTracker {
 		};
 	}
 
+	/** Attribute one MutationObserver batch to Svelte components. */
+	private handleMutations(mutations: MutationRecord[]): void {
+		if (mutations.length === 0) return;
+		const now = performance.now();
+
+		// Group mutations by their closest Svelte component, tracking type breakdown
+		const componentMutations = new Map<string, {
+			file: string;
+			name: string;
+			count: number;
+			type: 'childList' | 'attributes' | 'characterData';
+			childList: number;
+			attributes: number;
+			characterData: number;
+			/** A representative mutated element, for the live overlay rect. */
+			element: HTMLElement;
+		}>();
+
+		for (const mutation of mutations) {
+			// For characterData mutations, the target is a Text node — use parentElement
+			let target: HTMLElement | null;
+			if (mutation.type === 'characterData') {
+				target = mutation.target.parentElement;
+			} else {
+				target = mutation.target as HTMLElement;
+			}
+			if (!target || !(target instanceof HTMLElement)) continue;
+
+			// Ref stamps from the agent runtime (runtime/refs.ts) are not renders.
+			if (mutation.type === 'attributes' && mutation.attributeName === 'data-sg-ref') continue;
+
+			// Skip our own UI elements (incl. the live outline overlay)
+			if (target.closest(OWN_UI_SELECTOR)) continue;
+
+			if (this._filter && !this._filter(target)) continue;
+
+			const svelteEl = findMetaElement(target);
+			const loc = getSvelteLoc(svelteEl);
+			if (!svelteEl || !loc) continue;
+
+			const file = loc.file;
+			const mutType = mutation.type as 'childList' | 'attributes' | 'characterData';
+
+			if (this._elementCounts) {
+				let perElement = this._elementCounts.get(file);
+				if (!perElement) this._elementCounts.set(file, (perElement = new Map()));
+				perElement.set(svelteEl, (perElement.get(svelteEl) ?? 0) + 1);
+			}
+
+			if (componentMutations.has(file)) {
+				const entry = componentMutations.get(file)!;
+				entry.count++;
+				entry[mutType]++;
+			} else {
+				componentMutations.set(file, {
+					file,
+					name: extractComponentName(file) || 'unknown',
+					count: 1,
+					type: mutType,
+					childList: mutType === 'childList' ? 1 : 0,
+					attributes: mutType === 'attributes' ? 1 : 0,
+					characterData: mutType === 'characterData' ? 1 : 0,
+					element: svelteEl
+				});
+			}
+		}
+
+		// Record events and accumulate type counts
+		for (const [, comp] of componentMutations) {
+			// Determine dominant mutation type
+			const dominant: 'childList' | 'attributes' | 'characterData' =
+				comp.attributes >= comp.childList && comp.attributes >= comp.characterData ? 'attributes' :
+				comp.childList >= comp.characterData ? 'childList' : 'characterData';
+
+			this.addEvent({
+				componentFile: comp.file,
+				componentName: comp.name,
+				timestamp: now,
+				type: dominant === 'attributes' ? 'attribute' : dominant,
+				mutationCount: comp.count
+			});
+
+			// Accumulate totals per component
+			const existing = this.mutationTypeCounts.get(comp.file) || { childList: 0, attributes: 0, characterData: 0 };
+			existing.childList += comp.childList;
+			existing.attributes += comp.attributes;
+			existing.characterData += comp.characterData;
+			this.mutationTypeCounts.set(comp.file, existing);
+
+			// Live overlay sink. Compute the rect lazily only when wired, since
+			// getBoundingClientRect forces layout — skip it entirely otherwise.
+			if (this._onMutation && comp.element.isConnected) {
+				const rect = comp.element.getBoundingClientRect();
+				this._onMutation({
+					element: comp.element,
+					file: comp.file,
+					componentName: comp.name,
+					mutationCount: comp.count,
+					rect
+				});
+			}
+		}
+	}
+
 	/**
-	 * Stop profiling
+	 * Stop profiling. Records still queued in the observer (mutations made since
+	 * its last callback) are attributed first, so nothing at the tail is lost.
 	 */
 	stop(): void {
-		this.observer?.disconnect();
+		if (this.observer) {
+			this.handleMutations(this.observer.takeRecords());
+			this.observer.disconnect();
+		}
 		this.observer = null;
 		this.userEventCleanup?.();
 		this.userEventCleanup = null;
+	}
+
+	/** Mutation counts by kind for one component file (zeros when it never mutated). */
+	getMutationKinds(file: string): MutationKindCounts {
+		const counts = this.mutationTypeCounts.get(file);
+		return counts ? { ...counts } : { childList: 0, attributes: 0, characterData: 0 };
+	}
+
+	/**
+	 * The elements of `file` that mutated most (needs `trackElements`): the
+	 * nearest element with Svelte source info for each mutation, by count.
+	 */
+	getTopElements(file: string, limit = 3): { element: HTMLElement; count: number }[] {
+		const perElement = this._elementCounts?.get(file);
+		if (!perElement) return [];
+		return [...perElement.entries()]
+			.map(([element, count]) => ({ element, count }))
+			.sort((a, b) => b.count - a.count)
+			.slice(0, limit);
 	}
 
 	/**

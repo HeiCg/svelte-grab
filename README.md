@@ -528,6 +528,7 @@ The recommended way to connect svelte-grab to Claude Code (and any other MCP cli
 | `ui_wait_for_hmr` | Call right after editing a file. Waits for the Vite HMR update (or full reload) touching `files` (suffix match; any update when omitted), lets the DOM settle, re-resolves every ref and returns `{ status, updated, errors, rebound: [{from,to}], lost, kept, consoleErrors, source }`. Args: `files`, `timeoutMs` (default 15000, max 55000), `since` (epoch ms, also accepts an update that already happened, from the last 20), `tabId`. |
 | `ui_verify` | Call after `ui_wait_for_hmr`. PASS/WARN/FAIL checks on one element: `visible` (rendered, in viewport, not covered; names the coverer), `overflow` (clipped or spilling content, page-level horizontal overflow), `console` (errors FAIL, warnings WARN since `since`, else the last HMR update), `a11y` (element-level checks), `contrast` (below 3:1 FAIL, below WCAG AA WARN). Text starts with the verdict line; `structuredContent` is `{ verdict, checks: [{ check, status, summary, details }] }`. Args: `ref`, `checks` (default all), `since`, `tabId`. |
 | `ui_component_impact` | Call before editing a component that may be shared, with a ref to any element it renders. Returns the definition file, instances on the page grouped by usage site, variants (instances grouped by root classes), importers from the Vite module graph (needs `svelte-grab/vite`, else "unknown") and a recommendation: edit the component for a single usage, else prefer a prop/variant or a local class at the usage site. Args: `ref`, `tabId`. |
+| `ui_profile` | Records which components mutate the DOM for `durationMs` (default 3000, max 30000), optionally while performing an in-page `action` (`{ ref, type: "click"\|"input"\|"scroll", value?, repeat? }`, `isTrusted=false`). Verdict `HOT <Component> N mutations in Xs (burst xK)` or `QUIET`, then per component mutations, mutations/sec, bursts, kinds and the top mutated elements as refs, plus FPS and long frames. Scope with `component` or `ref`. See [Profiling with ui_profile](#profiling-with-ui_profile). |
 
 The `ui_*` tools query the page live: the app must be open in dev with `<SvelteGrab/>` mounted (otherwise they return "No browser tab connected"). Refs are stamped on elements as `data-sg-ref`, so `[data-sg-ref="e12"]` works as a locator in Playwright MCP or chrome-devtools MCP for real clicks and screenshots.
 
@@ -542,6 +543,21 @@ With `enableMcp` (and `enableAgentRuntime`, on by default), the page also answer
 - Every reported element gets a session ref (`e12`) stamped as `data-sg-ref`, so other tools (Playwright MCP, chrome-devtools-mcp) can act on it with the locator `[data-sg-ref="e12"]`. Each result also carries a stable key (`ui://<file>:<line>:<col>#<Component>[role=..,name=..][i]`) that re-resolves after re-renders.
 
 Set `enableAgentRuntime={false}` to keep the MCP bridge without the runtime.
+
+### Profiling with `ui_profile`
+
+Call `ui_profile` after `ui_verify` to check that a change did not make a component hot. Svelte 5 has no component re-renders, so it counts DOM mutations attributed to the component whose markup changed (the same tracker as Alt+P, in its own headless session, so a human profiling run is not disturbed). svelte-grab's own UI and `data-sg-ref` stamps are ignored. With `action`, the click/input/scroll runs `repeat` times spread evenly over the window (run i at `i * durationMs / repeat`). A component is HOT when it has a burst: 20+ mutation batches within 1s. Long frames come from `long-animation-frame` (else `longtask`, else omitted with a note).
+
+```
+HOT HotFixture 95 mutations in 1.5s (burst x1)
+ui_profile 1.5s, scope: page, action: click e1 x1 (isTrusted=false)
+COMPONENTS by mutations (2 of 2):
+  HotFixture 95 mutations, 63.1/s, 1 burst, 95 batches [characterData 95] src/components/fixtures/HotFixture.svelte
+    top: e2 span.fx-hot-count src/components/fixtures/HotFixture.svelte:25 x94; e1 button.fx-hot-toggle src/components/fixtures/HotFixture.svelte:22 x1
+  QuietTicker 1 mutation, 0.7/s, 0 bursts, 1 batch [characterData 1] src/components/fixtures/QuietTicker.svelte
+FPS avg 120, min 120 (1 whole-second sample)
+LONG FRAMES 0 (long-animation-frame, > 50ms)
+```
 
 ### Vite plugin (`svelte-grab/vite`)
 

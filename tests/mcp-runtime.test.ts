@@ -424,7 +424,8 @@ describe('runtime MCP tools', () => {
 			'ui_annotations',
 			'ui_wait_for_hmr',
 			'ui_verify',
-			'ui_component_impact'
+			'ui_component_impact',
+			'ui_profile'
 		]);
 		for (const name of ['ui_snapshot', 'ui_find', 'ui_inspect']) {
 			const { config } = tools.get(name)!;

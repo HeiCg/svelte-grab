@@ -14,6 +14,7 @@
 	import FadeToggle from './components/fixtures/FadeToggle.svelte';
 	import FixtureForm from './components/fixtures/FixtureForm.svelte';
 	import OverflowFixture from './components/fixtures/OverflowFixture.svelte';
+	import HotFixture from './components/fixtures/HotFixture.svelte';
 
 	const items = ['Apples', 'Bananas', 'Cherries', 'Dates'];
 
@@ -116,6 +117,7 @@
 		</Section>
 
 		<Section title="Overflow" testid="fx-overflow-section"><OverflowFixture /></Section>
+		<Section title="Hot updates" testid="fx-hot-section"><HotFixture /></Section>
 	</section>
 </main>
 
