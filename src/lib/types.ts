@@ -189,6 +189,15 @@ export interface SvelteGrabProps {
 	 * Alt+? and the right-click menu are off. Default: 'full'
 	 */
 	hotkeys?: HotkeysMode;
+	/**
+	 * Extra modifiers that belong to other tools. A modifier+click (or
+	 * right-click / drag start) that also holds one of these is ignored: no
+	 * grab, no popup, no multi-select, no preventDefault, so e.g. Alt+Ctrl+Click
+	 * reaches only StyleGrab. Shift keeps multi-selecting unless listed. An
+	 * entry equal to `modifier` is ignored. SvelteDevKit sets this from the
+	 * StateGrab / StyleGrab triggers in `hotkeys="full"`. Default: []
+	 */
+	reservedModifiers?: ('ctrl' | 'meta' | 'shift')[];
 }
 
 // ============================================================

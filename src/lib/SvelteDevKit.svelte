@@ -36,7 +36,11 @@
 	import DevToolPopup from './ui/DevToolPopup.svelte';
 	import { resolveTheme } from './utils/resolve-theme.js';
 	import { useDevtoolMount } from './utils/use-devtool-mount.svelte.js';
-	import { ANNOTATION_KEY_LABEL, toolHotkeysEnabled } from './utils/hotkeys.js';
+	import {
+		ANNOTATION_KEY_LABEL,
+		toolHotkeysEnabled,
+		resolveReservedModifiers
+	} from './utils/hotkeys.js';
 
 	let {
 		modifier = 'alt',
@@ -112,6 +116,21 @@
 	let stateModifier = $derived<'shift' | 'ctrl' | 'meta'>(
 		stateSecondaryModifier ??
 			(isEnabled('grab') && enableMultiSelect && modifier !== 'meta' ? 'meta' : 'shift')
+	);
+
+	// SvelteGrab accepts Alt+Click with any extra modifier, so Alt+Meta+Click
+	// (state) and Alt+Ctrl+Click (style) would also grab. Reserve the live
+	// triggers' secondary modifiers so those clicks reach only their tool.
+	let reservedModifiers = $derived(
+		resolveReservedModifiers({
+			hotkeys,
+			modifier,
+			enableMultiSelect,
+			stateEnabled: isEnabled('state'),
+			stateModifier,
+			styleEnabled: isEnabled('style'),
+			styleModifier: styleSecondaryModifier
+		})
 	);
 
 	// Build shortcuts list based on enabled tools
@@ -214,6 +233,7 @@
 		{enablePromptMode}
 		{enableAnnotations}
 		{hotkeys}
+		{reservedModifiers}
 	/>
 {/if}
 
