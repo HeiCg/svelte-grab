@@ -37,7 +37,10 @@ export default defineConfig({
 	},
 	server: {
 		port,
-		strictPort: true
+		strictPort: true,
+		// CI runners (Linux, containerised FS) can miss fast successive native
+		// fs events, which made the HMR e2e (edit then restore a fixture) flaky.
+		watch: process.env.CI ? { usePolling: true, interval: 100 } : undefined
 	},
 	preview: {
 		port,
