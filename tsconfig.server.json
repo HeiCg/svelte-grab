@@ -12,6 +12,13 @@
 		"rootDir": "./src",
 		"types": ["node"]
 	},
-	"include": ["src/relay/**/*", "src/cli/**/*", "src/mcp/**/*", "src/utils/**/*", "src/vite/**/*"],
+	"include": [
+		"src/relay/**/*",
+		"src/cli/**/*",
+		"src/mcp/**/*",
+		"src/utils/**/*",
+		"src/vite/**/*",
+		"src/sv/**/*"
+	],
 	"exclude": ["node_modules", "dist", "src/lib"]
 }

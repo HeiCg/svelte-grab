@@ -15,7 +15,8 @@
 		"playwright",
 		"claude",
 		"cursor",
-		"ai-coding"
+		"ai-coding",
+		"sv-add"
 	],
 	"license": "MIT",
 	"author": "HeiCg",
@@ -44,6 +45,10 @@
 		"./vite": {
 			"types": "./dist/vite/index.d.ts",
 			"default": "./dist/vite/index.js"
+		},
+		"./sv": {
+			"types": "./dist/sv/index.d.ts",
+			"default": "./dist/sv/index.js"
 		}
 	},
 	"bin": {
@@ -77,6 +82,7 @@
 		"@modelcontextprotocol/sdk": "^1.26.0",
 		"@openai/codex-sdk": ">=0.1.0",
 		"html-to-image": "^1.11.0",
+		"sv": "^1.0.0",
 		"svelte": "^5.35.1",
 		"vite": ">=5.0.0",
 		"ws": "^8.0.0",
@@ -93,6 +99,9 @@
 			"optional": true
 		},
 		"html-to-image": {
+			"optional": true
+		},
+		"sv": {
 			"optional": true
 		},
 		"vite": {

@@ -9,7 +9,7 @@ feat: svelte-grab 2.0, the agent runtime. Give coding agents eyes into your Svel
 - Annotation mode and opt-in `hotkeys="minimal"`.
 - New optional peer `zod` (needed by the MCP server alongside `@modelcontextprotocol/sdk`).
 - `svelte-grab init` now also writes/merges `.mcp.json` (svelte-grab + the official Svelte MCP, optional Playwright MCP), adds the Vite plugin and injects `<SvelteDevKit enableMcp />` when the MCP server is configured. Opt out with `--no-mcp-json`, `--no-svelte-mcp`, `--no-vite-plugin`; preview with `--dry-run`.
-- New `sv` community add-on `@svelte-grab/sv` (`npx sv add @svelte-grab`), published separately.
+- New `sv` community add-on bundled in the package (`svelte-grab/sv`): `npx sv add svelte-grab` does what `init` does, skills included.
 - The WebSocket relay is in maintenance mode: still supported, new integrations should use MCP.
 - Fixed the relay providers against the real SDK APIs: Claude Code now consumes the `query()` message stream (abort via `abortController`, resumes the session, edits allowed with `acceptEdits`); Codex uses the `Codex` class, awaits `runStreamed()` and reads `agent_message` items (`workspace-write` sandbox).
 - `SvelteDevKit` gives every shortcut a single owner: Alt+Ctrl/Meta+Click and Alt+DoubleClick no longer also trigger the SvelteGrab inspector (new `SvelteGrab` props `reservedModifiers`, `reservedContextMenuModifiers`, `yieldDoubleClick` and an exported `dismiss()`).

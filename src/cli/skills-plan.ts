@@ -2,7 +2,7 @@
  * Pure planner for installing the agent skills (`skills/` in the package) into
  * a project. Shared by `svelte-grab init` / `svelte-grab skills install`
  * (src/cli/skills.ts, which reads and writes the files) and the `sv` add-on
- * (packages/sv-addon, which embeds the skill files at build time).
+ * (src/sv/plan.ts, which reads the packaged skill files and writes through sv).
  *
  * No file system access here: callers pass the skill files and a reader for
  * the project, then apply `plan.writes` and `plan.removes`.

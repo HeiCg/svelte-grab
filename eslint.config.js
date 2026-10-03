@@ -30,11 +30,7 @@ export default tseslint.config(
 			'.claude/',
 			'examples/',
 			// Deliberately insecure sample projects scanned by `svelte-grab audit` tests
-			'tests/fixtures/',
-			// Standalone packages (sv add-on): build output and their own demo/deps
-			'packages/*/dist/',
-			'packages/*/node_modules/',
-			'packages/*/demo/'
+			'tests/fixtures/'
 		]
 	},
 	js.configs.recommended,
