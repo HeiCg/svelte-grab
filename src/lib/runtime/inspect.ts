@@ -13,6 +13,7 @@
  * COMPONENT and SOURCE are always included. Text is capped at
  * `MAX_INSPECT_TEXT` chars; every cap says so in the output.
  */
+import { overflowAxes } from '../utils/overflow.js';
 import type { StackEntry } from '../types.js';
 import { formatForAgent } from '../utils/agent-format.js';
 import { contrastRatio, analyzeA11y, getEffectiveBackground } from '../utils/a11y-checker.js';
@@ -291,8 +292,7 @@ function layoutSection(el: HTMLElement) {
 		x: measurable && client.width > 0 && scroll.width > client.width + 1,
 		y: measurable && client.height > 0 && scroll.height > client.height + 1
 	};
-	const overflowX = cs.overflowX || cs.overflow || 'visible';
-	const overflowY = cs.overflowY || cs.overflow || 'visible';
+	const { x: overflowX, y: overflowY } = overflowAxes(cs);
 	const clips = (v: string) => v === 'hidden' || v === 'clip';
 	const clipped = (overflowing.x && clips(overflowX)) || (overflowing.y && clips(overflowY));
 

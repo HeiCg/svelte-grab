@@ -20,6 +20,7 @@
  */
 import { analyzeA11y } from '../utils/a11y-checker.js';
 import { findMetaElement, getSvelteLoc } from '../utils/component-stack.js';
+import { overflowAxes } from '../utils/overflow.js';
 import { shortenPath } from '../utils/shared.js';
 import { computeName, computeRole } from './aria.js';
 import { consoleCapture, type ConsoleCapture, type ConsoleEntry } from './console-capture.js';
@@ -297,7 +298,7 @@ function insideHorizontalClip(el: Element): boolean {
 	const view = el.ownerDocument.defaultView!;
 	const body = el.ownerDocument.body;
 	for (let p = el.parentElement; p && p !== body; p = p.parentElement) {
-		const v = view.getComputedStyle(p).overflowX;
+		const v = overflowAxes(view.getComputedStyle(p)).x;
 		if (clips(v) || scrolls(v)) return true;
 	}
 	return false;
@@ -348,8 +349,7 @@ function checkOverflow(el: HTMLElement, namer: Namer): VerifyCheckResult {
 	// 1. The element's own content.
 	const display = cs.display || 'block';
 	const measurable = display !== 'inline' && display !== 'contents' && display !== 'none';
-	const ox = cs.overflowX || cs.overflow || 'visible';
-	const oy = cs.overflowY || cs.overflow || 'visible';
+	const { x: ox, y: oy } = overflowAxes(cs);
 	const scroll = { width: el.scrollWidth, height: el.scrollHeight };
 	const client = { width: el.clientWidth, height: el.clientHeight };
 	const over = {

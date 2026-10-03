@@ -375,6 +375,14 @@ function checkImageAlts(root: HTMLElement): A11yIssue[] {
 	return issues;
 }
 
+/** True when the element has a non-whitespace text node as a direct child. */
+function hasOwnText(el: HTMLElement): boolean {
+	for (const node of Array.from(el.childNodes)) {
+		if (node.nodeType === 3 && node.textContent?.trim()) return true;
+	}
+	return false;
+}
+
 /**
  * Check contrast ratios for text elements
  */
@@ -387,7 +395,10 @@ function checkContrast(root: HTMLElement): A11yIssue[] {
 	const checked = new Set<string>();
 	textElements.forEach((el) => {
 		const element = el as HTMLElement;
-		if (!element.textContent?.trim()) return;
+		// Only elements that render text themselves: a container whose text all
+		// lives in children (with their own color) must not be judged by its
+		// own, unused foreground color.
+		if (!hasOwnText(element)) return;
 
 		const computed = window.getComputedStyle(element);
 		const fg = computed.color;
