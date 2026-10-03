@@ -255,6 +255,143 @@ out of scope (no public hook).
   module-level array / leaves a window listener on destroy) behind a toggle,
   and a non-leaking twin; a "hot" component with a fast interval.
 
+## Phase 9 — security and performance audit skill (approved 2026-10-03)
+
+Goal: out of the box, an agent can answer "when screen X loads, how many
+requests fire, what do they cost, and does anything leak credentials?" and
+run a repeatable security + performance checklist on a Svelte/SvelteKit app.
+
+References studied: cloudflare/security-audit-skill (phased audit, verified
+machine-readable findings, `confirmed`/`needs_validation`/`rejected`
+verdicts, JSON schema + zero-dep validator), adnxy/rnsec (zero-config
+framework-specific rule scanner, JSON + HTML report, CI mode),
+zhaoxuya520/reverse-skill (skill router layout; offensive parts not used),
+dstotijn/hetty (MITM HTTP toolkit — recommended in docs as a learning tool,
+not integrated).
+
+### 9a. `ui_network` (in-page runtime, no CDP)
+
+- Capture while the runtime is connected (ring buffer, last 500 requests per
+  page load): wrap `fetch`, `XMLHttpRequest`, `navigator.sendBeacon`,
+  `WebSocket` (connect + message counts/sizes), `EventSource`; plus
+  `PerformanceObserver('resource')` for everything else (scripts, images,
+  fonts, CSS) with timing/size/initiatorType. SvelteKit `__data.json` and
+  remote-function calls are tagged.
+- Initiator attribution: capture `new Error().stack` at call time, parse with
+  `error-parser.ts`, map first app frame to a source file:line and, when the
+  call happens inside a component context, the component name.
+- Page command `ui_network({ since?: number | 'navigation', reload?: boolean,
+  waitMs?: number (default 2000), filter?: {origin?, type?, status?} })`:
+  `reload: true` reloads the page and records the load window (the runtime
+  survives reload via the existing reconnect; capture starts at module eval).
+  Returns: totals (count, bytes, by type, by origin first- vs third-party),
+  duplicates (same method+URL N times), waterfall summary (slowest 5, blocking
+  chain), failed requests, and per-request lines with initiator source.
+- Bodies: request/response bodies are NOT returned by default; only sizes and
+  content types. `includeBodies: true` returns redacted, truncated (2 KB)
+  bodies for same-origin JSON only.
+
+### 9b. `ui_security_scan` (runtime checks)
+
+Each finding: `{ id, severity: high|medium|low|info, verdict: confirmed |
+needs_validation, title, evidence (redacted), source?, fix }`. Checks:
+- Credentials in transit: tokens/API keys/JWTs in URL query strings or
+  fragments; `Authorization`/cookies/API-key headers sent to third-party
+  origins; credentials in request bodies to analytics/telemetry hosts; HTTP
+  (not HTTPS) requests from an HTTPS page; WebSocket `ws://`.
+- Credentials at rest in the browser: JWT/API-key-shaped values in
+  `localStorage`/`sessionStorage`/IndexedDB names; cookies readable by JS that
+  look like session/auth cookies (=> missing `HttpOnly`); secrets in
+  `window` globals.
+- SvelteKit data exposure: serialized page data (`__sveltekit_*` / `data`
+  in the HTML and `__data.json`) containing secret-shaped values or sensitive
+  keys (`password`, `hash`, `secret`, `token`, `apiKey`, `ssn`, ...) — the
+  classic "`+page.server.ts` returned the whole user row" leak; `PUBLIC_` /
+  `VITE_` env values that look like secret keys exposed in client bundles.
+- Hardening (response headers via `fetch(location.href, {method:'HEAD'})`
+  same-origin): CSP present and not `unsafe-inline`/`unsafe-eval` for
+  scripts, `X-Content-Type-Options`, `Referrer-Policy`, frame-ancestors /
+  `X-Frame-Options`, HSTS (prod only, info in dev); source maps reachable
+  (info in dev).
+- DOM: `{@html}`-rendered nodes containing `<script>`/event-handler
+  attributes (via a dev marker if feasible, else inline handler scan);
+  `target=_blank` without `rel=noopener` on external links;
+  `postMessage` listeners without origin checks (static, 9c).
+- Redaction (mandatory, also in 9a): never return a full secret. Show kind +
+  first 4 chars + length + short SHA-256 prefix (`jwt:eyJh…(len 812,
+  sha 3f9a1c)`), so the agent can match occurrences without seeing the value.
+  Detection uses a shared rule table (JWT, Bearer, AWS/GCP/Stripe/GitHub/
+  OpenAI/Anthropic/Supabase key shapes, generic high-entropy).
+
+### 9c. `svelte-grab audit` (static scanner CLI, rnsec-style)
+
+- `npx svelte-grab audit [--path .] [--json out.json] [--html report.html]
+  [--ci]`, zero config, no new heavy deps (regex + light parsing with the
+  Svelte compiler's `parse` already available as peer).
+- Svelte/SvelteKit rules: `{@html}` with non-literal input; secrets in
+  client-reachable code (not under `/server/` or `*.server.*` / `$lib/server`
+  / `#lib/server`); `$env/static/public` / `PUBLIC_*` / `VITE_*` holding
+  secret-shaped values in `.env*` files; `+page.server`/`+layout.server` load
+  returning objects spread from DB rows (`return { user }` where `user` comes
+  from a query without field selection) => needs_validation; form actions /
+  remote `command`s without auth check heuristics => needs_validation;
+  `hooks.server` missing CSP / security headers (Kit `csp` config absent);
+  CSRF `trustedOrigins: ['*']`; `postMessage` handlers without origin check;
+  `eval`/`new Function`; `target=_blank` without rel; outdated `svelte` /
+  `@sveltejs/kit` with known advisories (from `npm audit --json` if available,
+  else skip with note).
+- Output reuses the 9b finding shape; JSON validated by a schema shipped in
+  the package (pattern from cloudflare/security-audit-skill).
+
+### 9d. The skill (shipped and installed by default)
+
+- Source of truth in the repo: `skills/svelte-grab-audit/` with `SKILL.md`
+  (trigger: "security audit", "performance audit", "what does screen X load",
+  "credential leak", "why is this page slow"), `CHECKLIST.md` (security +
+  performance checklists below), `REPORT.md` template, `finding-schema.json`.
+  Also `skills/svelte-grab/SKILL.md` (core: how to use the ui_* loop).
+- Workflow in SKILL.md (phased, cloudflare-inspired, lightweight):
+  1. Recon: routes list (from `src/routes`), pick screens; `svelte-grab
+     audit --json` for static findings.
+  2. Per screen: `ui_network({reload:true})`, `ui_security_scan`,
+     `ui_profile`, `ui_verify` on key elements; with CDP also
+     `ui_perf_metrics` + `ui_leak_check` on modals/toggles.
+  3. Validate each candidate (reproduce, try to disprove), assign verdict.
+  4. Report: per-screen table (requests, bytes, third parties, duplicates,
+     leaks, hot components, leaks) + findings with fix and file:line.
+- Distribution (no npm `postinstall` — install-time scripts are a
+  supply-chain risk and are blocked by default in modern package managers):
+  - `svelte-grab init` copies the skills into `.claude/skills/` by default
+    (flag `--no-skills`; `--skills-dir` for other agents, e.g.
+    `.agents/skills`), and appends a short pointer to `AGENTS.md` if present.
+  - Files ship inside the npm package (`files` adds `skills/`), so
+    `npx svelte-grab skills install` can (re)install/update them.
+  - Installable via the Skills CLI: `npx skills add HeiCg/svelte-grab
+    --skill svelte-grab-audit`.
+  - MCP `prompts` capability on the svelte-grab MCP server:
+    `security-audit` and `performance-audit` prompts that inline the
+    checklist — works in any MCP client with zero install.
+  - Optional Claude Code plugin manifest (`.claude-plugin/`) like
+    sveltejs/ai-tools.
+
+### Checklists (content for CHECKLIST.md)
+
+Security (per screen): requests to third parties carry no auth headers /
+cookies / tokens; no secrets in URLs; no auth tokens in Web Storage; session
+cookie not JS-readable; page data has no sensitive fields; no secret-shaped
+`PUBLIC_`/`VITE_` values; CSP + core headers present (prod); no `{@html}` on
+user input; external links `rel=noopener`; postMessage origin checks; mixed
+content none; error responses don't leak stack traces; forms/actions/remote
+commands check auth; dependencies without known advisories.
+
+Performance (per screen): request count and bytes within budget (defaults:
+≤ 50 requests, ≤ 1.5 MB transferred, ≤ 10 third-party), no duplicate
+requests, no request waterfalls > 3 deep that could be parallel / moved to
+`load`, data loaded in `+page(.server).ts` not in `onMount`, images sized and
+lazy below the fold, fonts preloaded/subset, no HOT components at idle
+(`ui_profile` idle 3s), no layout shift on load, FPS ≥ 55 during
+interaction, no leaks on open/close cycles (CDP), no long tasks > 200 ms.
+
 ## Out of scope (for now)
 
 - Own compiler manifest / `data-sg` IDs at build time (revisit only if
