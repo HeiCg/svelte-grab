@@ -17,6 +17,7 @@
  */
 import { detectDevMode } from '../utils/shared.js';
 import { dispatchRuntimeCommand } from './commands.js';
+import { consoleCapture } from './console-capture.js';
 import { hmrTracker } from './hmr.js';
 import type { RuntimeCommandOutcome, RuntimeHello, RuntimeResultMessage } from './types.js';
 
@@ -286,6 +287,9 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 	document.addEventListener('visibilitychange', onFocusChange);
 	const heartbeat = setInterval(sendHello, heartbeatMs);
 
+	// Console errors/warnings are captured for as long as the runtime runs
+	// (ui_verify `console` check); the console is restored on stop().
+	consoleCapture.retain();
 	const trackHmr = options.trackHmr !== false;
 	if (trackHmr) hmrTracker.retain();
 
@@ -302,6 +306,7 @@ export function startAgentRuntime(options: AgentRuntimeOptions): AgentRuntimeHan
 			connected = false;
 			clearInterval(heartbeat);
 			if (trackHmr) hmrTracker.release();
+			consoleCapture.release();
 			if (reconnectTimer) clearTimeout(reconnectTimer);
 			reconnectTimer = null;
 			window.removeEventListener('focus', onFocusChange);

@@ -9,6 +9,7 @@ import {
 	type AgentRuntimeHandle
 } from '../src/lib/runtime/connection.js';
 import type { RuntimeCommandOutcome } from '../src/lib/runtime/types.js';
+import { consoleCapture } from '../src/lib/runtime/console-capture.js';
 
 /** Minimal EventSource double: tests drive open/error/messages by hand. */
 class FakeEventSource extends EventTarget {
@@ -271,6 +272,37 @@ describe('agent runtime connection', () => {
 		window.dispatchEvent(new Event('focus'));
 		expect(calls.length).toBe(before);
 		expect(FakeEventSource.instances).toHaveLength(1);
+	});
+
+	it('captures console errors/warnings while running (even with trackHmr off) and restores console on stop', () => {
+		const originalError = console.error;
+		const originalWarn = console.warn;
+		const spyError = vi.fn();
+		const spyWarn = vi.fn();
+		console.error = spyError;
+		console.warn = spyWarn;
+		try {
+			consoleCapture.clear();
+			const h = start({ trackHmr: false });
+			expect(consoleCapture.active).toBe(true);
+			expect(console.error).not.toBe(spyError);
+			console.error('boom');
+			console.warn('careful');
+			expect(spyError).toHaveBeenCalledWith('boom');
+			expect(spyWarn).toHaveBeenCalledWith('careful');
+			expect(consoleCapture.entries().map((e) => [e.level, e.message])).toEqual([
+				['error', 'boom'],
+				['warn', 'careful']
+			]);
+			h.stop();
+			expect(consoleCapture.active).toBe(false);
+			expect(console.error).toBe(spyError);
+			expect(console.warn).toBe(spyWarn);
+		} finally {
+			console.error = originalError;
+			console.warn = originalWarn;
+			consoleCapture.clear();
+		}
 	});
 });
 

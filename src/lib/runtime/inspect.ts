@@ -453,29 +453,41 @@ function stylesSection(el: HTMLElement) {
 	};
 }
 
-function hasOwnText(el: Element): boolean {
+export function hasOwnText(el: Element): boolean {
 	return Array.from(el.childNodes).some((n) => n.nodeType === 3 && (n.textContent ?? '').trim() !== '');
+}
+
+export interface ContrastResult {
+	ratio: number;
+	required: number;
+	pass: boolean;
+	fg: string;
+	bg: string;
+}
+
+/**
+ * Text contrast of `el` (WCAG: 4.5:1, 3:1 for large text), or `null` when the
+ * element has no own text or the background cannot be determined.
+ */
+export function elementContrast(el: HTMLElement): ContrastResult | null {
+	if (!hasOwnText(el) && !(el.children.length === 0 && el.textContent?.trim())) return null;
+	const cs = el.ownerDocument.defaultView!.getComputedStyle(el);
+	const fg = cs.color;
+	const bg = getEffectiveBackground(el);
+	const ratio = contrastRatio(fg, bg);
+	if (ratio === null) return null;
+	const size = parseFloat(cs.fontSize);
+	const weight = parseInt(cs.fontWeight, 10);
+	const large = size >= 24 || (size >= 18.66 && weight >= 700);
+	const required = large ? 3 : 4.5;
+	return { ratio: Math.round(ratio * 100) / 100, required, pass: ratio >= required, fg, bg };
 }
 
 function a11ySection(el: HTMLElement) {
 	const role = computeRole(el);
 	const name = computeName(el, role);
 	const focusable = el.tabIndex >= 0;
-
-	let contrast: { ratio: number; required: number; pass: boolean; fg: string; bg: string } | null = null;
-	if (hasOwnText(el) || (el.children.length === 0 && el.textContent?.trim())) {
-		const cs = el.ownerDocument.defaultView!.getComputedStyle(el);
-		const fg = cs.color;
-		const bg = getEffectiveBackground(el);
-		const ratio = contrastRatio(fg, bg);
-		if (ratio !== null) {
-			const size = parseFloat(cs.fontSize);
-			const weight = parseInt(cs.fontWeight, 10);
-			const large = size >= 24 || (size >= 18.66 && weight >= 700);
-			const required = large ? 3 : 4.5;
-			contrast = { ratio: Math.round(ratio * 100) / 100, required, pass: ratio >= required, fg, bg };
-		}
-	}
+	const contrast = elementContrast(el);
 
 	const report = analyzeA11y(el, false);
 	const issues = [...report.critical, ...report.warnings];

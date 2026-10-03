@@ -1,6 +1,7 @@
 /**
  * MCP tools of the agent runtime: `ui_tabs` (server-only) and the page-forwarded
- * `ui_snapshot` / `ui_find` / `ui_inspect`.
+ * `ui_snapshot` / `ui_find` / `ui_inspect` / `ui_annotations` / `ui_wait_for_hmr`
+ * / `ui_verify` / `ui_component_impact`.
  *
  * `zod` is passed in by the caller (it is loaded lazily together with the
  * optional `@modelcontextprotocol/sdk` peer, which requires it), so this module
@@ -134,6 +135,9 @@ export function uiTabs(registry: TabRegistry, now: number): McpToolResult {
 /** Sections `ui_inspect` can return (besides the always-on COMPONENT and SOURCE). */
 export const UI_INSPECT_SECTIONS = ['stack', 'props', 'state', 'styles', 'layout', 'a11y', 'usage'] as const;
 
+/** Checks `ui_verify` can run (default all). Must match `VERIFY_CHECKS` in src/lib/runtime/verify.ts. */
+export const UI_VERIFY_CHECKS = ['visible', 'overflow', 'console', 'a11y', 'contrast'] as const;
+
 /** Register `ui_tabs`, `ui_snapshot`, `ui_find` and `ui_inspect`. */
 export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, deps: RuntimeToolDeps): void {
 	const now = deps.now ?? (() => Date.now());
@@ -258,4 +262,55 @@ export function registerRuntimeTools(server: McpToolServer, z: ZodNamespace, dep
 	);
 
 	registerWaitForHmrTool(server, z, { channel: deps.channel, tabIdHint: TAB_ID_HINT });
+
+	server.registerTool(
+		'ui_verify',
+		{
+			title: 'Verify one element after an edit',
+			description:
+				'Call after ui_wait_for_hmr to check that an edited element still renders correctly. Runs PASS/WARN/FAIL ' +
+				'checks on ONE element: visible (rendered, non-zero box, in viewport, not covered by another element at its ' +
+				'center; names the coverer), overflow (content clipped or spilling out of its box, and page-level horizontal ' +
+				'overflow with the widest offending elements), console (errors FAIL / warnings WARN since `since`, else since ' +
+				'the last HMR update, else since the runtime started; top 5 with source file:line), a11y (element-level ' +
+				'checks) and contrast (below 3:1 FAIL, below WCAG AA WARN). Text: verdict line first (FAIL if any check ' +
+				'fails, else WARN, else PASS), then one line per check, e.g. "PASS visible", "WARN contrast 3.9:1 (needs ' +
+				'4.5:1)". structuredContent carries { verdict, checks: [{ check, status, summary, details, ... }] }. A stale ' +
+				'ref is re-resolved by its stable key. ' +
+				REF_RECIPE,
+			inputSchema: {
+				ref: z.string().describe('Element ref (eN) or ui:// stable key from ui_snapshot / ui_find.'),
+				checks: z
+					.array(z.enum(UI_VERIFY_CHECKS))
+					.optional()
+					.describe('Checks to run (default all): visible, overflow, console, a11y, contrast.'),
+				since: z
+					.number()
+					.optional()
+					.describe('Epoch ms for the console check (default: the last HMR update, else runtime start).'),
+				tabId: z.string().optional().describe(TAB_ID_HINT)
+			}
+		},
+		async (args) => forwardToPage(deps.channel, 'ui_verify', args)
+	);
+
+	server.registerTool(
+		'ui_component_impact',
+		{
+			title: 'Impact of editing a shared component',
+			description:
+				'Call BEFORE editing a component that may be shared, with a ref to any element it renders. Returns the ' +
+				'component and its definition file, its instances on this page (count, refs, usage sites grouped by usage ' +
+				'file and line), "variants" (instances grouped by root element classes), the files that import it from the ' +
+				'Vite module graph (needs the svelte-grab/vite plugin; otherwise "unknown") and a recommendation: edit the ' +
+				'component when it has a single usage, else prefer a prop/variant or a local class at the usage site for a ' +
+				'one-off change. ' +
+				REF_RECIPE,
+			inputSchema: {
+				ref: z.string().describe('Ref (eN) or ui:// stable key of an element rendered by the component.'),
+				tabId: z.string().optional().describe(TAB_ID_HINT)
+			}
+		},
+		async (args) => forwardToPage(deps.channel, 'ui_component_impact', args)
+	);
 }
