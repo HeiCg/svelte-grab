@@ -77,15 +77,10 @@
     "html-to-image": "^1.11.0",
     "svelte": "^5.35.1",
     "vite": ">=5.0.0",
-    "ws": "^8.0.0"
+    "ws": "^8.0.0",
+    "zod": "^3.25.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
-    "html-to-image": {
-      "optional": true
-    },
-    "ws": {
-      "optional": true
-    },
     "@anthropic-ai/claude-agent-sdk": {
       "optional": true
     },
@@ -95,7 +90,16 @@
     "@openai/codex-sdk": {
       "optional": true
     },
+    "html-to-image": {
+      "optional": true
+    },
     "vite": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    },
+    "zod": {
       "optional": true
     }
   },

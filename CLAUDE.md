@@ -54,7 +54,7 @@ These are separate TypeScript projects. `src/lib/` uses Svelte's compiler; the r
 | Component | Trigger | Purpose |
 |-----------|---------|---------|
 | `SvelteGrab.svelte` | Alt+Click | Component location stack (original tool) |
-| `SvelteStateGrab.svelte` | Alt+Shift+Click | Component state/props/attributes inspection |
+| `SvelteStateGrab.svelte` | Alt+Shift+Click (Alt+Meta+Click inside DevKit with multi-select) | Component state/props/attributes inspection |
 | `SvelteStyleGrab.svelte` | Alt+Ctrl+Click | Computed CSS styles with source attribution |
 | `SveltePropsTracer.svelte` | Alt+DoubleClick | Component hierarchy trace |
 | `SvelteA11yReporter.svelte` | Alt+RightClick / Alt+A | Accessibility audit with fix suggestions |
