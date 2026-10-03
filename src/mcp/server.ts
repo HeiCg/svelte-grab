@@ -576,7 +576,7 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 			const section = extractToolSection('A11yReporter');
 			if (!section) {
 				return {
-					content: [{ type: 'text', text: 'No a11y report available. Use Alt+RightClick or Alt+A in the browser to run an accessibility audit.' }]
+					content: [{ type: 'text', text: 'No a11y report available. Press Alt+A in the browser to audit the page, or Alt+Shift+RightClick an element (Alt+RightClick when using SvelteA11yReporter on its own).' }]
 				};
 			}
 			return { content: [{ type: 'text', text: section }] };

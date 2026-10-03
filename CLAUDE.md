@@ -57,7 +57,7 @@ These are separate TypeScript projects. `src/lib/` uses Svelte's compiler; the r
 | `SvelteStateGrab.svelte` | Alt+Shift+Click (Alt+Meta+Click inside DevKit with multi-select) | Component state/props/attributes inspection |
 | `SvelteStyleGrab.svelte` | Alt+Ctrl+Click | Computed CSS styles with source attribution |
 | `SveltePropsTracer.svelte` | Alt+DoubleClick | Component hierarchy trace |
-| `SvelteA11yReporter.svelte` | Alt+RightClick / Alt+A | Accessibility audit with fix suggestions |
+| `SvelteA11yReporter.svelte` | Alt+RightClick / Alt+A (element audit is Alt+Shift+RightClick inside DevKit) | Accessibility audit with fix suggestions |
 | `SvelteErrorContext.svelte` | Alt+E | Console error/warning capture with context |
 | `SvelteRenderProfiler.svelte` | Alt+P | DOM mutation profiling per component |
 | `SvelteDevKit.svelte` | (wrapper) | Includes all tools above in one component |
