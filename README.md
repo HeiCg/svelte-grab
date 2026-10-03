@@ -412,12 +412,47 @@ The MCP server also exposes HTTP endpoints (available in both stdio and HTTP mod
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/health` | Health check with agent status |
+| `GET` | `/health` | Health check with server identity and agent status (no Origin/token check) |
 | `GET` | `/events` | SSE stream for real-time browser status updates |
 | `POST` | `/context` | Receive context from browser |
 | `POST` | `/runtime/hello` | Browser tab registration and heartbeat for the `ui_*` tools |
 | `POST` | `/runtime/result` | Browser tab answer to a `runtime-command` SSE event |
-| `POST` | `/mcp` | MCP protocol endpoint (HTTP mode only) |
+| `POST` | `/mcp` | MCP protocol endpoint (stateless Streamable HTTP; served in HTTP mode and by the stdio sidecar) |
+
+POST bodies are capped at 2 MB. A larger body gets a `413 {"error":"Request body too large"}` response and the connection is closed.
+
+### Port fallback and server identity
+
+The server listens on `4723` by default (`--port=<n>` to change it). If that port is busy it tries the next ones, up to 10 ports in total (`4723`-`4732` by default), and logs the port it picked on stderr:
+
+```
+[svelte-grab mcp] Port 4723 was in use, using 4724 instead. The page must use mcpPort=4724 ...
+```
+
+The page does not follow the fallback on its own yet: it keeps calling `mcpPort` (default `4723`), where it could reach some other server. When the log shows a fallback, pass the new port to the page:
+
+```svelte
+<SvelteGrab enableMcp mcpPort={4724} />
+```
+
+`GET /health` identifies the server, so you (or a script) can check what is answering on a port:
+
+```json
+{
+  "status": "ok",
+  "service": "svelte-grab-mcp",
+  "version": "1.4.2",
+  "port": 4724,
+  "preferredPort": 4723,
+  "portFallback": true,
+  "hasContext": false,
+  "agentWatching": false,
+  "watcherCount": 0,
+  "sseClients": 0
+}
+```
+
+The range is exported from `svelte-grab/mcp` as `DEFAULT_MCP_PORT`, `MCP_PORT_RANGE_SIZE`, `MCP_PORT_RANGE_END` and `MCP_SERVICE_ID`.
 
 ### Alternative: HTTP mode
 

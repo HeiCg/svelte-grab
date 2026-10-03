@@ -16,9 +16,16 @@ declare module '@modelcontextprotocol/sdk/server/mcp.js' {
 }
 
 declare module '@modelcontextprotocol/sdk/server/streamableHttp.js' {
+	// Subset of StreamableHTTPServerTransportOptions (SDK >= 1.26).
+	// `sessionIdGenerator: undefined` selects stateless mode.
+	export interface StreamableHTTPServerTransportOptions {
+		sessionIdGenerator: (() => string) | undefined;
+		enableJsonResponse?: boolean;
+	}
 	export class StreamableHTTPServerTransport {
-		constructor(path: string);
-		handleRequest(req: unknown, res: unknown): Promise<void>;
+		constructor(options?: StreamableHTTPServerTransportOptions);
+		/** `parsedBody` skips the SDK's own body read (the caller already read and capped it). */
+		handleRequest(req: unknown, res: unknown, parsedBody?: unknown): Promise<void>;
 	}
 }
 

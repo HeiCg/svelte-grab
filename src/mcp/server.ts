@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { DEFAULT_MCP_PORT } from './constants.js';
+import { readFileSync } from 'node:fs';
+import { DEFAULT_MCP_PORT, MCP_PORT_RANGE_SIZE, MCP_SERVICE_ID } from './constants.js';
 import { findAvailablePort } from '../utils/port.js';
 import {
 	LOOPBACK_HOST,
@@ -18,6 +19,9 @@ import { registerRuntimeTools, type McpToolServer, type ZodNamespace } from './r
 
 /** Max request body size (2 MB) for POST endpoints. */
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+/** How long / how much of an oversized body is discarded before the 413 is forced out. */
+const OVERSIZED_DRAIN_MS = 5_000;
+const OVERSIZED_DRAIN_BYTES = 64 * 1024 * 1024;
 /** Cap on retained SSE clients and pending watchers (bounds memory). */
 const MAX_SSE_CLIENTS = 100;
 const MAX_WATCHERS = 100;
@@ -26,6 +30,31 @@ export interface McpServerOptions extends SecurityOptions {
 	port?: number;
 	stdio?: boolean;
 }
+
+/** Port actually bound vs. the one asked for (differs after a fallback). */
+interface ListenInfo {
+	port: number;
+	preferredPort: number;
+}
+
+/**
+ * svelte-grab version for `GET /health`. package.json sits two levels up from
+ * both src/mcp/ (tests) and dist/mcp/ (published build).
+ */
+function readPackageVersion(): string {
+	try {
+		const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
+			name?: unknown;
+			version?: unknown;
+		};
+		if (pkg.name === 'svelte-grab' && typeof pkg.version === 'string') return pkg.version;
+	} catch {
+		// fall through
+	}
+	return 'unknown';
+}
+
+const PACKAGE_VERSION = readPackageVersion();
 
 // Module-level security config — resolved when the server starts.
 // Defaults to "origin check on, token off" until startMcpServer overrides it.
@@ -171,39 +200,104 @@ function checkAccess(req: IncomingMessage, res: ServerResponse): boolean {
 	return true;
 }
 
+class BodyTooLargeError extends Error {
+	constructor() {
+		super('Request body too large');
+	}
+}
+
 /**
- * Read request body as string, rejecting bodies that exceed MAX_BODY_BYTES.
+ * Read request body as string, rejecting with BodyTooLargeError when it
+ * exceeds MAX_BODY_BYTES (declared Content-Length or bytes received). On
+ * rejection nothing more is buffered and the request is left unread: the
+ * caller answers with respondTooLarge().
  */
 function readBody(req: IncomingMessage): Promise<string> {
 	return new Promise((resolve, reject) => {
-		const chunks: Buffer[] = [];
+		const declared = Number(req.headers['content-length']);
+		if (declared > MAX_BODY_BYTES) {
+			reject(new BodyTooLargeError());
+			return;
+		}
+		let chunks: Buffer[] = [];
 		let size = 0;
-		req.on('data', (chunk: Buffer) => {
+		const onData = (chunk: Buffer) => {
 			size += chunk.length;
 			if (size > MAX_BODY_BYTES) {
-				reject(new Error('Request body too large'));
-				req.destroy();
+				req.off('data', onData);
+				req.off('end', onEnd);
+				chunks = [];
+				reject(new BodyTooLargeError());
 				return;
 			}
 			chunks.push(chunk);
-		});
-		req.on('end', () => resolve(Buffer.concat(chunks).toString()));
+		};
+		const onEnd = () => resolve(Buffer.concat(chunks).toString());
+		req.on('data', onData);
+		req.on('end', onEnd);
+		// Stays attached after an overflow so a late socket error is never unhandled.
 		req.on('error', reject);
 	});
 }
 
 /**
- * Read and JSON-parse a POST body with the same cap and error mapping as
- * `POST /context` (413 too large, 400 invalid JSON). Returns `undefined` after
- * writing the error response.
+ * Answer an oversized request with a 413 the client can actually read.
+ *
+ * Closing a socket that still has unread request bytes makes the kernel send
+ * a RST, and the client gets a connection reset instead of the response. So
+ * the rest of the body is read and discarded (never buffered) until the client
+ * is done, then the 413 goes out with `Connection: close`. A client still
+ * sending after OVERSIZED_DRAIN_MS or OVERSIZED_DRAIN_BYTES gets the 413
+ * right away and the socket is closed behind it.
+ */
+function respondTooLarge(req: IncomingMessage, res: ServerResponse): void {
+	let drained = 0;
+	let done = false;
+	const finish = (respond: boolean) => {
+		if (done) return;
+		done = true;
+		clearTimeout(timer);
+		req.off('data', onData);
+		req.off('end', onEnd);
+		req.off('close', onClose);
+		// Keep discarding whatever still arrives until the socket closes.
+		req.resume();
+		if (!respond || res.headersSent) return;
+		res.setHeader('Connection', 'close');
+		sendJson(res, 413, { error: 'Request body too large' });
+	};
+	const onData = (chunk: Buffer) => {
+		drained += chunk.length;
+		if (drained > OVERSIZED_DRAIN_BYTES) finish(true);
+	};
+	const onEnd = () => finish(true);
+	const onClose = () => finish(false);
+	const timer = setTimeout(() => finish(true), OVERSIZED_DRAIN_MS);
+	timer.unref();
+	req.on('data', onData);
+	req.on('end', onEnd);
+	req.on('close', onClose);
+	if (req.readableEnded) finish(true);
+}
+
+/**
+ * Read and JSON-parse a POST body with the shared cap and error mapping
+ * (413 too large, 400 invalid JSON). Returns `undefined` after writing the
+ * error response.
  */
 async function readJsonBody(req: IncomingMessage, res: ServerResponse): Promise<{ data: unknown } | undefined> {
+	let body: string;
 	try {
-		const body = await readBody(req);
-		return { data: JSON.parse(body) };
+		body = await readBody(req);
 	} catch (err) {
-		const tooLarge = err instanceof Error && err.message === 'Request body too large';
-		sendJson(res, tooLarge ? 413 : 400, { error: tooLarge ? 'Request body too large' : 'Invalid JSON' });
+		if (err instanceof BodyTooLargeError) respondTooLarge(req, res);
+		else sendJson(res, 400, { error: 'Invalid JSON' });
+		return undefined;
+	}
+	try {
+		return { data: JSON.parse(body) };
+	} catch {
+		sendJson(res, 400, { error: 'Invalid JSON' });
 		return undefined;
 	}
 }
@@ -261,6 +355,21 @@ function processIncomingContext(data: ContextPayload): void {
  * Uses @modelcontextprotocol/sdk if available, otherwise returns 501.
  */
 async function handleMcpProtocol(req: IncomingMessage, res: ServerResponse): Promise<void> {
+	// Read the body here (same 2 MB cap as the other POST endpoints) and hand it
+	// to the transport as `parsedBody`, so the SDK never buffers it unbounded.
+	let parsedBody: unknown;
+	try {
+		parsedBody = JSON.parse(await readBody(req));
+	} catch (err) {
+		if (err instanceof BodyTooLargeError) {
+			respondTooLarge(req, res);
+		} else {
+			// Same JSON-RPC parse error the SDK returns for a malformed body.
+			sendJson(res, 400, { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error: Invalid JSON' }, id: null });
+		}
+		return;
+	}
+
 	try {
 		const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
 		const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
@@ -273,11 +382,12 @@ async function handleMcpProtocol(req: IncomingMessage, res: ServerResponse): Pro
 
 		registerMcpTools(server, z);
 
-		const transport = new StreamableHTTPServerTransport('/mcp');
+		// Stateless: a fresh server + transport per request, no session ids.
+		const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 		await server.connect(transport);
-		await transport.handleRequest(req, res);
+		await transport.handleRequest(req, res, parsedBody);
 	} catch {
-		sendJson(res, 501, { error: '@modelcontextprotocol/sdk not installed' });
+		if (!res.headersSent) sendJson(res, 501, { error: '@modelcontextprotocol/sdk not installed' });
 	}
 }
 
@@ -559,7 +669,7 @@ function registerMcpTools(server: McpToolServer, z: ZodNamespace): void {
  * Create the HTTP request handler for the context bridge.
  * Used by both standalone HTTP mode and as a sidecar in stdio mode.
  */
-function createHttpHandler() {
+function createHttpHandler(listen: ListenInfo) {
 	return async (req: IncomingMessage, res: ServerResponse) => {
 		setCorsHeaders(req, res);
 
@@ -583,6 +693,13 @@ function createHttpHandler() {
 		if (req.method === 'GET' && path === '/health') {
 			sendJson(res, 200, {
 				status: 'ok',
+				// Identity: lets the page confirm it reached this server and not
+				// something else on the port (the port may have fallen back).
+				service: MCP_SERVICE_ID,
+				version: PACKAGE_VERSION,
+				port: listen.port,
+				preferredPort: listen.preferredPort,
+				portFallback: listen.port !== listen.preferredPort,
 				hasContext: storedContext !== null,
 				agentWatching,
 				watcherCount: watchQueue.length,
@@ -625,22 +742,14 @@ function createHttpHandler() {
 
 		// POST /context — browser sends grabbed context here
 		if (req.method === 'POST' && path === '/context') {
-			try {
-				const body = await readBody(req);
-				const data = JSON.parse(body);
-
-				if (!isValidContextPayload(data)) {
-					sendJson(res, 400, { error: 'Invalid payload. Expected { content: string[], prompt?: string }' });
-					return;
-				}
-
-				processIncomingContext(data);
-
-				sendJson(res, 200, { ok: true, agentWatching });
-			} catch (err) {
-				const tooLarge = err instanceof Error && err.message === 'Request body too large';
-				sendJson(res, tooLarge ? 413 : 400, { error: tooLarge ? 'Request body too large' : 'Invalid JSON' });
+			const body = await readJsonBody(req, res);
+			if (!body) return;
+			if (!isValidContextPayload(body.data)) {
+				sendJson(res, 400, { error: 'Invalid payload. Expected { content: string[], prompt?: string }' });
+				return;
 			}
+			processIncomingContext(body.data);
+			sendJson(res, 200, { ok: true, agentWatching });
 			return;
 		}
 
@@ -685,7 +794,7 @@ function createHttpHandler() {
 			return;
 		}
 
-		// POST /mcp — MCP protocol endpoint (only in HTTP mode)
+		// POST /mcp — MCP protocol endpoint (HTTP mode and the stdio sidecar)
 		if (req.method === 'POST' && path === '/mcp') {
 			await handleMcpProtocol(req, res);
 			return;
@@ -700,19 +809,25 @@ function createHttpHandler() {
  * Start the HTTP server on the given port.
  */
 async function startHttpListener(preferredPort: number): Promise<{ close: () => void; port: number }> {
+	const lastPort = preferredPort + MCP_PORT_RANGE_SIZE - 1;
 	let port: number;
 	try {
-		port = await findAvailablePort(preferredPort);
+		port = await findAvailablePort(preferredPort, MCP_PORT_RANGE_SIZE - 1);
 	} catch {
-		throw new Error(`Could not find available port starting from ${preferredPort}`);
+		throw new Error(`Could not find an available port in ${preferredPort}-${lastPort}`);
 	}
 
 	if (port !== preferredPort) {
-		console.error(`[svelte-grab mcp] Port ${preferredPort} was in use, using ${port} instead`);
+		// stderr: stdout belongs to the stdio transport in sidecar mode.
+		console.error(
+			`[svelte-grab mcp] Port ${preferredPort} was in use, using ${port} instead. ` +
+				`The page must use mcpPort=${port} (e.g. <SvelteGrab mcpPort={${port}} />), ` +
+				`otherwise it keeps calling ${preferredPort} and may reach another server.`
+		);
 	}
 
 	return new Promise((resolve, reject) => {
-		const server = createServer(createHttpHandler());
+		const server = createServer(createHttpHandler({ port, preferredPort }));
 
 		server.on('error', (err: NodeJS.ErrnoException) => {
 			reject(err);
