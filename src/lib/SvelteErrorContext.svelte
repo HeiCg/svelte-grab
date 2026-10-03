@@ -31,7 +31,8 @@
 		lightTheme = false,
 		maxErrors = 50,
 		bufferMinutes = 5,
-		filterNodeModules = true
+		filterNodeModules = true,
+		enableHotkeys = true
 	}: SvelteErrorContextProps = $props();
 
 	let colors = $derived(resolveTheme(theme, lightTheme));
@@ -134,7 +135,7 @@
 
 	function handleKeyCombo(event: KeyboardEvent) {
 		// Alt+E (or configured modifier+E) to toggle popup
-		if (checkModifier(event, modifier) && (event.key === 'e' || event.key === 'E')) {
+		if (enableHotkeys && checkModifier(event, modifier) && (event.key === 'e' || event.key === 'E')) {
 			event.preventDefault();
 			visible = !visible;
 		}

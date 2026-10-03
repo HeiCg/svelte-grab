@@ -24,6 +24,9 @@
 	const portParam = Number(query.get('mcpPort'));
 	const mcpPort = Number.isInteger(portParam) && portParam > 0 ? portParam : undefined;
 	const mcpToken = query.get('mcpToken') || undefined;
+	// `?hotkeys=minimal` for e2e/annotations.spec.ts: only Alt+Click, Shift+Alt+Click,
+	// Alt+Drag, Escape and N. Without it the default ('full') stays.
+	const hotkeys = query.get('hotkeys') === 'minimal' ? 'minimal' : undefined;
 </script>
 
 <!--
@@ -32,7 +35,7 @@
 	detectDevMode() scans for. forceEnable is intentionally NOT set — we want the
 	genuine dev-mode detection path to run so e2e verifies it end-to-end.
 -->
-<SvelteDevKit {enableMcp} {mcpPort} {mcpToken} />
+<SvelteDevKit {enableMcp} {mcpPort} {mcpToken} {hotkeys} />
 
 <main class="pg-app" data-testid="app-root">
 	<header class="pg-header">

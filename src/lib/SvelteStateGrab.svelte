@@ -31,7 +31,8 @@
 		lightTheme = false,
 		maxDepth = 3,
 		maxStringLength = 200,
-		maxSnapshots = 5
+		maxSnapshots = 5,
+		enableHotkeys = true
 	}: SvelteStateGrabProps = $props();
 
 	let colors = $derived(resolveTheme(theme, lightTheme));
@@ -94,6 +95,7 @@
 	}
 
 	function handleClick(event: MouseEvent) {
+		if (!enableHotkeys) return;
 		if (!checkModifier(event, modifier)) return;
 		if (!event.shiftKey && secondaryModifier === 'shift') return;
 		if (secondaryModifier === 'ctrl' && !event.ctrlKey) return;
