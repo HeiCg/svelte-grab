@@ -10,7 +10,16 @@ import { fileURLToPath } from 'node:url';
 const libIndex = fileURLToPath(new URL('../../src/lib/index.ts', import.meta.url));
 
 export default defineConfig({
-	plugins: [svelte()],
+	plugins: [
+		svelte({
+			// Svelte's experimental async mode: enables `await` in component
+			// script/markup and `<svelte:boundary>` `pending` snippets. The
+			// agent-runtime fixtures (AsyncFixture) depend on it.
+			compilerOptions: {
+				experimental: { async: true }
+			}
+		})
+	],
 	resolve: {
 		alias: {
 			// `import { SvelteDevKit } from 'svelte-grab'` -> repo's src/lib/index.ts

@@ -6,6 +6,13 @@
 	import ContrastText from './components/ContrastText.svelte';
 	import EditableBox from './components/EditableBox.svelte';
 	import DemoForm from './components/DemoForm.svelte';
+	import Section from './components/fixtures/Section.svelte';
+	import FixtureCard from './components/fixtures/FixtureCard.svelte';
+	import ControlFlow from './components/fixtures/ControlFlow.svelte';
+	import SnippetHost from './components/fixtures/SnippetHost.svelte';
+	import AsyncFixture from './components/fixtures/AsyncFixture.svelte';
+	import FadeToggle from './components/fixtures/FadeToggle.svelte';
+	import FixtureForm from './components/fixtures/FixtureForm.svelte';
 
 	const items = ['Apples', 'Bananas', 'Cherries', 'Dates'];
 </script>
@@ -52,6 +59,49 @@
 			<DemoForm />
 		</div>
 	</section>
+
+	<!--
+		Agent-runtime fixtures (docs/agent-runtime-spec.md, Foundation fixes).
+		Each one covers a Svelte 5 construct the ui_* tools must handle. Test ids
+		are prefixed `fx-` and asserted by e2e/fixtures.spec.ts.
+	-->
+	<h2 class="pg-fixtures-title" data-testid="fixtures-title">Agent-runtime fixtures</h2>
+	<section class="pg-grid" data-testid="fixtures-root">
+		<!-- 3 levels: Section > FixtureCard > Button (Button reused twice). -->
+		<Section title="Nested chain" testid="fx-nested">
+			<FixtureCard name="a" />
+			<FixtureCard name="b" />
+		</Section>
+
+		<Section title="Control flow" testid="fx-control-flow">
+			<ControlFlow />
+		</Section>
+
+		<Section title="Snippets" testid="fx-snippets">
+			<SnippetHost />
+		</Section>
+
+		<Section title="Async boundary" testid="fx-boundary">
+			<svelte:boundary>
+				<AsyncFixture />
+				{#snippet pending()}
+					<p data-testid="fx-async-pending">Loading regions…</p>
+				{/snippet}
+				{#snippet failed(error, reset)}
+					<p data-testid="fx-async-failed">Failed: {String(error)}</p>
+					<button onclick={reset}>retry</button>
+				{/snippet}
+			</svelte:boundary>
+		</Section>
+
+		<Section title="Transition" testid="fx-transition">
+			<FadeToggle />
+		</Section>
+
+		<Section title="Form" testid="fx-form-section">
+			<FixtureForm />
+		</Section>
+	</section>
 </main>
 
 <style>
@@ -82,6 +132,10 @@
 		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 		gap: 20px;
 		align-items: start;
+	}
+	.pg-fixtures-title {
+		margin: 32px 0 12px;
+		font-size: 20px;
 	}
 	.pg-panel {
 		border: 1px solid #d1d5db;
