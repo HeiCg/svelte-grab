@@ -111,27 +111,30 @@ The human can still hand work over directly: `watch_for_grab` blocks until someo
 
 All tools are served by the same local MCP server (`svelte-grab-mcp`). The `ui_*` tools query the live page and need the app open in dev with `<SvelteDevKit enableMcp />` (or `<SvelteGrab enableMcp />`) mounted.
 
-| Tool                   | Purpose                                                                                                                                                                         |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ui_tabs`              | List the browser tabs connected to the server; `ui_*` tools target the last focused one unless given `tabId`.                                                                   |
-| `ui_snapshot`          | Compact tree of the live UI: one line per element with Svelte metadata or an a11y role/name (`eN <role> "<name>" <Component> <file:line>`). Start here.                         |
-| `ui_find`              | Find elements by `text`, `role`, `name`, `component`, `file` or CSS `selector`; returns refs with component, source, box and visibility.                                        |
-| `ui_inspect`           | Full context for one ref: component, source, stack, props, `inspectable()` state, layout, matched styles, a11y and other instances.                                             |
-| `ui_wait_for_hmr`      | Call right after an edit: waits for the Vite HMR update (or full reload) of those files, re-resolves refs and reports Vite errors.                                              |
-| `ui_verify`            | PASS/WARN/FAIL checks on one element after an edit: visible, overflow, console errors, a11y, contrast.                                                                          |
-| `ui_component_impact`  | Before editing a shared component: its instances on the page, importers from the Vite module graph and whether to edit it or the usage site.                                    |
-| `ui_annotations`       | The comments the human left on elements with annotation mode, with refs ready for `ui_inspect`.                                                                                 |
-| `ui_perf_metrics`      | CDP mode (`--cdp`): Chrome counters (DOM nodes, listeners, heap, layouts, style recalcs, script/task time) before and after an in-page action, as deltas.                       |
-| `ui_leak_check`        | Repeats actions (e.g. open then close) and reports detached elements still alive after a forced GC, by component and `file:line`. Without `--cdp` the result is `INCONCLUSIVE`. |
-| `watch_for_grab`       | Block until the human Alt+Clicks an element and sends a prompt from the page; returns stack, HTML preview and the instruction.                                                  |
-| `get_element_context`  | Last grabbed context, non-blocking (cleared after reading).                                                                                                                     |
-| `get_a11y_report`      | Last accessibility audit from SvelteA11yReporter.                                                                                                                               |
-| `get_style_context`    | Last CSS analysis from SvelteStyleGrab.                                                                                                                                         |
-| `get_error_context`    | Console errors and warnings captured by SvelteErrorContext.                                                                                                                     |
-| `get_profiler_report`  | Last render profile from SvelteRenderProfiler.                                                                                                                                  |
-| `undo_last_action`     | Undo instruction with the original context of the last request.                                                                                                                 |
-| `get_session_history`  | Recent interactions (up to 20) with timestamps and prompts.                                                                                                                     |
-| `list_available_tools` | Which of the `get_*` tools have data and when it was captured.                                                                                                                  |
+| Tool                   | Purpose                                                                                                                                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ui_tabs`              | List the browser tabs connected to the server; `ui_*` tools target the last focused one unless given `tabId`.                                                                                |
+| `ui_snapshot`          | Compact tree of the live UI: one line per element with Svelte metadata or an a11y role/name (`eN <role> "<name>" <Component> <file:line>`). Start here.                                      |
+| `ui_find`              | Find elements by `text`, `role`, `name`, `component`, `file` or CSS `selector`; returns refs with component, source, box and visibility.                                                     |
+| `ui_inspect`           | Full context for one ref: component, source, stack, props, `inspectable()` state, layout, matched styles, a11y and other instances.                                                          |
+| `ui_wait_for_hmr`      | Call right after an edit: waits for the Vite HMR update (or full reload) of those files, re-resolves refs and reports Vite errors.                                                           |
+| `ui_verify`            | PASS/WARN/FAIL checks on one element after an edit: visible, overflow, console errors, a11y, contrast.                                                                                       |
+| `ui_component_impact`  | Before editing a shared component: its instances on the page, importers from the Vite module graph and whether to edit it or the usage site.                                                 |
+| `ui_annotations`       | The comments the human left on elements with annotation mode, with refs ready for `ui_inspect`.                                                                                              |
+| `ui_profile`           | Which components mutate the DOM over a short window (optionally while clicking/typing): `HOT <Component>` or `QUIET`, mutations/sec, bursts, FPS, long frames.                               |
+| `ui_network`           | What a screen loads: every request with the `file:line` and component that started it, totals, first- vs third-party, duplicates, slowest, failed; `reload: true` measures the initial load. |
+| `ui_security_scan`     | Runtime security checks: secrets in URLs or sent to third parties, tokens in Web Storage, JS-readable auth cookies, sensitive SvelteKit page data, headers. Secrets are always redacted.     |
+| `ui_perf_metrics`      | CDP mode (`--cdp`): Chrome counters (DOM nodes, listeners, heap, layouts, style recalcs, script/task time) before and after an in-page action, as deltas.                                    |
+| `ui_leak_check`        | Repeats actions (e.g. open then close) and reports detached elements still alive after a forced GC, by component and `file:line`. Without `--cdp` the result is `INCONCLUSIVE`.              |
+| `watch_for_grab`       | Block until the human Alt+Clicks an element and sends a prompt from the page; returns stack, HTML preview and the instruction.                                                               |
+| `get_element_context`  | Last grabbed context, non-blocking (cleared after reading).                                                                                                                                  |
+| `get_a11y_report`      | Last accessibility audit from SvelteA11yReporter.                                                                                                                                            |
+| `get_style_context`    | Last CSS analysis from SvelteStyleGrab.                                                                                                                                                      |
+| `get_error_context`    | Console errors and warnings captured by SvelteErrorContext.                                                                                                                                  |
+| `get_profiler_report`  | Last render profile from SvelteRenderProfiler.                                                                                                                                               |
+| `undo_last_action`     | Undo instruction with the original context of the last request.                                                                                                                              |
+| `get_session_history`  | Recent interactions (up to 20) with timestamps and prompts.                                                                                                                                  |
+| `list_available_tools` | Which of the `get_*` tools have data and when it was captured.                                                                                                                               |
 
 Arguments, outputs and HTTP endpoints: [Reference: Claude Code Integration (MCP)](#claude-code-integration-mcp).
 
