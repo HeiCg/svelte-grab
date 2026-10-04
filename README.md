@@ -22,17 +22,18 @@ npm install -D svelte-grab @modelcontextprotocol/sdk zod
 npx svelte-grab init            # --dry-run to preview
 ```
 
-`init` writes or merges `.mcp.json` (the `svelte-grab` server, plus the official Svelte MCP), adds `svelteGrab()` from `svelte-grab/vite` to your Vite config and puts `<SvelteDevKit enableMcp />` in `src/routes/+layout.svelte` (or `src/App.svelte`), gated by `dev`, and copies the [agent skills](#agent-skills) into `.claude/skills/`. It never replaces existing `.mcp.json` entries, shows a diff of what it changes and is safe to run twice. With [`sv`](https://svelte.dev/docs/cli), `npx sv add svelte-grab` does the same, and also adds `svelte-grab` (plus `@modelcontextprotocol/sdk` and `zod` when it writes `.mcp.json`) as dev dependencies, so step 1 is not needed. The add-on ships inside the `svelte-grab` package (`svelte-grab/sv`) and asks:
+`init` sets the project up for Claude Code and OpenAI Codex at once ([what it writes for each](#agent-setup)): it writes or merges the MCP config (`.mcp.json` and `.codex/config.toml`: the `svelte-grab` server, plus the official Svelte MCP), adds `svelteGrab()` from `svelte-grab/vite` to your Vite config, puts `<SvelteDevKit enableMcp />` in `src/routes/+layout.svelte` (or `src/App.svelte`), gated by `dev`, copies the [agent skills](#agent-skills) into `.claude/skills/` and `.agents/skills/` and adds a short svelte-grab section to `AGENTS.md`. It never replaces existing entries, shows a diff of what it changes and is safe to run twice. With [`sv`](https://svelte.dev/docs/cli), `npx sv add svelte-grab` does the same, and also adds `svelte-grab` (plus `@modelcontextprotocol/sdk` and `zod` when it writes `.mcp.json`) as dev dependencies, so step 1 is not needed. The add-on ships inside the `svelte-grab` package (`svelte-grab/sv`) and asks:
 
-| Option          | Default | Question                                                                  |
-| --------------- | ------- | ------------------------------------------------------------------------- |
-| `mcpJson`       | `yes`   | Write `.mcp.json` so your coding agent starts the svelte-grab MCP server? |
-| `svelteMcp`     | `yes`   | Also add the official Svelte MCP? (asked only with `mcpJson`)             |
-| `playwrightMcp` | `no`    | Also add Playwright MCP? (asked only with `mcpJson`)                      |
-| `vitePlugin`    | `yes`   | Add the svelte-grab Vite plugin?                                          |
-| `skills`        | `yes`   | Install the svelte-grab agent skills into `.claude/skills/`?              |
+| Option          | Default | Question                                                                                                |
+| --------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| `mcpJson`       | `yes`   | Write the MCP config (`.mcp.json`; `.codex/config.toml` for Codex) so your agent starts the MCP server? |
+| `svelteMcp`     | `yes`   | Also add the official Svelte MCP? (asked only with `mcpJson`)                                           |
+| `playwrightMcp` | `no`    | Also add Playwright MCP? (asked only with `mcpJson`)                                                    |
+| `vitePlugin`    | `yes`   | Add the svelte-grab Vite plugin?                                                                        |
+| `skills`        | `yes`   | Install the svelte-grab agent skills into `.claude/skills/` (and `.agents/skills/` with `codex`)?       |
+| `codex`         | `yes`   | Also set up OpenAI Codex (`.codex/config.toml`, skills in `.agents/skills/`, `AGENTS.md` section)?      |
 
-Skip the prompts with `npx sv add svelte-grab="playwrightMcp:yes+skills:no"`. Running it twice changes nothing. What it cannot do (a Vite config it cannot edit safely, skill files a newer version no longer ships) is listed in the next steps.
+Skip the prompts with `npx sv add svelte-grab="playwrightMcp:yes+skills:no"` (`codex:no` for Claude Code only). Running it twice changes nothing. What it cannot do (a Vite config it cannot edit safely, skill files a newer version no longer ships) is listed in the next steps.
 
 The resulting `.mcp.json`:
 
@@ -45,9 +46,9 @@ The resulting `.mcp.json`:
 }
 ```
 
-Add `--with-playwright-mcp` for a `playwright` entry (`npx -y @playwright/mcp@latest`). Not on Claude Code? Copy the `svelte-grab` entry into your client's MCP config (Cursor: `.cursor/mcp.json`, VS Code: `.vscode/mcp.json` under `servers`).
+Add `--with-playwright-mcp` for a `playwright` entry (`npx -y @playwright/mcp@latest`). Codex gets the same servers in `.codex/config.toml`. Another client? See [Agent setup](#agent-setup).
 
-**3. Run it.** Start the dev server (`npm run dev`), open the app in a browser, and start your agent in the project. Claude Code reads `.mcp.json` on start (approve the project servers when asked) and launches the MCP server itself; the page finds it on `127.0.0.1:4723` (next free port up to 4732).
+**3. Run it.** Start the dev server (`npm run dev`), open the app in a browser, and start your agent in the project. Claude Code reads `.mcp.json` on start (approve the project servers when asked); Codex reads `.codex/config.toml` once you trust the project. Either one launches the MCP server itself; the page finds it on `127.0.0.1:4723` (next free port up to 4732).
 
 **4. Let the agent loop:**
 
@@ -183,18 +184,50 @@ svelte-grab ships two [Agent Skills](https://docs.claude.com/en/docs/claude-code
 
 Ways to get them:
 
-- **`npx svelte-grab init`** copies both into `.claude/skills/` (Claude Code) by default. `--skills-dir .agents/skills` for other agents, `--no-skills` to skip. If the project has an `AGENTS.md`, a short pointer to the skills is appended once.
-- **`npx svelte-grab skills install`** reinstalls or updates them after an upgrade (`--skills-dir`, `--dry-run`, `--force`). A file you edited is never overwritten: the new version is written next to it as `<file>.new` (or pass `--force` / `init --force-skills`). `svelte-grab skills list` shows what the package ships and, per file, its state in your project (`new`, `up to date`, `will update`, `edited by you`; `--skills-dir` to look elsewhere); `svelte-grab skills path` prints the packaged folder.
+- **`npx svelte-grab init`** copies both into `.claude/skills/` (Claude Code) and `.agents/skills/` (Codex) by default. `--agents claude` or `--agents codex` for one of them, `--skills-dir <dir>` for a single other directory, `--no-skills` to skip. `AGENTS.md` gets a short svelte-grab section pointing at them (see [Agent setup](#agent-setup)).
+- **`npx svelte-grab skills install`** reinstalls or updates them after an upgrade (`--agents`, `--skills-dir`, `--dry-run`, `--force`). A file you edited is never overwritten: the new version is written next to it as `<file>.new` (or pass `--force` / `init --force-skills`). `svelte-grab skills list` shows what the package ships and, per file, its state in your project (`new`, `up to date`, `will update`, `edited by you`; `--skills-dir` to look elsewhere); `svelte-grab skills path` prints the packaged folder.
 - **The [Skills CLI](https://github.com/vercel-labs/skills)**, straight from GitHub: `npx skills add HeiCg/svelte-grab --skill svelte-grab-audit` (or `--skill svelte-grab`).
 - **`npx sv add svelte-grab`** installs them too (`skills` option, default yes).
 - **MCP prompts**, zero install, any MCP client: the svelte-grab server exposes `svelte-grab-loop`, `security-audit` (optional `screen` / `url` arguments) and `performance-audit` (optional `screen`). Each returns the skill workflow with the matching checklist inlined (in Claude Code: `/mcp__svelte-grab__security-audit`).
 - **Claude Code plugin**: this repo is a plugin marketplace (`.claude-plugin/`) with a `svelte-grab` plugin that bundles both skills and the MCP server (`npx svelte-grab-mcp --stdio`, so `svelte-grab` must be installed in the project): `/plugin marketplace add HeiCg/svelte-grab`, then `/plugin install svelte-grab@svelte-grab`.
 
-Upgrades: every install writes `.svelte-grab-skills.json` in the skills folder, recording the svelte-grab version and a SHA-256 of each file as installed. After you upgrade svelte-grab, rerunning `skills install` (or `init`, or `sv add`) replaces in place every skill file you have not touched since (its hash still matches) and only falls back to `<file>.new` for files you edited. Files a newer version no longer ships are deleted when unedited and left alone (with a note) when edited; `sv add` cannot delete files, so it lists them for you instead. Without that manifest (skills installed before it existed, or a deleted manifest), a file that differs from the packaged version is treated as edited, as before. Keep the manifest under version control with the skills.
+Upgrades: every install writes `.svelte-grab-skills.json` in each skills folder, recording the svelte-grab version and a SHA-256 of each file as installed. After you upgrade svelte-grab, rerunning `skills install` (or `init`, or `sv add`) replaces in place every skill file you have not touched since (its hash still matches) and only falls back to `<file>.new` for files you edited. Files a newer version no longer ships are deleted when unedited and left alone (with a note) when edited; `sv add` cannot delete files, so it lists them for you instead. Without that manifest (skills installed before it existed, or a deleted manifest), a file that differs from the packaged version is treated as edited, as before. Keep the manifest under version control with the skills.
 
 There is deliberately no `postinstall` script that drops the skills into your project: install-time scripts are a supply-chain risk and modern package managers block them by default, so installing them is always an explicit command.
 
 The audit workflow takes ideas from [cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill) (phased audit, verified findings with `confirmed` / `needs_validation` verdicts, a JSON schema for findings) and [adnxy/rnsec](https://github.com/adnxy/rnsec) (zero-config, framework-specific static rules with JSON/HTML reports). To learn how HTTP traffic and its security headers look on the wire, [dstotijn/hetty](https://github.com/dstotijn/hetty) (an HTTP toolkit for security research) is a good companion; svelte-grab does not integrate it.
+
+## Agent setup
+
+One command, no manual steps: `npx svelte-grab init` (or `npx sv add svelte-grab`) configures Claude Code and OpenAI Codex together. Every agent that speaks MCP also gets the workflow from the server itself.
+
+| What                       | Claude Code                                                      | Codex                                                                     | Any MCP client                                                           |
+| -------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| MCP server config          | `.mcp.json` (`mcpServers`; approve the project servers on start) | `.codex/config.toml` (`[mcp_servers.svelte-grab]`; trusted projects only) | Copy the entry: `command` `npx`, `args` `["svelte-grab-mcp", "--stdio"]` |
+| Skills                     | `.claude/skills/svelte-grab*/`                                   | `.agents/skills/svelte-grab*/`                                            | MCP prompts `svelte-grab-loop`, `security-audit`, `performance-audit`    |
+| Project instructions       | One-line pointer appended to an existing `CLAUDE.md`             | svelte-grab section in `AGENTS.md` (created if missing)                   |                                                                          |
+| Operating guide on connect | MCP server instructions                                          | MCP server instructions                                                   | MCP server instructions, for clients that load them                      |
+
+Details:
+
+- **MCP server instructions.** The `svelte-grab` server sends a short operating guide in its MCP `initialize` result: what svelte-grab is, the loop (`ui_snapshot -> ui_find -> ui_inspect -> ui_component_impact -> edit -> ui_wait_for_hmr -> ui_verify -> ui_profile`), ref locators for Playwright / chrome-devtools MCP, annotations and `watch_for_grab`, the audit tools, "open the app in dev first" and "secrets stay redacted". Claude Code and Codex load it into the agent's context as soon as the server connects, so the agent knows the workflow even with no skill or instruction file. It stays under 2048 characters, where Claude Code truncates server instructions.
+- **`.codex/config.toml`.** Codex reads a project `.codex/config.toml` only after you trust the project (it asks on first run). `init` only appends the `[mcp_servers.<name>]` tables it does not find (each marked `# added by svelte-grab`) and never edits existing tables or keys. The `npx -y` servers get `startup_timeout_sec = 30` for their first download. Check with `codex mcp list`. For a global setup instead, `codex mcp add svelte-grab -- npx svelte-grab-mcp --stdio` writes `~/.codex/config.toml`; `init` never writes to your home directory.
+- **`AGENTS.md`.** Codex reads it; Claude Code reads it only when the project has no `CLAUDE.md`. The svelte-grab section (what it is, where the skills are, the loop in five lines) is added once, behind a `<!-- svelte-grab-skills -->` marker. Without Codex, an existing `AGENTS.md` still gets the section, but a missing one is not created.
+- **`CLAUDE.md`.** Never created. If it exists and does not import `@AGENTS.md`, one line pointing at the svelte-grab section and `.claude/skills/svelte-grab/SKILL.md` is appended once (`<!-- svelte-grab -->` marker).
+
+Opting out:
+
+| Flag (`init`)                       | Effect                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| `--agents claude` (or `--no-codex`) | Claude Code only: no `.codex/`, no `.agents/skills/`, no new `AGENTS.md` |
+| `--agents codex`                    | Codex only: no `.mcp.json`, no `.claude/skills/`, `CLAUDE.md` untouched  |
+| `--no-mcp-json`                     | No MCP config for any agent (and no `enableMcp` in the layout)           |
+| `--no-skills`                       | No skills (the `AGENTS.md` section then points at the MCP prompt)        |
+| `--no-agents-md`                    | `AGENTS.md` and `CLAUDE.md` untouched                                    |
+
+`svelte-grab skills install` takes the same `--agents`, `--no-codex` and `--no-agents-md`. In the `sv` add-on, answer `codex: no` for Claude Code only.
+
+Other agents (not written by `init`): add the same server to their MCP config by hand. Cursor reads `.cursor/mcp.json` in the `.mcp.json` format (`{ "mcpServers": { "svelte-grab": { "command": "npx", "args": ["svelte-grab-mcp", "--stdio"] } } }`); VS Code reads `.vscode/mcp.json` under `servers`. For skills, point `--skills-dir` at the folder your agent reads.
 
 ## Human handoff: Alt+Click + prompt
 
@@ -860,17 +893,17 @@ Each finding is `{ id, rule, severity, verdict, title, evidence, file, line, col
 npx svelte-grab <command> [options]
 ```
 
-| Command                      | Description                                                                                                                                                   |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init`                       | Set up the project: merge `.mcp.json`, add the Vite plugin, inject SvelteDevKit into the root layout (flags below)                                            |
-| `add <provider>`             | Add an agent provider (claude-code, cursor, copilot, codex)                                                                                                   |
-| `remove <provider>`          | Remove an agent provider                                                                                                                                      |
-| `configure`                  | Interactive configuration (activation key, editor, ports, theme)                                                                                              |
-| `relay`                      | Start the WebSocket relay server (maintenance mode)                                                                                                           |
-| `mcp`                        | Start the MCP server                                                                                                                                          |
-| `skills install\|list\|path` | Install or update the [agent skills](#agent-skills) in `.claude/skills/` (`--skills-dir`, `--force`, `--dry-run`), list them, or print the packaged directory |
-| `audit`                      | Static security scan (see [Static audit](#static-audit) and the flags below)                                                                                  |
-| `help`                       | Show help                                                                                                                                                     |
+| Command                      | Description                                                                                                                                                                                     |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init`                       | Set up the project for Claude Code and Codex: MCP config, Vite plugin, SvelteDevKit in the root layout, skills, `AGENTS.md` (flags below)                                                       |
+| `add <provider>`             | Add an agent provider (claude-code, cursor, copilot, codex)                                                                                                                                     |
+| `remove <provider>`          | Remove an agent provider                                                                                                                                                                        |
+| `configure`                  | Interactive configuration (activation key, editor, ports, theme)                                                                                                                                |
+| `relay`                      | Start the WebSocket relay server (maintenance mode)                                                                                                                                             |
+| `mcp`                        | Start the MCP server                                                                                                                                                                            |
+| `skills install\|list\|path` | Install or update the [agent skills](#agent-skills) in `.claude/skills/` and `.agents/skills/` (`--agents`, `--skills-dir`, `--force`, `--dry-run`), list them, or print the packaged directory |
+| `audit`                      | Static security scan (see [Static audit](#static-audit) and the flags below)                                                                                                                    |
+| `help`                       | Show help                                                                                                                                                                                       |
 
 ### `audit`
 
@@ -888,22 +921,26 @@ Without `--ci` the exit code is 0 whatever the findings; usage errors exit 2. Th
 
 ### `init`
 
-| Step                   | What it does                                                                                                                                                                                                                                     | Opt out                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `.mcp.json`            | Merges the `svelte-grab` server (`npx svelte-grab-mcp --stdio`) and the official Svelte MCP (`npx -y @sveltejs/mcp`) into `mcpServers`. Existing entries are never replaced; an invalid file is left alone with an error. Prints a diff.         | `--no-mcp-json`, `--no-svelte-mcp` (or `--with-svelte-mcp=false`)                                    |
-| Playwright MCP         | Adds a `playwright` entry (`npx -y @playwright/mcp@latest`).                                                                                                                                                                                     | off unless `--with-playwright-mcp`                                                                   |
-| `vite.config.(ts\|js)` | Adds `import { svelteGrab } from 'svelte-grab/vite'` and `svelteGrab()` right after `sveltekit(...)` / `svelte(...)` when the config has a plain `plugins: [...]` array. Any other shape is left untouched and the two lines to add are printed. | `--no-vite-plugin`                                                                                   |
-| Root component         | SvelteKit: `src/routes/+layout.svelte` (created if missing), wrapped in `{#if dev}` from `$app/environment`. Vite + Svelte: end of `src/App.svelte`. Skipped when the file already imports `svelte-grab`.                                        |                                                                                                      |
-| Agent skills           | Copies `skills/svelte-grab` and `skills/svelte-grab-audit` into `.claude/skills/`. Identical files are skipped; a file you edited gets the new version next to it as `<file>.new`. Appends a one-time pointer to an existing `AGENTS.md`.        | `--no-skills`; `--skills-dir <dir>` to change the target; `--force-skills` to overwrite edited files |
-| `enableMcp`            | Set on the injected `<SvelteDevKit />` only when `.mcp.json` declares the `svelte-grab` server after the run (added now or already there). With `--no-mcp-json` or an unreadable `.mcp.json` the page does not try to reach an MCP server.       |                                                                                                      |
+| Step                     | What it does                                                                                                                                                                                                                                          | Opt out                                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Agents                   | Claude Code and Codex by default; each step below writes only the files of the selected agents ([Agent setup](#agent-setup)).                                                                                                                         | `--agents claude`, `--agents codex`, `--no-codex`                                                    |
+| `.mcp.json`              | Claude Code. Merges the `svelte-grab` server (`npx svelte-grab-mcp --stdio`) and the official Svelte MCP (`npx -y @sveltejs/mcp`) into `mcpServers`. Existing entries are never replaced; an invalid file is left alone with an error. Prints a diff. | `--no-mcp-json`, `--no-svelte-mcp` (or `--with-svelte-mcp=false`)                                    |
+| `.codex/config.toml`     | Codex. Appends a `[mcp_servers.<name>]` table for each of the same servers it does not find; existing tables and keys are never edited. Prints a diff.                                                                                                | `--no-mcp-json`, `--no-codex`                                                                        |
+| Playwright MCP           | Adds a `playwright` entry (`npx -y @playwright/mcp@latest`).                                                                                                                                                                                          | off unless `--with-playwright-mcp`                                                                   |
+| `vite.config.(ts\|js)`   | Adds `import { svelteGrab } from 'svelte-grab/vite'` and `svelteGrab()` right after `sveltekit(...)` / `svelte(...)` when the config has a plain `plugins: [...]` array. Any other shape is left untouched and the two lines to add are printed.      | `--no-vite-plugin`                                                                                   |
+| Root component           | SvelteKit: `src/routes/+layout.svelte` (created if missing), wrapped in `{#if dev}` from `$app/environment`. Vite + Svelte: end of `src/App.svelte`. Skipped when the file already imports `svelte-grab`.                                             |                                                                                                      |
+| Agent skills             | Copies `skills/svelte-grab` and `skills/svelte-grab-audit` into `.claude/skills/` (Claude Code) and `.agents/skills/` (Codex). Identical files are skipped; a file you edited gets the new version next to it as `<file>.new`.                        | `--no-skills`; `--skills-dir <dir>` for one other target; `--force-skills` to overwrite edited files |
+| `AGENTS.md`, `CLAUDE.md` | Adds the svelte-grab section to `AGENTS.md` once (created when Codex is selected). Appends a one-line pointer to an existing `CLAUDE.md` that does not import `AGENTS.md`.                                                                            | `--no-agents-md`                                                                                     |
+| `enableMcp`              | Set on the injected `<SvelteDevKit />` only when `.mcp.json` or `.codex/config.toml` declares the `svelte-grab` server after the run (added now or already there). With `--no-mcp-json` the page does not try to reach an MCP server.                 |                                                                                                      |
 
 `init` also lists the dev dependencies still missing from `package.json` (`svelte-grab`, plus `@modelcontextprotocol/sdk` and `zod` when MCP is configured) with the install command for your package manager. `--dry-run` prints every diff and writes nothing. Running it again changes nothing.
 
 ```bash
-npx svelte-grab init                     # Set up .mcp.json, Vite plugin and layout
+npx svelte-grab init                     # Claude Code + Codex: MCP config, Vite plugin, layout, skills
 npx svelte-grab init --dry-run           # Preview changes without writing
+npx svelte-grab init --agents claude     # Claude Code only (or --agents codex)
 npx svelte-grab init --with-playwright-mcp --no-vite-plugin
-npx svelte-grab skills install --skills-dir .agents/skills  # Skills for agents that read .agents/skills
+npx svelte-grab skills install           # Update the skills (both agents) after an upgrade
 npx svelte-grab add cursor               # Add Cursor agent provider
 npx svelte-grab remove copilot           # Remove Copilot provider
 npx svelte-grab configure                # Interactive configuration
