@@ -1,6 +1,10 @@
 declare module '@modelcontextprotocol/sdk/server/mcp.js' {
 	export class McpServer {
-		constructor(options: { name: string; version: string });
+		/** `options.instructions`: server instructions sent in the initialize result. */
+		constructor(
+			options: { name: string; version: string },
+			serverOptions?: { instructions?: string }
+		);
 		registerTool(
 			name: string,
 			config: {
