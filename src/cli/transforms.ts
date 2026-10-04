@@ -156,6 +156,130 @@ export function mergeMcpJson(existing: string | null, options: McpJsonOptions): 
 }
 
 // ============================================================
+// .codex/config.toml (OpenAI Codex)
+// ============================================================
+
+/** Project-scoped Codex config (loaded by Codex for trusted projects only). */
+export const CODEX_CONFIG_PATH = '.codex/config.toml';
+
+/** Comment line written above every table svelte-grab adds. */
+export const CODEX_ADDED_COMMENT = '# added by svelte-grab';
+
+/**
+ * Codex waits `startup_timeout_sec` (default 10) for a server to start; the
+ * `npx -y` servers may download on first run, so they get more time.
+ */
+const CODEX_STARTUP_TIMEOUT_SEC: Partial<Record<McpServerName, number>> = {
+	svelte: 30,
+	playwright: 30
+};
+
+export interface CodexConfigResult {
+	content: string;
+	changed: boolean;
+	/** Servers this merge added (a new `[mcp_servers.<name>]` table each). */
+	added: McpServerName[];
+	/** Requested servers already declared in the file (left untouched). */
+	kept: McpServerName[];
+}
+
+const TOML_KEY_PART = /\s*("(?:[^"\\]|\\.)*"|'[^']*'|[A-Za-z0-9_-]+)\s*/y;
+
+/** Split a TOML (dotted) key into its parts, unquoted. Null when it is not a key. */
+function splitTomlKey(key: string): string[] | null {
+	const parts: string[] = [];
+	let index = 0;
+	for (;;) {
+		TOML_KEY_PART.lastIndex = index;
+		const match = TOML_KEY_PART.exec(key);
+		if (!match) return null;
+		const raw = match[1];
+		parts.push(
+			raw.startsWith('"') ? raw.slice(1, -1).replace(/\\(.)/g, '$1') : raw.replace(/^'|'$/g, '')
+		);
+		index = TOML_KEY_PART.lastIndex;
+		if (index === key.length) return parts;
+		if (key[index] !== '.') return null;
+		index++;
+	}
+}
+
+/**
+ * Names of the MCP servers a Codex `config.toml` declares, without a full
+ * TOML parser: `[mcp_servers.<name>]` (or a sub-table of it), dotted keys
+ * (`mcp_servers.<name>.command = ...` at the root) and keys inside an
+ * `[mcp_servers]` table (`<name> = { ... }`). Lines inside multi-line strings
+ * are skipped.
+ */
+export function codexDeclaredServers(toml: string): Set<string> {
+	const names = new Set<string>();
+	let table: string[] = [];
+	let inMultiline = false;
+	for (const line of toml.split(/\r?\n/)) {
+		const fences = (line.match(/"""|'''/g) ?? []).length;
+		if (inMultiline) {
+			if (fences % 2 === 1) inMultiline = false;
+			continue;
+		}
+		const header = /^\s*\[\[?([^[\]]+)\]\]?\s*(?:#.*)?$/.exec(line);
+		if (header) {
+			table = splitTomlKey(header[1].trim()) ?? [];
+		} else {
+			const assignment = /^\s*([^=#[]+?)\s*=/.exec(line);
+			const key = assignment && splitTomlKey(assignment[1]);
+			if (key) {
+				const path = [...table, ...key];
+				if (path[0] === 'mcp_servers' && path.length >= 2) names.add(path[1]);
+			}
+			if (fences % 2 === 1) inMultiline = true;
+			continue;
+		}
+		if (table[0] === 'mcp_servers' && table.length >= 2) names.add(table[1]);
+	}
+	return names;
+}
+
+/** The `[mcp_servers.<name>]` table svelte-grab writes for a server. */
+export function codexServerTable(name: McpServerName): string {
+	const entry = MCP_SERVERS[name];
+	const lines = [
+		CODEX_ADDED_COMMENT,
+		`[mcp_servers.${name}]`,
+		`command = ${JSON.stringify(entry.command)}`,
+		`args = [${entry.args.map((arg) => JSON.stringify(arg)).join(', ')}]`
+	];
+	const timeout = CODEX_STARTUP_TIMEOUT_SEC[name];
+	if (timeout) lines.push(`startup_timeout_sec = ${timeout}`);
+	return lines.join('\n');
+}
+
+/**
+ * Merge svelte-grab's MCP servers into a Codex `config.toml` by appending a
+ * `[mcp_servers.<name>]` table for each one the file does not declare yet.
+ * Existing tables and keys are never edited; a second run changes nothing.
+ */
+export function mergeCodexConfigToml(
+	existing: string | null,
+	options: McpJsonOptions
+): CodexConfigResult {
+	const source = existing ?? '';
+	const declared = codexDeclaredServers(source);
+	const added: McpServerName[] = [];
+	const kept: McpServerName[] = [];
+	for (const name of wantedMcpServers(options)) {
+		if (declared.has(name)) kept.push(name);
+		else added.push(name);
+	}
+	if (added.length === 0) return { content: source, changed: false, added, kept };
+
+	const tables = added.map(codexServerTable).join('\n\n');
+	let content = source.trim() === '' ? '' : source.endsWith('\n') ? source : `${source}\n`;
+	if (content !== '') content += '\n';
+	content += `${tables}\n`;
+	return { content, changed: content !== source, added, kept };
+}
+
+// ============================================================
 // vite.config.(ts|js)
 // ============================================================
 

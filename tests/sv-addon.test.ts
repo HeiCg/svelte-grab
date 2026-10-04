@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { readSkillFiles } from '../src/utils/packaged-skills.js';
-import { AGENTS_MD_MARKER, type SkillFile } from '../src/cli/skills-plan.js';
+import { type SkillFile } from '../src/cli/skills-plan.js';
+import { AGENTS_MD_MARKER, CLAUDE_MD_MARKER } from '../src/cli/agents.js';
 import {
 	runSvelteGrabAddon,
 	nextStepsFor,
@@ -17,6 +18,7 @@ import {
 import addon from '../src/sv/index.js';
 
 const MANIFEST = '.claude/skills/.svelte-grab-skills.json';
+const CODEX_MANIFEST = '.agents/skills/.svelte-grab-skills.json';
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
 const ROOT_PKG = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 /** What the add-on installs by default: the repo skills/ folder (the package one once published). */
@@ -99,15 +101,26 @@ describe('sv add-on (runSvelteGrabAddon)', () => {
 
 		expect(report.enableMcp).toBe(true);
 		expect(report.mcpServersAdded).toEqual(['svelte-grab', 'svelte']);
+		expect(report.codexServersAdded).toEqual(['svelte-grab', 'svelte']);
 		expect(report.vitePlugin).toBe('added');
 		expect(report.layout).toBe('written');
+		expect(report.agentsMd).toBe('created');
 		expect(ws.touched).toEqual([
 			'.mcp.json',
+			'.codex/config.toml',
 			'vite.config.ts',
 			'src/routes/+layout.svelte',
 			...SKILL_FILES.map((f) => `.claude/skills/${f.path}`),
-			MANIFEST
+			MANIFEST,
+			...SKILL_FILES.map((f) => `.agents/skills/${f.path}`),
+			CODEX_MANIFEST,
+			'AGENTS.md'
 		]);
+		expect(ws.fs['.codex/config.toml']).toContain(
+			'[mcp_servers.svelte-grab]\ncommand = "npx"\nargs = ["svelte-grab-mcp", "--stdio"]'
+		);
+		expect(ws.fs['AGENTS.md']).toContain(AGENTS_MD_MARKER);
+		expect(ws.fs['CLAUDE.md']).toBeUndefined();
 
 		const mcp = JSON.parse(ws.fs['.mcp.json']);
 		expect(Object.keys(mcp.mcpServers)).toEqual(['svelte-grab', 'svelte']);
@@ -157,6 +170,7 @@ describe('sv add-on (runSvelteGrabAddon)', () => {
 		);
 		const report = runSvelteGrabAddon(ws.ctx);
 		expect(ws.fs['.mcp.json']).toBeUndefined();
+		expect(ws.fs['.codex/config.toml']).toBeUndefined();
 		expect(ws.fs['vite.config.ts']).toBe(SV_KIT_VITE);
 		expect(report.enableMcp).toBe(false);
 		expect(ws.fs['src/routes/+layout.svelte']).toContain('<SvelteDevKit />');
@@ -181,7 +195,10 @@ describe('sv add-on (runSvelteGrabAddon)', () => {
 	});
 
 	it('leaves an invalid .mcp.json alone and reports it', () => {
-		const ws = fakeWorkspace({ '.mcp.json': '{ nope', 'vite.config.ts': SV_KIT_VITE });
+		const ws = fakeWorkspace(
+			{ '.mcp.json': '{ nope', 'vite.config.ts': SV_KIT_VITE },
+			{ options: { codex: false } }
+		);
 		const report = runSvelteGrabAddon(ws.ctx);
 		expect(ws.fs['.mcp.json']).toBe('{ nope');
 		expect(report.enableMcp).toBe(false);
@@ -231,7 +248,8 @@ describe('sv add-on: definition and package contract', () => {
 			'svelteMcp',
 			'playwrightMcp',
 			'vitePlugin',
-			'skills'
+			'skills',
+			'codex'
 		]);
 		for (const q of Object.values(addon.options)) expect(q.type).toBe('boolean');
 		expect(addon.options.svelteMcp.condition?.({ mcpJson: false })).toBe(false);
@@ -266,6 +284,7 @@ describe('sv add-on: definition and package contract', () => {
 			'sv/plan.ts',
 			'cli/transforms.ts',
 			'cli/skills-plan.ts',
+			'cli/agents.ts',
 			'utils/packaged-skills.ts'
 		];
 		const specifiers = graph.flatMap((file) => {
@@ -288,19 +307,22 @@ describe('sv add-on: agent skills', () => {
 		]);
 	});
 
-	it('installs the skills into .claude/skills by default (same planner as init), with the manifest', () => {
+	it('installs the skills into .claude/skills and .agents/skills by default (same planner as init), with a manifest each', () => {
 		const ws = fakeWorkspace(KIT);
 		const report = runSvelteGrabAddon(ws.ctx);
 		expect(report.skillsWritten).toEqual([
 			...SKILL_FILES.map((f) => `.claude/skills/${f.path}`),
-			MANIFEST
+			MANIFEST,
+			...SKILL_FILES.map((f) => `.agents/skills/${f.path}`),
+			CODEX_MANIFEST
 		]);
+		expect(ws.fs[CODEX_MANIFEST]).toBe(ws.fs[MANIFEST]);
 		for (const f of SKILL_FILES) expect(ws.fs[`.claude/skills/${f.path}`]).toBe(f.content);
 		expect(JSON.parse(ws.fs[MANIFEST])).toEqual({
 			version: SKILLS_VERSION,
 			files: Object.fromEntries(SKILL_FILES.map((f) => [f.path, sha256(f.content)]))
 		});
-		expect(ws.fs['AGENTS.md']).toBeUndefined();
+		expect(ws.fs['AGENTS.md']).toContain('.agents/skills/svelte-grab/SKILL.md');
 	});
 
 	describe('upgrades through sv.file (manifest read and written like any file)', () => {
@@ -321,7 +343,7 @@ describe('sv add-on: agent skills', () => {
 		};
 
 		it('updates unedited files in place, writes <file>.new for edited ones, reports what it cannot delete', () => {
-			const ws = fakeWorkspace(KIT);
+			const ws = fakeWorkspace(KIT, { options: { codex: false } });
 			run(ws, V1, '1.0.0');
 			expect(JSON.parse(ws.fs[MANIFEST]).version).toBe('1.0.0');
 			ws.fs['.claude/skills/svelte-grab/notes.md'] = 'notes v1, mine';
@@ -359,11 +381,14 @@ describe('sv add-on: agent skills', () => {
 		});
 
 		it('an empty manifest file reads as missing and is rewritten', () => {
-			const ws = fakeWorkspace({
-				...KIT,
-				'.claude/skills/svelte-grab/SKILL.md': 'core v1',
-				[MANIFEST]: ''
-			});
+			const ws = fakeWorkspace(
+				{
+					...KIT,
+					'.claude/skills/svelte-grab/SKILL.md': 'core v1',
+					[MANIFEST]: ''
+				},
+				{ options: { codex: false } }
+			);
 			const report = run(ws, V2, '2.0.0');
 			expect(report.skillsWritten).toContain('.claude/skills/svelte-grab/SKILL.md.new');
 			expect(JSON.parse(ws.fs[MANIFEST]).version).toBe('2.0.0');
@@ -389,11 +414,11 @@ describe('sv add-on: agent skills', () => {
 		expect(nextStepsFor(report).join('\n')).toContain('<file>.new');
 	});
 
-	it('points an existing AGENTS.md at the skills once', () => {
+	it('appends the svelte-grab section to an existing AGENTS.md once', () => {
 		const ws = fakeWorkspace({ ...KIT, 'AGENTS.md': '# Rules\n' });
 		runSvelteGrabAddon(ws.ctx);
-		expect(ws.fs['AGENTS.md']).toContain(AGENTS_MD_MARKER);
-		expect(ws.fs['AGENTS.md']).toContain('.claude/skills/svelte-grab-audit/SKILL.md');
+		expect(ws.fs['AGENTS.md'].startsWith('# Rules\n\n' + AGENTS_MD_MARKER)).toBe(true);
+		expect(ws.fs['AGENTS.md']).toContain('.agents/skills/svelte-grab-audit/SKILL.md');
 		const once = ws.fs['AGENTS.md'];
 		ws.touched.length = 0;
 		runSvelteGrabAddon(ws.ctx);
@@ -406,7 +431,66 @@ describe('sv add-on: agent skills', () => {
 		ws.ctx.skillFiles = [{ skill: 'x', path: 'x/SKILL.md', content: 'X' }];
 		expect(runSvelteGrabAddon(ws.ctx).skillsWritten).toEqual([
 			'.claude/skills/x/SKILL.md',
-			MANIFEST
+			MANIFEST,
+			'.agents/skills/x/SKILL.md',
+			CODEX_MANIFEST
 		]);
+	});
+});
+
+describe('sv add-on: Codex and instruction files', () => {
+	const KIT = { 'vite.config.ts': SV_KIT_VITE, 'src/routes/+layout.svelte': SV_KIT_LAYOUT };
+
+	it('codex: false writes no Codex file and does not create AGENTS.md', () => {
+		const ws = fakeWorkspace(KIT, { options: { codex: false } });
+		const report = runSvelteGrabAddon(ws.ctx);
+		expect(report.codexServersAdded).toEqual([]);
+		expect(report.agentsMd).toBe('absent');
+		expect(
+			Object.keys(ws.fs).filter(
+				(p) => p.startsWith('.codex/') || p.startsWith('.agents/') || p === 'AGENTS.md'
+			)
+		).toEqual([]);
+		expect(nextStepsFor(report).join('\n')).not.toContain('codex');
+	});
+
+	it('keeps existing Codex servers and tables, adds only the missing ones, idempotent', () => {
+		const existing =
+			'[mcp_servers.svelte]\nurl = "https://mcp.svelte.dev/mcp"\n\n[profiles.fast]\nmodel = "x"\n';
+		const ws = fakeWorkspace({ ...KIT, '.codex/config.toml': existing });
+		const report = runSvelteGrabAddon(ws.ctx);
+		expect(report.codexServersAdded).toEqual(['svelte-grab']);
+		expect(ws.fs['.codex/config.toml'].startsWith(existing)).toBe(true);
+		expect(ws.fs['.codex/config.toml'].match(/\[mcp_servers\.svelte\]/g)).toHaveLength(1);
+		expect(nextStepsFor(report).join('\n')).toContain('trusted projects');
+		const snapshot = { ...ws.fs };
+		ws.touched.length = 0;
+		runSvelteGrabAddon(ws.ctx);
+		expect(ws.touched).toEqual([]);
+		expect(ws.fs).toEqual(snapshot);
+	});
+
+	it('Codex config alone enables MCP in the layout when .mcp.json is unusable', () => {
+		const ws = fakeWorkspace({ ...KIT, '.mcp.json': '{ nope' });
+		const report = runSvelteGrabAddon(ws.ctx);
+		expect(report.enableMcp).toBe(true);
+		expect(ws.fs['src/routes/+layout.svelte']).toContain('<SvelteDevKit enableMcp />');
+	});
+
+	it('adds a one-line pointer to an existing CLAUDE.md once, never creates one', () => {
+		const ws = fakeWorkspace({ ...KIT, 'CLAUDE.md': '# Project\n' });
+		const report = runSvelteGrabAddon(ws.ctx);
+		expect(report.claudeMd).toBe('appended');
+		const claude = ws.fs['CLAUDE.md'];
+		expect(claude.split(CLAUDE_MD_MARKER)).toHaveLength(2);
+		expect(claude).toContain('.claude/skills/svelte-grab/SKILL.md');
+		ws.touched.length = 0;
+		runSvelteGrabAddon(ws.ctx);
+		expect(ws.fs['CLAUDE.md']).toBe(claude);
+		expect(ws.touched).toEqual([]);
+
+		const imports = fakeWorkspace({ ...KIT, 'CLAUDE.md': '@AGENTS.md\n' });
+		expect(runSvelteGrabAddon(imports.ctx).claudeMd).toBe('imports-agents-md');
+		expect(imports.fs['CLAUDE.md']).toBe('@AGENTS.md\n');
 	});
 });

@@ -135,35 +135,44 @@ Usage:
   svelte-grab <command> [options]
 
 Commands:
-  init      Set up svelte-grab for coding agents in a Svelte project:
-            - writes/merges .mcp.json (svelte-grab MCP server + official Svelte
-              MCP; existing entries are never replaced)
+  init      Set up svelte-grab for coding agents (Claude Code and Codex) in a
+            Svelte project:
+            - MCP config: merges the svelte-grab MCP server + official Svelte MCP
+              into .mcp.json (Claude Code) and .codex/config.toml (Codex);
+              existing entries are never replaced
             - adds svelteGrab() from svelte-grab/vite to vite.config.(ts|js)
             - injects <SvelteDevKit /> into src/routes/+layout.svelte (SvelteKit)
-              or src/App.svelte (Vite+Svelte), with enableMcp when .mcp.json
+              or src/App.svelte (Vite+Svelte), with enableMcp when an MCP config
               declares the svelte-grab server
+            - copies the agent skills into .claude/skills/ and .agents/skills/
+            - adds a svelte-grab section to AGENTS.md (created for Codex) and a
+              one-line pointer to an existing CLAUDE.md
             Options:
               --dry-run               Show what would be changed without writing files
-              --no-mcp-json           Do not touch .mcp.json (and no enableMcp)
+              --agents <list>         Agents to set up: claude,codex (default both)
+              --no-codex              Same as --agents claude
+              --no-mcp-json           No MCP config for any agent (and no enableMcp)
               --no-svelte-mcp         Skip the @sveltejs/mcp entry (alias:
                                       --with-svelte-mcp=false; default on)
               --with-playwright-mcp   Also add the @playwright/mcp entry (default off)
               --no-vite-plugin        Do not edit vite.config
-              --no-skills             Do not copy the agent skills (default: copy the
-                                      svelte-grab and svelte-grab-audit skills into
-                                      .claude/skills/, plus a pointer in AGENTS.md if
-                                      the project has one)
-              --skills-dir <dir>      Where the skills go (e.g. .agents/skills)
+              --no-skills             Do not copy the agent skills
+              --skills-dir <dir>      Put the skills in this one directory instead
               --force-skills          Overwrite skill files you edited (default: the
                                       new version is written next to them as <file>.new)
+              --no-agents-md          Do not touch AGENTS.md / CLAUDE.md
 
   skills    Install or update the agent skills shipped in the package.
             Subcommands:
-              install       Copy skills into .claude/skills/ (idempotent; files you
-                            didn't edit update in place, edited ones get a <file>.new). Options: --skills-dir <dir>,
-                            --force (overwrite edited files), --dry-run
+              install       Copy skills into .claude/skills/ and .agents/skills/
+                            (idempotent; files you didn't edit update in place,
+                            edited ones get a <file>.new) and update AGENTS.md /
+                            CLAUDE.md like init. Options: --agents <list>,
+                            --no-codex, --skills-dir <dir>, --force (overwrite
+                            edited files), --no-agents-md, --dry-run
               list          Per-file status against the project: new, up to date,
-                            will update, edited by you. Option: --skills-dir <dir>
+                            will update, edited by you. Options: --agents <list>,
+                            --skills-dir <dir>
               path          Print the packaged skills directory
 
   add       Add an agent provider (claude-code, cursor, copilot, codex).
@@ -213,7 +222,7 @@ Global Options:
   --version, -v   Print version number
 
 Agent loop (recommended):
-  1. npx svelte-grab init   (writes .mcp.json, vite plugin, <SvelteDevKit enableMcp />)
+  1. npx svelte-grab init   (MCP config, vite plugin, <SvelteDevKit enableMcp />, skills)
   2. Start your dev server and open the app
   3. Your agent runs: ui_snapshot -> ui_find -> ui_inspect -> edit
                       -> ui_wait_for_hmr -> ui_verify
@@ -226,8 +235,9 @@ Agent loop (recommended):
 Examples:
   npx svelte-grab init                     # Add to your SvelteKit project
   npx svelte-grab init --dry-run           # Preview changes without writing
-  npx svelte-grab init --with-playwright-mcp  # Also add Playwright MCP to .mcp.json
-  npx svelte-grab skills install --skills-dir .agents/skills  # Skills for other agents
+  npx svelte-grab init --with-playwright-mcp  # Also add Playwright MCP
+  npx svelte-grab init --agents claude     # Claude Code only (no Codex files)
+  npx svelte-grab skills install           # Update the skills after an upgrade
   npx svelte-grab add cursor               # Add Cursor agent provider
   npx svelte-grab remove copilot           # Remove Copilot provider
   npx svelte-grab configure                # Interactive configuration

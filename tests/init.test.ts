@@ -86,16 +86,18 @@ afterEach(() => {
 });
 
 describe('parseInitArgs', () => {
-	it('defaults: .mcp.json with Svelte MCP, no Playwright, vite plugin on', () => {
+	it('defaults: Claude Code + Codex, MCP config with Svelte MCP, no Playwright, vite plugin on', () => {
 		expect(parseInitArgs([])).toEqual({
 			dryRun: false,
+			agents: ['claude', 'codex'],
 			mcpJson: true,
 			svelteMcp: true,
 			playwrightMcp: false,
 			vitePlugin: true,
 			skills: true,
-			skillsDir: '.claude/skills',
-			forceSkills: false
+			skillsDir: undefined,
+			forceSkills: false,
+			agentsMd: true
 		});
 	});
 
@@ -109,17 +111,21 @@ describe('parseInitArgs', () => {
 				'--no-vite-plugin',
 				'--no-skills',
 				'--skills-dir=.agents/skills',
-				'--force-skills'
+				'--force-skills',
+				'--agents=codex',
+				'--no-agents-md'
 			])
 		).toEqual({
 			dryRun: true,
+			agents: ['codex'],
 			mcpJson: false,
 			svelteMcp: false,
 			playwrightMcp: true,
 			vitePlugin: false,
 			skills: false,
 			skillsDir: '.agents/skills',
-			forceSkills: true
+			forceSkills: true,
+			agentsMd: false
 		});
 		expect(parseInitArgs(['--with-svelte-mcp=false', '--with-playwright-mcp=true'])).toMatchObject({
 			svelteMcp: false,
@@ -139,9 +145,11 @@ describe('init: SvelteKit', () => {
 		expect(result.mcpServersAdded).toEqual(['svelte-grab', 'svelte']);
 		expect(result.vitePlugin).toBe('added');
 		expect(result.layout).toBe('created');
-		// Agent skills are covered in tests/skills.test.ts.
-		expect(result.written.filter((f) => !f.startsWith('.claude/skills/')).sort()).toEqual([
+		// Agent skills are covered in tests/skills.test.ts, Codex and AGENTS.md in tests/init-agents.test.ts.
+		expect(result.written.filter((f) => !/^\.(claude|agents)\/skills\//.test(f)).sort()).toEqual([
+			'.codex/config.toml',
 			'.mcp.json',
+			'AGENTS.md',
 			'src/routes/+layout.svelte',
 			'vite.config.ts'
 		]);
@@ -207,10 +215,10 @@ describe('init: SvelteKit', () => {
 		expect(read('src/routes/+layout.svelte')).toContain('<SvelteDevKit enableMcp />');
 	});
 
-	it('leaves an invalid .mcp.json alone, warns and does not enable MCP', () => {
+	it('leaves an invalid .mcp.json alone, warns and does not enable MCP (Claude Code only)', () => {
 		kitProject();
 		write('.mcp.json', '{ broken');
-		const result = init(dir);
+		const result = init(dir, { agents: ['claude'] });
 		expect(result.ok).toBe(true);
 		expect(read('.mcp.json')).toBe('{ broken');
 		expect(result.enableMcp).toBe(false);
@@ -218,10 +226,11 @@ describe('init: SvelteKit', () => {
 		expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toMatch(/not valid JSON/);
 	});
 
-	it('--no-mcp-json: no .mcp.json and no enableMcp', () => {
+	it('--no-mcp-json: no MCP config for any agent and no enableMcp', () => {
 		kitProject();
 		const result = init(dir, { mcpJson: false });
 		expect(existsSync(join(dir, '.mcp.json'))).toBe(false);
+		expect(existsSync(join(dir, '.codex/config.toml'))).toBe(false);
 		expect(result.enableMcp).toBe(false);
 		expect(read('src/routes/+layout.svelte')).toContain('<SvelteDevKit />');
 		expect(read('src/routes/+layout.svelte')).not.toContain('enableMcp');

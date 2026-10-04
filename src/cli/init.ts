@@ -5,13 +5,29 @@ import {
 	injectKitLayout,
 	injectVitePlugin,
 	lineDiff,
+	mergeCodexConfigToml,
 	mergeMcpJson,
 	devKitMissingEnableMcp,
+	CODEX_CONFIG_PATH,
+	MCP_SERVERS,
 	VITE_PLUGIN_IMPORT,
 	type McpServerName
 } from './transforms.js';
-import { installSkills, parseSkillsFlags, type SkillsInstallResult } from './skills.js';
-import { DEFAULT_SKILLS_DIR } from './skills-plan.js';
+import {
+	installAgentSkills,
+	parseSkillsFlags,
+	updateAgentDocs,
+	type AgentSkillsInstallResult
+} from './skills.js';
+import {
+	AGENT_LABELS,
+	parseAgentsFlags,
+	resolveAgents,
+	skillsDirsFor,
+	type AgentName,
+	type AgentsMdAction,
+	type ClaudeMdAction
+} from './agents.js';
 
 /** Minimum Svelte version: `__svelte_meta.parent` (component stack) starts here. */
 export const MIN_SVELTE_VERSION = '5.35.1';
@@ -45,34 +61,55 @@ export function checkSvelteVersion(range: string): 'ok' | 'warn' | 'error' {
 export interface InitOptions {
 	/** Print what would change without writing. */
 	dryRun?: boolean;
-	/** Write/merge `.mcp.json` at the project root (default true). */
+	/**
+	 * Coding agents to set up: `claude` (Claude Code) and/or `codex` (OpenAI
+	 * Codex). Default both. Unknown names make init fail.
+	 */
+	agents?: readonly string[];
+	/**
+	 * Write the MCP server config (default true): `.mcp.json` for Claude Code,
+	 * `.codex/config.toml` for Codex. False skips both (and `enableMcp`).
+	 */
 	mcpJson?: boolean;
-	/** Add the official Svelte MCP (`@sveltejs/mcp`) to `.mcp.json` (default true). */
+	/** Add the official Svelte MCP (`@sveltejs/mcp`) to the MCP config (default true). */
 	svelteMcp?: boolean;
-	/** Add Playwright MCP (`@playwright/mcp`) to `.mcp.json` (default false). */
+	/** Add Playwright MCP (`@playwright/mcp`) to the MCP config (default false). */
 	playwrightMcp?: boolean;
 	/** Add `svelteGrab()` from `svelte-grab/vite` to the Vite config (default true). */
 	vitePlugin?: boolean;
-	/** Copy the agent skills into `skillsDir` (default true). */
+	/** Copy the agent skills (default true). */
 	skills?: boolean;
-	/** Project-relative directory for the skills (default `.claude/skills`). */
+	/**
+	 * Single project-relative directory for the skills. Default: one per agent,
+	 * `.claude/skills` (Claude Code) and `.agents/skills` (Codex).
+	 */
 	skillsDir?: string;
 	/** Overwrite skill files that differ instead of writing `<file>.new` (default false). */
 	forceSkills?: boolean;
+	/** Add the svelte-grab section to AGENTS.md and the CLAUDE.md pointer (default true). */
+	agentsMd?: boolean;
 }
 
 export interface InitResult {
 	ok: boolean;
+	/** Agents set up, in canonical order. */
+	agents: AgentName[];
 	/** Project-relative files written (empty in dry-run mode). */
 	written: string[];
 	/** `<SvelteDevKit enableMcp />` was (or would be) injected. */
 	enableMcp: boolean;
-	/** Servers added to `.mcp.json`. */
+	/** Servers added to `.mcp.json` (Claude Code). */
 	mcpServersAdded: McpServerName[];
+	/** Servers added to `.codex/config.toml` (Codex). */
+	codexServersAdded: McpServerName[];
 	vitePlugin: 'added' | 'already-present' | 'manual' | 'skipped' | 'missing';
 	layout: 'created' | 'modified' | 'already-present' | 'manual';
-	/** Agent skills install, or null with `skills: false`. Its writes are also in `written`. */
-	skills: SkillsInstallResult | null;
+	/** Agent skills install (one target per directory), or null with `skills: false`. Its writes are also in `written`. */
+	skills: AgentSkillsInstallResult | null;
+	/** svelte-grab section in AGENTS.md; `skipped` with `agentsMd: false`. */
+	agentsMd: AgentsMdAction | 'skipped';
+	/** One-line pointer in an existing CLAUDE.md; `skipped` when not needed or `agentsMd: false`. */
+	claudeMd: ClaudeMdAction | 'skipped';
 }
 
 /** Boolean flag: `--name` / `--name=true` -> true, `--name=false|no|0|off` -> false. */
@@ -86,14 +123,18 @@ function boolFlag(args: string[], name: string, fallback: boolean): boolean {
 }
 
 /** Parse `svelte-grab init` flags. */
-export function parseInitArgs(args: string[]): Required<InitOptions> {
+export function parseInitArgs(
+	args: string[]
+): Required<Omit<InitOptions, 'skillsDir'>> & Pick<InitOptions, 'skillsDir'> {
 	return {
 		dryRun: args.includes('--dry-run'),
+		agents: parseAgentsFlags(args).agents,
 		mcpJson: !args.includes('--no-mcp-json'),
 		svelteMcp: args.includes('--no-svelte-mcp') ? false : boolFlag(args, 'with-svelte-mcp', true),
 		playwrightMcp: boolFlag(args, 'with-playwright-mcp', false),
 		vitePlugin: !args.includes('--no-vite-plugin'),
-		...parseSkillsFlags(args)
+		...parseSkillsFlags(args),
+		agentsMd: !args.includes('--no-agents-md')
 	};
 }
 
@@ -117,44 +158,67 @@ function printDiff(before: string, after: string): void {
 }
 
 /**
- * Detect the Svelte project and set it up for svelte-grab:
+ * Detect the Svelte project and set it up for svelte-grab and the selected
+ * coding agents (Claude Code and Codex by default):
  *
- * 1. `.mcp.json`: merge the `svelte-grab` MCP server (plus `svelte` and,
- *    on request, `playwright`); existing entries are never replaced.
+ * 1. MCP config: merge the `svelte-grab` MCP server (plus `svelte` and, on
+ *    request, `playwright`) into `.mcp.json` (Claude Code) and
+ *    `.codex/config.toml` (Codex); existing entries are never replaced.
  * 2. `vite.config.(ts|js)`: add `svelteGrab()` from `svelte-grab/vite` when the
  *    config has a recognisable `plugins: [...]` array, else print how.
  * 3. Root layout (`src/routes/+layout.svelte`) or `src/App.svelte`: inject
- *    `<SvelteDevKit />`, with `enableMcp` only when `.mcp.json` declares the
+ *    `<SvelteDevKit />`, with `enableMcp` only when an MCP config declares the
  *    `svelte-grab` server after this run (added now or already there).
- * 4. Agent skills: copy the packaged `skills/` into `.claude/skills/` (or
- *    `skillsDir`); user-modified files get a `<file>.new` instead, and an
- *    existing AGENTS.md gets a one-time pointer.
+ * 4. Agent skills: copy the packaged `skills/` into `.claude/skills/` and
+ *    `.agents/skills/` (or `skillsDir`); user-modified files get a
+ *    `<file>.new` instead.
+ * 5. AGENTS.md (svelte-grab section, created for Codex) and a pointer in an
+ *    existing CLAUDE.md.
  *
  * Never exits the process: returns `ok: false` on fatal problems.
  */
 export function init(cwd: string = process.cwd(), options: InitOptions = {}): InitResult {
 	const {
 		dryRun = false,
+		agents: agentNames,
 		mcpJson = true,
 		svelteMcp = true,
 		playwrightMcp = false,
 		vitePlugin = true,
 		skills = true,
-		skillsDir = DEFAULT_SKILLS_DIR,
-		forceSkills = false
+		skillsDir,
+		forceSkills = false,
+		agentsMd = true
 	} = options;
+	const { agents, unknown } = resolveAgents(agentNames);
 	const result: InitResult = {
 		ok: false,
+		agents,
 		written: [],
 		enableMcp: false,
 		mcpServersAdded: [],
+		codexServersAdded: [],
 		vitePlugin: 'skipped',
 		layout: 'manual',
-		skills: null
+		skills: null,
+		agentsMd: 'skipped',
+		claudeMd: 'skipped'
 	};
+	if (unknown.length) {
+		console.error(
+			`[svelte-grab] Unknown agent(s): ${unknown.join(', ')}. Use --agents claude,codex (or a subset).`
+		);
+		return result;
+	}
+	if (agents.length === 0) {
+		console.error('[svelte-grab] No agent selected. Use --agents claude,codex (or a subset).');
+		return result;
+	}
 
 	if (dryRun) console.log('[svelte-grab] Dry run mode - no files will be written\n');
-	console.log('[svelte-grab] Initializing...');
+	console.log(
+		`[svelte-grab] Initializing for ${agents.map((a) => AGENT_LABELS[a]).join(' and ')}...`
+	);
 
 	const packageJsonPath = join(cwd, 'package.json');
 	if (!existsSync(packageJsonPath)) {
@@ -208,8 +272,8 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 		result.written.push(rel);
 	};
 
-	// 1. .mcp.json
-	if (mcpJson) {
+	// 1a. .mcp.json (Claude Code)
+	if (mcpJson && agents.includes('claude')) {
 		const mcpPath = join(cwd, '.mcp.json');
 		const before = existsSync(mcpPath) ? readFileSync(mcpPath, 'utf-8') : null;
 		const merged = mergeMcpJson(before, { svelteMcp, playwrightMcp });
@@ -231,6 +295,28 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 				printDiff(before ?? '', merged.content);
 				if (!dryRun) save('.mcp.json', merged.content);
 			}
+		}
+	}
+
+	// 1b. .codex/config.toml (Codex; loaded for trusted projects)
+	if (mcpJson && agents.includes('codex')) {
+		const tomlPath = join(cwd, CODEX_CONFIG_PATH);
+		const before = existsSync(tomlPath) ? readFileSync(tomlPath, 'utf-8') : null;
+		const merged = mergeCodexConfigToml(before, { svelteMcp, playwrightMcp });
+		result.codexServersAdded = merged.added;
+		if (merged.added.includes('svelte-grab') || merged.kept.includes('svelte-grab'))
+			result.enableMcp = true;
+		if (merged.kept.length) {
+			console.log(
+				`[svelte-grab] ${CODEX_CONFIG_PATH} already declares: ${merged.kept.join(', ')} (left unchanged)`
+			);
+		}
+		if (merged.changed) {
+			console.log(
+				`[svelte-grab] ${dryRun ? 'Would write' : 'Writing'} ${CODEX_CONFIG_PATH} (adds ${merged.added.join(', ')}):`
+			);
+			printDiff(before ?? '', merged.content);
+			if (!dryRun) save(CODEX_CONFIG_PATH, merged.content);
 		}
 	}
 
@@ -312,10 +398,24 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 		}
 	}
 
-	// 4. Agent skills (.claude/skills/ by default)
+	// 4. Agent skills (.claude/skills/ and .agents/skills/ by default)
+	const skillsDirs = skills ? skillsDirsFor(agents, skillsDir) : [];
 	if (skills) {
-		result.skills = installSkills(cwd, { skillsDir, force: forceSkills, dryRun });
+		result.skills = installAgentSkills(cwd, { skillsDirs, force: forceSkills, dryRun });
 		result.written.push(...result.skills.written);
+	}
+
+	// 5. AGENTS.md section (created for Codex) + CLAUDE.md pointer
+	if (agentsMd) {
+		const docs = updateAgentDocs(cwd, {
+			agents,
+			skillsDirs: result.skills?.ok ? skillsDirs : [],
+			skills: result.skills?.skills ?? [],
+			dryRun
+		});
+		result.agentsMd = docs.agentsMd;
+		result.claudeMd = docs.claudeMd;
+		result.written.push(...docs.written);
 	}
 
 	// Next steps
@@ -330,8 +430,31 @@ export function init(cwd: string = process.cwd(), options: InitOptions = {}): In
 		console.log(
 			'[svelte-grab] Next: start your dev server, open the app, and let your agent call ui_snapshot.'
 		);
+		if (mcpJson && agents.includes('claude')) {
+			console.log(
+				'  Claude Code picks up .mcp.json on start (approve the project servers when asked).'
+			);
+		}
+		if (mcpJson && agents.includes('codex')) {
+			const grab = MCP_SERVERS['svelte-grab'];
+			console.log(
+				`  Codex reads ${CODEX_CONFIG_PATH} only in trusted projects: trust this folder when Codex asks, then check with \`codex mcp list\`.`
+			);
+			console.log(
+				`  Global setup instead: codex mcp add svelte-grab -- ${grab.command} ${grab.args.join(' ')}`
+			);
+		}
+	}
+	if (agents.length > 1) {
 		console.log(
-			'  Claude Code picks up .mcp.json on start (approve the project servers when asked).'
+			'  Set up for Claude Code and Codex; --agents claude (or --no-codex) or --agents codex for one.'
+		);
+	}
+	// Detection hint only: other agents are configured by hand (README "Agent setup").
+	if (existsSync(join(cwd, '.cursor'))) {
+		console.log(
+			'  Cursor detected: add the svelte-grab server to .cursor/mcp.json by hand ' +
+				'({ "mcpServers": { "svelte-grab": { "command": "npx", "args": ["svelte-grab-mcp", "--stdio"] } } }).'
 		);
 	}
 
