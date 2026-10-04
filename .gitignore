@@ -1,4 +1,6 @@
 node_modules/
+# agent worktrees symlink node_modules (a symlink is not matched by the dir pattern)
+node_modules
 dist/
 .svelte-kit/
 *.log

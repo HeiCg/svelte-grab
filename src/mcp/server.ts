@@ -27,6 +27,7 @@ import {
 import { registerRuntimeTools, type McpToolServer, type ZodNamespace } from './runtime/tools.js';
 import { resolveCdpConfig, type CdpConfig } from './cdp/client.js';
 import { registerSkillPrompts, type McpPromptServer } from './prompts.js';
+import { MCP_INSTRUCTIONS } from './instructions.js';
 
 /** Max request body size (2 MB) for POST endpoints. */
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -405,12 +406,7 @@ async function handleMcpProtocol(req: IncomingMessage, res: ServerResponse): Pro
 			await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
 		const { z } = await import('zod');
 
-		const server = new McpServer({
-			name: 'svelte-grab',
-			version: '1.0.0'
-		});
-
-		registerMcpTools(server, z);
+		const server = createSvelteGrabMcpServer(McpServer, z);
 
 		// Stateless: a fresh server + transport per request, no session ids.
 		const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
@@ -740,6 +736,30 @@ function registerMcpTools(server: McpToolServer & McpPromptServer, z: ZodNamespa
 	registerSkillPrompts(server, z);
 }
 
+/** Structural subset of the SDK's `McpServer` constructor (SDK >= 1.26). */
+export type SvelteGrabMcpServerConstructor<S extends McpToolServer & McpPromptServer> = new (
+	serverInfo: { name: string; version: string },
+	options?: { instructions?: string }
+) => S;
+
+/**
+ * The svelte-grab MCP server, as both transports (stdio and HTTP) build it:
+ * the server instructions (src/mcp/instructions.ts, sent in the initialize
+ * result), every tool and the skill prompts. The SDK class and zod are passed
+ * in because both are optional peers, loaded lazily by the callers.
+ */
+export function createSvelteGrabMcpServer<S extends McpToolServer & McpPromptServer>(
+	McpServer: SvelteGrabMcpServerConstructor<S>,
+	z: ZodNamespace
+): S {
+	const server = new McpServer(
+		{ name: 'svelte-grab', version: '1.0.0' },
+		{ instructions: MCP_INSTRUCTIONS }
+	);
+	registerMcpTools(server, z);
+	return server;
+}
+
 /**
  * Create the HTTP request handler for the context bridge.
  * Used by both standalone HTTP mode and as a sidecar in stdio mode.
@@ -952,15 +972,10 @@ async function startStdioServer(httpPort: number): Promise<void> {
 	const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
 	const { z } = await import('zod');
 
-	const server = new McpServer({
-		name: 'svelte-grab',
-		version: '1.0.0'
-	});
-
 	// ui_* tools reach the page through the sidecar HTTP listener below (same
 	// process, shared tab registry). If the sidecar cannot start, no tab can
 	// connect and ui_* tools return the "No browser tab connected" error.
-	registerMcpTools(server, z);
+	const server = createSvelteGrabMcpServer(McpServer, z);
 
 	// Start sidecar HTTP server for browser context bridge
 	try {

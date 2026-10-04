@@ -3,8 +3,9 @@
  *
  * Does what `npx svelte-grab init` does: svelte-grab dev dependency, `.mcp.json`
  * (svelte-grab + optional @sveltejs/mcp and @playwright/mcp), `svelteGrab()` in
- * the Vite config, `<SvelteDevKit />` in the root layout and the agent skills
- * in `.claude/skills/`.
+ * the Vite config, `<SvelteDevKit />` in the root layout, the agent skills in
+ * `.claude/skills/` and, with the `codex` option (default yes), the same for
+ * OpenAI Codex: `.codex/config.toml`, `.agents/skills/` and AGENTS.md.
  *
  * sv (1.x) loads it as the `./sv` export of the svelte-grab package: it unpacks
  * the npm tarball into its own node_modules (no dependency install) and
@@ -48,7 +49,8 @@ export interface SvelteGrabSvAddon {
 
 const options: SvelteGrabSvAddon['options'] = {
 	mcpJson: {
-		question: 'Write .mcp.json so your coding agent starts the svelte-grab MCP server?',
+		question:
+			'Write the MCP config so your coding agent starts the svelte-grab MCP server (.mcp.json; .codex/config.toml for Codex)?',
 		type: 'boolean',
 		default: DEFAULT_OPTIONS.mcpJson
 	},
@@ -74,6 +76,12 @@ const options: SvelteGrabSvAddon['options'] = {
 			'Install the svelte-grab agent skills into .claude/skills/ (UI loop + security/performance audit)?',
 		type: 'boolean',
 		default: DEFAULT_OPTIONS.skills
+	},
+	codex: {
+		question:
+			'Also set up OpenAI Codex (.codex/config.toml, skills in .agents/skills/, AGENTS.md section)?',
+		type: 'boolean',
+		default: DEFAULT_OPTIONS.codex
 	}
 };
 

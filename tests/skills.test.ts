@@ -12,9 +12,8 @@ import {
 import { tmpdir } from 'os';
 import { join, relative } from 'path';
 import { fileURLToPath } from 'url';
+import { AGENTS_MD_MARKER } from '../src/cli/agents.js';
 import {
-	AGENTS_MD_MARKER,
-	appendAgentsMdPointer,
 	normalizeSkillsDir,
 	parseSkillFrontmatter,
 	parseSkillsManifest,
@@ -514,29 +513,6 @@ describe('sha256Hex', () => {
 	});
 });
 
-describe('appendAgentsMdPointer', () => {
-	it('appends once, with the marker, the dir and every skill', () => {
-		const first = appendAgentsMdPointer('# Agents\n\nRules.\n', '.agents/skills', [
-			'svelte-grab',
-			'svelte-grab-audit'
-		]);
-		expect(first.changed).toBe(true);
-		expect(first.content.startsWith('# Agents\n\nRules.\n\n' + AGENTS_MD_MARKER)).toBe(true);
-		expect(first.content).toContain('`.agents/skills/svelte-grab/SKILL.md`');
-		expect(first.content).toContain('`.agents/skills/svelte-grab-audit/SKILL.md`');
-		expect(appendAgentsMdPointer(first.content, '.agents/skills', ['svelte-grab'])).toEqual({
-			content: first.content,
-			changed: false
-		});
-	});
-
-	it('separates from content without a trailing newline', () => {
-		expect(
-			appendAgentsMdPointer('x', undefined, ['a']).content.startsWith(`x\n\n${AGENTS_MD_MARKER}`)
-		).toBe(true);
-	});
-});
-
 // ============================================================
 // File system: installSkills / init / CLI
 // ============================================================
@@ -590,11 +566,22 @@ describe('installSkills (file system)', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('init copies the skills into .claude/skills by default', () => {
+	it('init copies the skills into .claude/skills and .agents/skills by default', () => {
 		kitProject();
 		const result = init(dir);
 		expect(result.ok).toBe(true);
-		expect(result.skills?.written).toEqual([...EXPECTED, MANIFEST]);
+		expect(result.skills?.targets.map((t) => t.skillsDir)).toEqual([
+			'.claude/skills',
+			'.agents/skills'
+		]);
+		expect(result.skills?.targets[0].written).toEqual([...EXPECTED, MANIFEST]);
+		expect(result.skills?.targets[1].written).toEqual([
+			...files.map((f) => `.agents/skills/${f.path}`),
+			'.agents/skills/.svelte-grab-skills.json'
+		]);
+		expect(readFileSync(join(dir, '.agents/skills/.svelte-grab-skills.json'), 'utf-8')).toBe(
+			readFileSync(join(dir, MANIFEST), 'utf-8')
+		);
 		for (const rel of EXPECTED) expect(result.written).toContain(rel);
 		for (const f of files)
 			expect(readFileSync(join(dir, '.claude/skills', f.path), 'utf-8')).toBe(f.content);
@@ -605,8 +592,18 @@ describe('installSkills (file system)', () => {
 		expect(manifest.files).toEqual(
 			Object.fromEntries(files.map((f) => [f.path, sha256(f.content)]))
 		);
-		expect(result.skills?.agentsMd).toBe('absent');
+		// Codex reads AGENTS.md: created with the svelte-grab section.
+		expect(result.agentsMd).toBe('created');
+		expect(readFileSync(join(dir, 'AGENTS.md'), 'utf-8')).toContain(AGENTS_MD_MARKER);
+	});
+
+	it('init --agents claude: .claude/skills only, no AGENTS.md created', () => {
+		kitProject();
+		const result = init(dir, parseInitArgs(['--agents', 'claude']));
+		expect(result.skills?.targets.map((t) => t.skillsDir)).toEqual(['.claude/skills']);
+		expect(result.agentsMd).toBe('absent');
 		expect(existsSync(join(dir, 'AGENTS.md'))).toBe(false);
+		expect(existsSync(join(dir, '.agents'))).toBe(false);
 	});
 
 	it('is idempotent: a second run writes nothing', () => {
@@ -745,9 +742,10 @@ describe('installSkills (file system)', () => {
 		expect(existsSync(join(dir, '.claude'))).toBe(false);
 	});
 
-	it('--skills-dir puts them elsewhere', () => {
+	it('--skills-dir puts them in that one directory instead', () => {
 		kitProject();
 		const result = init(dir, parseInitArgs(['--skills-dir', '.agents/skills']));
+		expect(result.skills?.targets).toHaveLength(1);
 		expect(result.skills?.written).toEqual([
 			...files.map((f) => `.agents/skills/${f.path}`),
 			'.agents/skills/.svelte-grab-skills.json'
@@ -756,19 +754,20 @@ describe('installSkills (file system)', () => {
 		expect(existsSync(join(dir, '.claude'))).toBe(false);
 	});
 
-	it('appends the AGENTS.md pointer once when AGENTS.md exists', () => {
+	it('appends the AGENTS.md section once when AGENTS.md exists', () => {
 		kitProject();
 		write('AGENTS.md', '# Project rules\n');
 		const first = init(dir);
-		expect(first.skills?.agentsMd).toBe('appended');
+		expect(first.agentsMd).toBe('appended');
 		expect(first.written).toContain('AGENTS.md');
 		const agents = readFileSync(join(dir, 'AGENTS.md'), 'utf-8');
 		expect(agents.startsWith('# Project rules\n')).toBe(true);
 		expect(agents.split(AGENTS_MD_MARKER)).toHaveLength(2);
-		expect(agents).toContain('.claude/skills/svelte-grab-audit/SKILL.md');
+		expect(agents).toContain('.agents/skills/svelte-grab-audit/SKILL.md');
+		expect(agents).toContain('`.claude/skills/`');
 
 		const second = init(dir);
-		expect(second.skills?.agentsMd).toBe('already-present');
+		expect(second.agentsMd).toBe('already-present');
 		expect(second.written).toEqual([]);
 		expect(readFileSync(join(dir, 'AGENTS.md'), 'utf-8')).toBe(agents);
 	});
@@ -779,8 +778,9 @@ describe('installSkills (file system)', () => {
 		const before = tree();
 		const result = init(dir, { dryRun: true });
 		expect(result.written).toEqual([]);
-		expect(result.skills?.files.every((f) => f.action === 'create')).toBe(true);
-		expect(result.skills?.agentsMd).toBe('appended');
+		for (const target of result.skills?.targets ?? [])
+			expect(target.files.every((f) => f.action === 'create')).toBe(true);
+		expect(result.agentsMd).toBe('appended');
 		expect(tree()).toEqual(before);
 		const logged = logSpy.mock.calls.map((c) => c.join(' ')).join('\n');
 		expect(logged).toContain('Would add .claude/skills/svelte-grab/SKILL.md');
@@ -789,7 +789,7 @@ describe('installSkills (file system)', () => {
 	it('parses the skill flags', () => {
 		expect(parseSkillsFlags([])).toEqual({
 			skills: true,
-			skillsDir: '.claude/skills',
+			skillsDir: undefined,
 			forceSkills: false
 		});
 		expect(
@@ -809,8 +809,60 @@ describe('installSkills (file system)', () => {
 			expect(tree()).toEqual({});
 			expect(runSkillsCommand(['skills', 'install', '--skills-dir', 'x/skills'], dir)).toBe(0);
 			expect(Object.keys(tree()).sort()).toEqual(
-				[...files.map((f) => `x/skills/${f.path}`), 'x/skills/.svelte-grab-skills.json'].sort()
+				[
+					...files.map((f) => `x/skills/${f.path}`),
+					'x/skills/.svelte-grab-skills.json',
+					'AGENTS.md'
+				].sort()
 			);
+			expect(readFileSync(join(dir, 'AGENTS.md'), 'utf-8')).toContain(
+				'x/skills/svelte-grab/SKILL.md'
+			);
+		});
+
+		it('install: one target per agent (--agents, --no-codex, --no-agents-md), idempotent', () => {
+			expect(runSkillsCommand(['skills', 'install'], dir)).toBe(0);
+			const both = tree();
+			expect(
+				Object.keys(both)
+					.filter((p) => p.endsWith('SKILL.md'))
+					.sort()
+			).toEqual(
+				[
+					'.agents/skills/svelte-grab-audit/SKILL.md',
+					'.agents/skills/svelte-grab/SKILL.md',
+					'.claude/skills/svelte-grab-audit/SKILL.md',
+					'.claude/skills/svelte-grab/SKILL.md'
+				].sort()
+			);
+			expect(both['AGENTS.md']).toContain(AGENTS_MD_MARKER);
+			expect(runSkillsCommand(['skills', 'install'], dir)).toBe(0);
+			expect(tree()).toEqual(both);
+
+			rmSync(dir, { recursive: true, force: true });
+			mkdirSync(dir);
+			expect(runSkillsCommand(['skills', 'install', '--no-codex'], dir)).toBe(0);
+			expect(Object.keys(tree()).some((p) => p.startsWith('.agents/') || p === 'AGENTS.md')).toBe(
+				false
+			);
+
+			rmSync(dir, { recursive: true, force: true });
+			mkdirSync(dir);
+			expect(runSkillsCommand(['skills', 'install', '--agents=codex', '--no-agents-md'], dir)).toBe(
+				0
+			);
+			expect(Object.keys(tree()).some((p) => p.startsWith('.claude/') || p === 'AGENTS.md')).toBe(
+				false
+			);
+			expect(existsSync(join(dir, '.agents/skills/svelte-grab/SKILL.md'))).toBe(true);
+		});
+
+		it('install rejects unknown agents and an empty selection', () => {
+			expect(runSkillsCommand(['skills', 'install', '--agents', 'cursor'], dir)).toBe(1);
+			expect(runSkillsCommand(['skills', 'install', '--agents', 'codex', '--no-codex'], dir)).toBe(
+				1
+			);
+			expect(tree()).toEqual({});
 		});
 
 		it('list and path', () => {

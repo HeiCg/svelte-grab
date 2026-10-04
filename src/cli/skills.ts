@@ -2,9 +2,12 @@
  * Agent skills install: `svelte-grab init` (default on) and
  * `svelte-grab skills install|list|path`.
  *
- * Copies the packaged `skills/<name>/` folders into the project
- * (`.claude/skills/` by default) and records what it wrote in
- * `<skillsDir>/.svelte-grab-skills.json` (version + SHA-256 per file).
+ * Copies the packaged `skills/<name>/` folders into the project, once per
+ * agent (`.claude/skills/` for Claude Code, `.agents/skills/` for Codex; a
+ * single `--skills-dir` instead when given) and records what it wrote in
+ * `<skillsDir>/.svelte-grab-skills.json` (version + SHA-256 per file, one
+ * manifest per directory). Then adds the svelte-grab section to AGENTS.md
+ * (and a pointer in CLAUDE.md), see {@link updateAgentDocs}.
  * Idempotent. On upgrade, a file still matching its recorded hash is replaced
  * in place; a file the user changed is never overwritten (the new version goes
  * to `<file>.new`) unless `--force-skills`. Files a newer version stopped
@@ -25,7 +28,18 @@ import {
 import { dirname, join, sep } from 'node:path';
 import { packagedSkillsDir, packageVersion, readSkillFiles } from '../utils/packaged-skills.js';
 import {
-	appendAgentsMdPointer,
+	AGENT_SKILLS_DIRS,
+	appendClaudeMdPointer,
+	parseAgentsFlags,
+	resolveAgents,
+	skillsDirsFor,
+	stringFlag,
+	upsertAgentsMd,
+	type AgentName,
+	type AgentsMdAction,
+	type ClaudeMdAction
+} from './agents.js';
+import {
 	normalizeSkillsDir,
 	parseSkillFrontmatter,
 	planSkillsInstall,
@@ -57,29 +71,19 @@ export interface SkillsInstallResult {
 	/** Project-relative files deleted: no longer shipped and never edited (empty in dry-run mode). */
 	removed: string[];
 	files: SkillFilePlan[];
-	/** AGENTS.md pointer: appended (or would be), already there, or no AGENTS.md. */
-	agentsMd: 'appended' | 'already-present' | 'absent';
-}
-
-/** Value of `--name <v>` or `--name=<v>`. */
-function stringFlag(args: string[], name: string): string | undefined {
-	for (let i = 0; i < args.length; i++) {
-		const arg = args[i];
-		if (arg.startsWith(`--${name}=`)) return arg.slice(name.length + 3);
-		if (arg === `--${name}` && args[i + 1] && !args[i + 1].startsWith('--')) return args[i + 1];
-	}
-	return undefined;
 }
 
 /** Skill flags shared by `init` and `skills install`. */
 export function parseSkillsFlags(args: string[]): {
 	skills: boolean;
-	skillsDir: string;
+	/** Explicit single target directory, or undefined for one per agent. */
+	skillsDir: string | undefined;
 	forceSkills: boolean;
 } {
+	const dir = stringFlag(args, 'skills-dir');
 	return {
 		skills: !args.includes('--no-skills'),
-		skillsDir: normalizeSkillsDir(stringFlag(args, 'skills-dir')),
+		skillsDir: dir === undefined ? undefined : normalizeSkillsDir(dir),
 		forceSkills: args.includes('--force-skills')
 	};
 }
@@ -90,6 +94,13 @@ function projectReader(cwd: string): (rel: string) => string | null {
 		const path = join(cwd, rel);
 		return existsSync(path) ? readFileSync(path, 'utf-8') : null;
 	};
+}
+
+/** Write a project-relative file, creating its folders. */
+function saveProjectFile(cwd: string, rel: string, content: string): void {
+	const path = join(cwd, rel);
+	mkdirSync(dirname(path), { recursive: true });
+	writeFileSync(path, content, 'utf-8');
 }
 
 /** Plan against the project in `cwd` (shared by install and list). */
@@ -132,8 +143,7 @@ export function installSkills(
 		skills: [],
 		written: [],
 		removed: [],
-		files: [],
-		agentsMd: 'absent'
+		files: []
 	};
 
 	let files = options.files;
@@ -148,11 +158,8 @@ export function installSkills(
 		files = readSkillFiles(dir);
 	}
 
-	const read = projectReader(cwd);
 	const save = (rel: string, content: string) => {
-		const path = join(cwd, rel);
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, content, 'utf-8');
+		saveProjectFile(cwd, rel, content);
 		result.written.push(rel);
 	};
 
@@ -201,20 +208,125 @@ export function installSkills(
 		}
 	}
 
-	// AGENTS.md pointer (only when the project already has one)
-	const agents = read('AGENTS.md');
-	if (agents !== null) {
-		const pointer = appendAgentsMdPointer(agents, skillsDir, plan.skills);
-		result.agentsMd = pointer.changed ? 'appended' : 'already-present';
-		if (pointer.changed) {
-			console.log(
-				`[svelte-grab] ${verb('Added', 'Would add')} a svelte-grab skills pointer to AGENTS.md`
+	result.ok = true;
+	return result;
+}
+
+export interface AgentSkillsInstallOptions extends Omit<SkillsInstallOptions, 'skillsDir'> {
+	/** Project-relative directories to install into, each with its own manifest. */
+	skillsDirs: readonly string[];
+}
+
+export interface AgentSkillsInstallResult {
+	ok: boolean;
+	/** Skill names installed. */
+	skills: string[];
+	/** One install per directory, in order. */
+	targets: SkillsInstallResult[];
+	/** Every target's `written`, in order. */
+	written: string[];
+}
+
+/**
+ * Install the skills into several directories (one per agent): the same
+ * packaged files and planner for each, so every directory gets its own
+ * manifest and the same upgrade rules.
+ */
+export function installAgentSkills(
+	cwd: string,
+	options: AgentSkillsInstallOptions
+): AgentSkillsInstallResult {
+	const result: AgentSkillsInstallResult = { ok: false, skills: [], targets: [], written: [] };
+	let files = options.files;
+	if (!files) {
+		const dir = packagedSkillsDir();
+		if (!dir) {
+			console.error(
+				'[svelte-grab] Packaged skills not found (expected skills/ next to dist/). Skipping skills.'
 			);
-			if (!options.dryRun) save('AGENTS.md', pointer.content);
+			return result;
 		}
+		files = readSkillFiles(dir);
+	}
+	for (const skillsDir of options.skillsDirs) {
+		const target = installSkills(cwd, { ...options, files, skillsDir });
+		result.targets.push(target);
+		result.written.push(...target.written);
+		for (const skill of target.skills)
+			if (!result.skills.includes(skill)) result.skills.push(skill);
+	}
+	result.ok = result.targets.every((t) => t.ok);
+	return result;
+}
+
+export interface AgentDocsOptions {
+	agents: readonly AgentName[];
+	/** Skills directories installed by this run (empty when skills are skipped). */
+	skillsDirs: readonly string[];
+	/** Skill names installed. */
+	skills: readonly string[];
+	dryRun?: boolean;
+}
+
+export interface AgentDocsResult {
+	/** Project-relative files written (empty in dry-run mode). */
+	written: string[];
+	agentsMd: AgentsMdAction;
+	/** `skipped`: Claude Code not selected, or AGENTS.md has no svelte-grab section. */
+	claudeMd: ClaudeMdAction | 'skipped';
+}
+
+/**
+ * AGENTS.md and CLAUDE.md:
+ * - AGENTS.md gets the svelte-grab section once: created when Codex is
+ *   selected (Codex reads AGENTS.md), else appended only to an existing file.
+ * - CLAUDE.md, when Claude Code is selected and the project has one: Claude
+ *   Code then ignores AGENTS.md unless CLAUDE.md imports it, so a one-line
+ *   pointer to the section is appended once. CLAUDE.md is never created.
+ */
+export function updateAgentDocs(cwd: string, options: AgentDocsOptions): AgentDocsResult {
+	const read = projectReader(cwd);
+	const result: AgentDocsResult = { written: [], agentsMd: 'absent', claudeMd: 'skipped' };
+	const verb = (now: string, would: string) => (options.dryRun ? would : now);
+	const save = (rel: string, content: string) => {
+		if (options.dryRun) return;
+		saveProjectFile(cwd, rel, content);
+		result.written.push(rel);
+	};
+
+	// AGENTS.md is read by Codex first: list its skills directory first.
+	const codexDir = AGENT_SKILLS_DIRS.codex;
+	const sectionDirs = [...options.skillsDirs].sort(
+		(a, b) => Number(b === codexDir) - Number(a === codexDir)
+	);
+	const agentsMd = upsertAgentsMd(read('AGENTS.md'), {
+		skillsDirs: sectionDirs,
+		skills: options.skills,
+		create: options.agents.includes('codex')
+	});
+	result.agentsMd = agentsMd.action;
+	if (agentsMd.action === 'created' || agentsMd.action === 'appended') {
+		console.log(
+			`[svelte-grab] ${agentsMd.action === 'created' ? verb('Created', 'Would create') : verb('Added', 'Would add')} ` +
+				`${agentsMd.action === 'created' ? 'AGENTS.md with ' : ''}a svelte-grab section${agentsMd.action === 'appended' ? ' to AGENTS.md' : ''}`
+		);
+		save('AGENTS.md', agentsMd.content);
 	}
 
-	result.ok = true;
+	if (options.agents.includes('claude') && agentsMd.action !== 'absent') {
+		const claudeDir = options.skillsDirs.includes(AGENT_SKILLS_DIRS.claude)
+			? AGENT_SKILLS_DIRS.claude
+			: null;
+		const claudeMd = appendClaudeMdPointer(read('CLAUDE.md'), claudeDir);
+		result.claudeMd = claudeMd.action;
+		if (claudeMd.action === 'appended') {
+			console.log(
+				`[svelte-grab] ${verb('Added', 'Would add')} a one-line svelte-grab pointer to CLAUDE.md ` +
+					'(Claude Code skips AGENTS.md when CLAUDE.md exists)'
+			);
+			save('CLAUDE.md', claudeMd.content);
+		}
+	}
 	return result;
 }
 
@@ -265,6 +377,23 @@ export function listSkills(files: readonly SkillFile[], plan?: SkillsPlan): stri
 	return lines;
 }
 
+/** Agents and skills directories from `--agents` / `--no-codex` / `--skills-dir`; null (after an error) on unknown agents. */
+function skillsTargets(args: string[]): { agents: AgentName[]; skillsDirs: string[] } | null {
+	const { agents, unknown } = resolveAgents(parseAgentsFlags(args).agents);
+	if (unknown.length) {
+		console.error(
+			`[svelte-grab] Unknown agent(s): ${unknown.join(', ')}. Use --agents claude,codex (or a subset).`
+		);
+		return null;
+	}
+	const { skillsDir } = parseSkillsFlags(args);
+	if (agents.length === 0 && skillsDir === undefined) {
+		console.error('[svelte-grab] No agent selected. Use --agents claude,codex (or a subset).');
+		return null;
+	}
+	return { agents, skillsDirs: skillsDirsFor(agents, skillsDir) };
+}
+
 /**
  * `svelte-grab skills <install|list|path>`. Returns the process exit code.
  */
@@ -286,23 +415,37 @@ export function runSkillsCommand(args: string[], cwd: string = process.cwd()): n
 			console.error('[svelte-grab] Packaged skills not found.');
 			return 1;
 		}
-		const { skillsDir } = parseSkillsFlags(args);
+		const targets = skillsTargets(args);
+		if (!targets) return 1;
 		const files = readSkillFiles(dir);
-		console.log(
-			`[svelte-grab] Packaged skills (svelte-grab ${packageVersion() ?? 'unknown'}) vs ${skillsDir}/:`
-		);
-		for (const line of listSkills(files, planForProject(cwd, files, skillsDir, false)))
-			console.log(line);
+		for (const skillsDir of targets.skillsDirs) {
+			console.log(
+				`[svelte-grab] Packaged skills (svelte-grab ${packageVersion() ?? 'unknown'}) vs ${skillsDir}/:`
+			);
+			for (const line of listSkills(files, planForProject(cwd, files, skillsDir, false)))
+				console.log(line);
+		}
 		return 0;
 	}
 
 	if (sub === 'install') {
+		const targets = skillsTargets(args);
+		if (!targets) return 1;
 		const flags = parseSkillsFlags(args);
 		const dryRun = args.includes('--dry-run');
 		if (dryRun) console.log('[svelte-grab] Dry run mode - no files will be written\n');
 		const force = flags.forceSkills || args.includes('--force');
-		const result = installSkills(cwd, { skillsDir: flags.skillsDir, force, dryRun });
-		return result.ok ? 0 : 1;
+		const result = installAgentSkills(cwd, { skillsDirs: targets.skillsDirs, force, dryRun });
+		if (!result.ok) return 1;
+		if (!args.includes('--no-agents-md')) {
+			updateAgentDocs(cwd, {
+				agents: targets.agents,
+				skillsDirs: targets.skillsDirs,
+				skills: result.skills,
+				dryRun
+			});
+		}
+		return 0;
 	}
 
 	console.error(

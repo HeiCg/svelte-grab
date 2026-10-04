@@ -317,49 +317,6 @@ export function sha256Hex(text: string): string {
 }
 
 // ============================================================
-// AGENTS.md pointer
-// ============================================================
-
-/** Marker that makes the AGENTS.md pointer idempotent. */
-export const AGENTS_MD_MARKER = '<!-- svelte-grab-skills -->';
-
-/** One-line purpose of each shipped skill, for the AGENTS.md pointer. */
-const SKILL_SUMMARIES: Record<string, string> = {
-	'svelte-grab': 'inspect, edit and verify the live UI with the svelte-grab `ui_*` MCP tools',
-	'svelte-grab-audit':
-		'per-screen security and performance audit (requests, credential leaks, hot components, memory)'
-};
-
-/**
- * Append a short "svelte-grab skills" section to an existing AGENTS.md, once
- * (the marker comment makes it idempotent). Returns `changed: false` when the
- * marker is already there.
- */
-export function appendAgentsMdPointer(
-	existing: string,
-	skillsDir: string | undefined,
-	skills: readonly string[]
-): { content: string; changed: boolean } {
-	if (existing.includes(AGENTS_MD_MARKER)) return { content: existing, changed: false };
-	const dir = normalizeSkillsDir(skillsDir);
-	const lines = [
-		AGENTS_MD_MARKER,
-		'## svelte-grab skills',
-		'',
-		`Agent skills installed by svelte-grab live in \`${dir}/\`. Read the SKILL.md before using the svelte-grab MCP tools:`,
-		'',
-		...skills.map(
-			(name) =>
-				`- \`${dir}/${name}/SKILL.md\`${SKILL_SUMMARIES[name] ? `: ${SKILL_SUMMARIES[name]}` : ''}`
-		),
-		''
-	];
-	const separator =
-		existing === '' || existing.endsWith('\n\n') ? '' : existing.endsWith('\n') ? '\n' : '\n\n';
-	return { content: `${existing}${separator}${lines.join('\n')}`, changed: true };
-}
-
-// ============================================================
 // SKILL.md frontmatter
 // ============================================================
 
